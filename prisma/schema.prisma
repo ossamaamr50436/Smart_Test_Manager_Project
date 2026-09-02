@@ -1,0 +1,281 @@
+// ============================================================
+// منصة مدير الاختبارات الذكي الشامل
+// Prisma Schema — PostgreSQL (Neon)
+// المرحلة 1: إعداد المخطط الأساسي
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// الأدوار (Enums)
+// ------------------------------------------------------------
+enum Role {
+  ADMIN // المسؤول
+  HEAD_OF_AFFAIRS // رئيس الشؤون التعليمية
+  CERTIFICATE_SOURCE // مصدر الشهادات
+  TEST_SPECIALIST // أخصائي الاختبارات
+  EXAMINER // المختبر (المعلم)
+  INSTITUTION // الجهة التعليمية
+}
+
+enum StudentStatus {
+  PENDING // بانتظار المراجعة
+  APPROVED // مقبول
+  REJECTED // مرفوض
+  ASSIGNED // تم توزيعه على لجنة
+  COMPLETED // اكتمل تقييمه
+}
+
+enum ExamSessionStatus {
+  SCHEDULED // تم تحديد الموعد
+  IN_PROGRESS // جارٍ التقييم
+  COMPLETED // اكتمل التقييم
+  CANCELLED // ملغى
+}
+
+enum AssessmentStatus {
+  DRAFT // تقييم أولي قيد التحرير
+  APPROVED // اعتمده المعلم الأكبر سناً
+  FINALIZED // اعتمد نهائياً من المعلم الأصغر
+  ACCEPTED // اعتمده الأخصائي
+  NOTIFIED // وافق عليه رئيس الشؤون
+}
+
+enum CertificateStatus {
+  PENDING // بانتظار التوقيع
+  SIGNED // تم التوقيع
+  UPLOADED // تم رفعه على Drive
+  SENT // أُرسل للجهة
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  RECRUITMENT // ترشيح جديد
+  APPROVAL // موافقة/رفض
+  SCHEDULE // تحديد موعد
+  ASSESSMENT // تقييم
+  CERTIFICATE // شهادة
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  APPROVE
+  REJECT
+  ASSESS
+}
+
+// ------------------------------------------------------------
+// المستخدمون
+// ------------------------------------------------------------
+model User {
+  id            String       @id @default(cuid())
+  name          String
+  email         String       @unique
+  password      String // مشفرة بـ bcrypt
+  role          Role
+  birthDate     DateTime? // لحساب الترتيب الأعمار في الاعتماد المتسلسل
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  institutionId String? // للمستخدمين من نوع Institution فقط (عزل الصلاحيات)
+
+  institution        Institution?  @relation(fields: [institutionId], references: [id])
+  auditLogs          AuditLog[]    @relation("UserAuditLogs")
+  notifications      Notification[]
+  sessionsAsTeacher1 ExamSession[] @relation("Teacher1")
+  sessionsAsTeacher2 ExamSession[] @relation("Teacher2")
+  assessments        Assessment[]
+  certificatesIssued Certificate[] @relation("CertificateIssuer")
+
+  @@index([institutionId])
+  @@map("users")
+}
+
+// ------------------------------------------------------------
+// الجهات التعليمية
+// ------------------------------------------------------------
+model Institution {
+  id          String  @id @default(cuid())
+  name        String
+  contactInfo String?
+  credentials String? // معرف/كلمة مرور خاصة بالجهة
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  students   Student[]
+  examModels ExamModel[]
+
+  @@map("institutions")
+}
+
+// ------------------------------------------------------------
+// الطلاب
+// ------------------------------------------------------------
+model Student {
+  id            String        @id @default(cuid())
+  name          String
+  age           Int
+  branch        String // الفرع: 5/10/15/20/25/30 جزء
+  teacherName   String
+  parentPhone   String
+  address       String?
+  phone         String?
+  status        StudentStatus @default(PENDING)
+  institutionId String
+  createdAt     DateTime      @default(now()) // تاريخ الترشيح
+  updatedAt     DateTime      @updatedAt
+
+  institution  Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  examSessions ExamSession[]
+  certificates Certificate[]
+
+  @@index([institutionId])
+  @@map("students")
+}
+
+// ------------------------------------------------------------
+// النماذج الاختبارية (100 نموذج)
+// detailsJSON يخزن السور والآيات والتفاصيل
+// ------------------------------------------------------------
+model ExamModel {
+  id            String @id @default(cuid())
+  modelNumber   Int // 1-100
+  detailsJSON   Json // السور والآيات والترتيب
+  institutionId String
+
+  institution Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  assessments Assessment[]
+
+  @@unique([institutionId, modelNumber])
+  @@index([institutionId])
+  @@map("exam_models")
+}
+
+// ------------------------------------------------------------
+// جلسات الاختبار (اللجان)
+// اللجنة = معلمان: teacher1 (الأكبر سناً) و teacher2 (الأصغر سناً)
+// ------------------------------------------------------------
+model ExamSession {
+  id         String            @id @default(cuid())
+  studentId  String
+  teacher1Id String // المقيّم الأول (الأكبر سناً)
+  teacher2Id String // المقيّم الثاني (الأصغر سناً)
+  examDate   DateTime
+  period     String // صباحي / مسائي
+  status     ExamSessionStatus @default(SCHEDULED)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher1 User    @relation("Teacher1", fields: [teacher1Id], references: [id])
+  teacher2 User    @relation("Teacher2", fields: [teacher2Id], references: [id])
+
+  assessments   Assessment[]
+  notifications Notification[]
+
+  @@index([studentId])
+  @@index([teacher1Id])
+  @@index([teacher2Id])
+  @@map("exam_sessions")
+}
+
+// ------------------------------------------------------------
+// التقييمات
+// ------------------------------------------------------------
+model Assessment {
+  id              String           @id @default(cuid())
+  examSessionId   String
+  evaluatorId     String // المقيّم الحالي
+  modelId         String // النموذج المختار
+  errorsCount     Int              @default(0) // الأخطاء -1 درجة
+  doubtsCount     Int              @default(0) // الشك -0.5 درجة
+  tajweedCount    Int              @default(0) // التجويد -0.25 درجة
+  totalDeduction  Float            @default(0) // إجمالي الخصم
+  finalScore      Float            @default(0) // الدرجة النهائية
+  isFinalApproved Boolean          @default(false)
+  status          AssessmentStatus @default(DRAFT)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  examSession ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  evaluator   User        @relation(fields: [evaluatorId], references: [id])
+  model       ExamModel   @relation(fields: [modelId], references: [id])
+
+  // منع تكرار نفس النموذج على نفس الجلسة/الطالب
+  @@unique([examSessionId, modelId])
+  @@index([examSessionId])
+  @@index([evaluatorId])
+  @@map("assessments")
+}
+
+// ------------------------------------------------------------
+// الشهادات
+// ------------------------------------------------------------
+model Certificate {
+  id         String            @id @default(cuid())
+  studentId  String
+  finalScore Float
+  fileUrl    String? // رابط Google Drive
+  issuedDate DateTime?
+  status     CertificateStatus @default(PENDING)
+  issuedById String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issuedBy User?   @relation("CertificateIssuer", fields: [issuedById], references: [id])
+
+  @@index([studentId])
+  @@map("certificates")
+}
+
+// ------------------------------------------------------------
+// الإشعارات
+// ------------------------------------------------------------
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  message       String
+  type          NotificationType @default(INFO)
+  isRead        Boolean          @default(false)
+  examSessionId String?
+  createdAt     DateTime         @default(now())
+
+  user        User?        @relation(fields: [userId], references: [id])
+  examSession ExamSession? @relation(fields: [examSessionId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ------------------------------------------------------------
+// سجل التدقيق
+// ------------------------------------------------------------
+model AuditLog {
+  id        String      @id @default(cuid())
+  userId    String?
+  action    AuditAction
+  details   Json?
+  timestamp DateTime    @default(now())
+
+  user User? @relation("UserAuditLogs", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
