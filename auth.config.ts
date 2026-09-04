@@ -19,6 +19,8 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt" as const,
+    // انتهاء الجلسة بعد 8 ساعات (OWASP Broken Authentication)
+    maxAge: 8 * 60 * 60,
   },
   callbacks: {
     authorized({ auth, request }) {

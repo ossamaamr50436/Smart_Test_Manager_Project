@@ -1,5 +1,8 @@
 import { Role } from "@prisma/client";
 
+// مفاتيح الأدوار (للاستخدام في الشريط الجانبي والمسارات)
+export type RoleKey = keyof typeof ROLE_LABELS;
+
 // أسماء الأدوار بالعربية للعرض
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "المسؤول",

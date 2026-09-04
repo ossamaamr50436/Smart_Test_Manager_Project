@@ -1,6 +1,6 @@
 "use server";
 
-import { getCurrentUser } from "@/lib/actions/auth-actions";
+import { requireUser, requireRole, assertInstitutionOwnsStudent } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus, NotificationType, AuditAction } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -32,15 +32,10 @@ async function recordAudit(userId: string, action: AuditAction, details: unknown
  * - الحالة PENDING + إشعار لأخصائي الاختبارات
  */
 export async function createStudentApplication(input: StudentApplicationInput) {
-  const user = await getCurrentUser();
+  const user = await requireUser();
 
   // عزل الصلاحيات: الجهة التعليمية فقط
-  if (!user) {
-    throw new Error("غير مصرح: يجب تسجيل الدخول أولاً");
-  }
-  if (user.role !== Role.INSTITUTION) {
-    throw new Error("غير مصرح: ترشيح الطلاب متاح للجهات التعليمية فقط");
-  }
+  requireRole(user, [Role.INSTITUTION]);
   if (!user.institutionId) {
     throw new Error("حساب الجهة غير مرتبط بمؤسسة تعليمية");
   }
@@ -98,15 +93,10 @@ export async function createStudentApplication(input: StudentApplicationInput) {
  * - تحدث حالة الطالب + إشعار للجهة بالنتيجة
  */
 export async function reviewStudentApplication(studentId: string, decision: ReviewDecision) {
-  const user = await getCurrentUser();
+  const user = await requireUser();
 
   // عزل الصلاحيات: الأخصائي فقط
-  if (!user) {
-    throw new Error("غير مصرح: يجب تسجيل الدخول أولاً");
-  }
-  if (user.role !== Role.TEST_SPECIALIST) {
-    throw new Error("غير مصرح: مراجعة الطلبات متاحة لأخصائي الاختبارات فقط");
-  }
+  requireRole(user, [Role.TEST_SPECIALIST]);
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -166,15 +156,10 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
  * - ينشئ ExamSession + تغيير حالة الطالب إلى ASSIGNED + إشعارات للمعلمين والجهة
  */
 export async function assignCommittee(input: CommitteeInput) {
-  const user = await getCurrentUser();
+  const user = await requireUser();
 
   // عزل الصلاحيات: الأخصائي فقط
-  if (!user) {
-    throw new Error("غير مصرح: يجب تسجيل الدخول أولاً");
-  }
-  if (user.role !== Role.TEST_SPECIALIST) {
-    throw new Error("غير مصرح: تشكيل اللجان متاح لأخصائي الاختبارات فقط");
-  }
+  requireRole(user, [Role.TEST_SPECIALIST]);
 
   const parsed = committeeSchema.safeParse(input);
   if (!parsed.success) {
@@ -184,6 +169,22 @@ export async function assignCommittee(input: CommitteeInput) {
 
   if (data.teacher1Id === data.teacher2Id) {
     throw new Error("لا يمكن اختيار المعلم نفسه في المعلمين الأول والثاني");
+  }
+
+  // التحقق من أن المعلمين موجودان
+  const teachers = await prisma.user.findMany({
+    where: { id: { in: [data.teacher1Id, data.teacher2Id] } },
+    select: { id: true, role: true },
+  });
+
+  if (teachers.length !== 2) {
+    throw new Error("أحد المعلمين غير موجود");
+  }
+
+  for (const t of teachers) {
+    if (t.role !== Role.EXAMINER) {
+      throw new Error("يجب أن يكون كل من المعلمين بدور EXAMINER");
+    }
   }
 
   const student = await prisma.student.findUnique({

@@ -6,6 +6,8 @@ import { authConfig } from "@/auth.config";
 export default NextAuth(authConfig).auth;
 
 export const config = {
-  // حماية كل المسارات ماعدا صفحات API وأصول ثابتة
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // حماية كل المسارات ماعدا صفحات API وأصول ثابتة (صور وأيقونات وملفات CSS/JS)
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|gif|css|js|woff|woff2|ttf|eot|pdf)).*)",
+  ],
 };

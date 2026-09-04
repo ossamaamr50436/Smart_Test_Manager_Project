@@ -5,11 +5,12 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "./auth.config";
+import { AuditAction } from "@prisma/client";
 
 // مخطط التحقق من بيانات الدخول
 const credentialsSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(8),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -48,6 +49,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // التحقق من كلمة المرور المشفرة
         const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) {
+          // تسجيل محاولة الدخول الفاشلة في Audit Log
+          try {
+            await prisma.auditLog.create({
+              data: {
+                userId: user.id,
+                action: AuditAction.LOGIN,
+                details: JSON.stringify({ method: "credentials", success: false }),
+              },
+            });
+          } catch {
+            // لا يمنع التسجيل الفاشل الاستجابة
+          }
           return null;
         }
 
@@ -62,4 +75,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
+  events: {
+    // تسجيل كل عملية دخول ناجحة في Audit Log (المراقبة والتسجيل)
+    async signIn({ user }) {
+      if (!user?.id) return;
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: AuditAction.LOGIN,
+            details: JSON.stringify({ method: "credentials" }),
+          },
+        });
+      } catch {
+        // فشل التسجيل لا يمنع تسجيل الدخول نفسه
+      }
+    },
+  },
 });

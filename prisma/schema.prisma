@@ -1,5 +1,5 @@
 // ============================================================
-// منصة مدير الاختبارات الذكي الشامل
+// تطبيق الاختبارات
 // Prisma Schema — PostgreSQL (Neon)
 // المرحلة 1: إعداد المخطط الأساسي
 // ============================================================
@@ -30,7 +30,10 @@ enum StudentStatus {
   APPROVED // مقبول
   REJECTED // مرفوض
   ASSIGNED // تم توزيعه على لجنة
-  COMPLETED // اكتمل تقييمه
+  COMPLETED // اكتمل تقييمه واعتماده المتسلسل
+  NOTIFIED // اعتمده الأخصائي (بانتظار اعتماد رئيس الشؤون)
+  READY_FOR_CERTIFICATE // جاهز لإصدار الشهادة
+  CERTIFICATE_ISSUED // صدرت شهادته
 }
 
 enum ExamSessionStatus {
@@ -226,15 +229,16 @@ model Assessment {
 // الشهادات
 // ------------------------------------------------------------
 model Certificate {
-  id         String            @id @default(cuid())
-  studentId  String
-  finalScore Float
-  fileUrl    String? // رابط Google Drive
-  issuedDate DateTime?
-  status     CertificateStatus @default(PENDING)
-  issuedById String?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id           String            @id @default(cuid())
+  serialNumber String            @unique // رقم تسلسلي فريد للشهادة (مثل CERT-2026-0001)
+  studentId    String
+  finalScore   Float
+  fileUrl      String? // رابط Google Drive
+  issuedDate   DateTime? // تاريخ الإصدار
+  status       CertificateStatus @default(PENDING)
+  issuedById   String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   issuedBy User?   @relation("CertificateIssuer", fields: [issuedById], references: [id])
@@ -261,6 +265,21 @@ model Notification {
   @@index([userId])
   @@index([isRead])
   @@map("notifications")
+}
+
+// ------------------------------------------------------------
+// إعدادات المنصة (Singleton)
+// ------------------------------------------------------------
+model AppSettings {
+  id              String   @id @default("singleton")
+  platformName    String   @default("تطبيق الاختبارات")
+  logoFileId      String?  // معرف ملف الشعار في Google Drive
+  logoUrl         String?  // رابط الشعار العام
+  useTemplateMode Boolean  @default(false) // تفعيل القالب الذكي للشهادات
+  templateFileId  String?  // معرف ملف قالب الشهادة في Drive
+  updatedAt       DateTime @updatedAt
+
+  @@map("app_settings")
 }
 
 // ------------------------------------------------------------
