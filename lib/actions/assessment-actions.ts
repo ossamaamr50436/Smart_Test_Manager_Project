@@ -15,12 +15,17 @@ import {
   assessmentApprovalSchema,
   type AssessmentInput,
 } from "@/lib/validations/assessment";
+import { getCurrentSeason } from "./season-actions";
+import { getExamModelsFromDrive } from "@/lib/google-drive";
 
-// معاملات الخصم لكل نوع من الأخطاء (الدرجة من 20)
-export const SCORE_FULL = 20;
-export const ERROR_PENALTY = 1; // الخطأ -1 درجة
-export const DOUBT_PENALTY = 0.5; // الشك -0.5 درجة
-export const TAJWEED_PENALTY = 0.25; // التجويد -0.25 درجة
+// معاملات الخصم لكل نوع من الأخطاء (الدرجة من 20) — تُعرَّف في وحدة منفصلة
+// حفاظاً على قاعدة "use server" (يُسمح بتصدير الدوال غير المتزامنة فقط)
+import {
+  SCORE_FULL,
+  ERROR_PENALTY,
+  DOUBT_PENALTY,
+  TAJWEED_PENALTY,
+} from "@/lib/score-config";
 
 /** تسجيل حدث في Audit Log */
 async function recordAudit(userId: string, action: AuditAction, details: unknown) {
@@ -40,7 +45,10 @@ function computeTotals(input: AssessmentInput) {
 }
 
 /**
- * إيجاد أول نموذج اختباري مرتبط بجهة الطالب (تمهيد: النماذج ستأتي من Google Drive لاحقاً)
+ * إيجاد نموذج اختباري لجهة الطالب في الموسم النشط
+ * (المادة 6 — النماذج مرتبطة بالموسم)
+ * يقرأ النماذج من قاعدة البيانات، بينما تُخزَّن ملفات النماذج على Google Drive
+ * (المادة 3 — لا تخزين محلي)
  */
 async function resolveModelId(sessionId: string): Promise<string | null> {
   const session = await prisma.examSession.findFirst({
@@ -49,11 +57,51 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
   });
   if (!session) return null;
 
+  const season = await getCurrentSeason();
+
+  // (المادة 6) — اختيار نموذج من هذه الجهة في الموسم الحالي لم يُستخدم بعد مع طالب آخر:
+  // لا نعتمد دائماً على "أول نموذج" لأنه سيتكرر مع كل طالب ويُمنع بقاعدة منع التكرار.
+  const usedModels = await prisma.assessment.findMany({
+    where: { examSession: { student: { institutionId: session.student.institutionId } } },
+    select: { modelId: true },
+    distinct: ["modelId"],
+  });
+  const usedModelIds = usedModels.map((m) => m.modelId);
+
   const model = await prisma.examModel.findFirst({
-    where: { institutionId: session.student.institutionId },
-    select: { id: true },
+    where: {
+      institutionId: session.student.institutionId,
+      ...(season ? { seasonId: season.id } : {}),
+      NOT: usedModelIds.length > 0 ? { id: { in: usedModelIds } } : undefined,
+    },
+    select: { id: true, modelNumber: true },
     orderBy: { modelNumber: "asc" },
   });
+
+  if (!model) {
+    // إن لم يوجد نموذج في قاعدة البيانات، نتحقق من توفر النماذج على Drive
+    try {
+      const models = await getExamModelsFromDrive();
+      const driveModel = models[0];
+      if (driveModel) {
+        // نأخذ النموذج الأول المتوفر (لا يُخزّن محلياً — المادة 3)
+        // تسجيل نموذج من Drive في قاعدة البيانات لتتبع الاستخدام (المادة 6)
+        const created = await prisma.examModel.create({
+          data: {
+            modelNumber: 1,
+            detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
+            institutionId: session.student.institutionId,
+            seasonId: season?.id ?? null,
+          },
+        });
+        return created.id;
+      }
+    } catch {
+      // في حال فشل الاتصال بـ Drive نعود للوضع الحالي
+      return null;
+    }
+  }
+
   return model?.id ?? null;
 }
 
@@ -83,6 +131,27 @@ export async function saveAssessment(input: AssessmentInput) {
 
   const modelId = await resolveModelId(session.id);
 
+  if (!modelId) {
+    throw new Error("لا يوجد نموذج اختباري مرتبط بهذه الجهة في الموسم الحالي");
+  }
+
+  // منع تكرار النموذج على طالبين في نفس الموسم (المادة 6)
+  const duplicateModel = await prisma.assessment.findFirst({
+    where: {
+      modelId,
+      examSession: {
+        student: { institutionId: session.student.institutionId },
+        NOT: { id: session.id },
+      },
+    },
+    include: { examSession: { include: { student: { select: { name: true } } } } },
+  });
+  if (duplicateModel) {
+    throw new Error(
+      `النموذج مستخدم بالفعل مع الطالب ${duplicateModel.examSession.student.name} في هذا الموسم`
+    );
+  }
+
   const existing = await prisma.assessment.findFirst({
     where: { examSessionId: session.id, evaluatorId: user.id },
   });
@@ -92,7 +161,7 @@ export async function saveAssessment(input: AssessmentInput) {
     create: {
       examSessionId: session.id,
       evaluatorId: user.id,
-      modelId: modelId ?? "no-model-yet",
+      modelId,
       errorsCount: data.errorsCount,
       doubtsCount: data.doubtsCount,
       tajweedCount: data.tajweedCount,
@@ -171,14 +240,15 @@ export async function approveAssessment(examSessionId: string, action: "approve"
   const teacher2BD = birthDateOf(session.teacher2Id);
 
   const isSenior = (): boolean => {
-    // إذا توفر تاريخا الميلاد للمعلمين نقارنهما فعلياً
-    if (teacher1BD && teacher2BD) {
-      const teacher1IsOlder = teacher1BD <= teacher2BD;
-      if (user.id === session.teacher1Id) return teacher1IsOlder;
-      return !teacher1IsOlder;
+    // إن غاب أي من تواريخ الميلاد، نرفض العملية (المادة 5 — لا افتراضات)
+    if (!teacher1BD || !teacher2BD) {
+      throw new Error(
+        "تاريخ ميلاد أحد المعلمين غير مكتمل — لا يمكن تحديد الترتيب العمري"
+      );
     }
-    // الاحتياط عند غياب التواريخ: teacher1 يُعتبر الأكبر سناً
-    return user.id === session.teacher1Id;
+    const teacher1IsOlder = teacher1BD <= teacher2BD;
+    if (user.id === session.teacher1Id) return teacher1IsOlder;
+    return !teacher1IsOlder;
   };
 
   const seniorIsUser = isSenior();
@@ -217,7 +287,15 @@ export async function approveAssessment(examSessionId: string, action: "approve"
         "المعلم الأكبر سناً لا يقوم بالاعتماد النهائي؛ الاعتماد النهائي للمعلم الأصغر"
       );
     }
-    if (assessment.status !== AssessmentStatus.APPROVED) {
+    // الشرط الصحيح (المادة 5): يجب أن يكون تقييم المعلم الأكبر (الزميل الآخر)
+    // قد اعتمد (APPROVED) قبل أن يعتمد الأصغر نهائياً — وليس تقييم المستخدم نفسه.
+    const seniorTeacherId =
+      user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id;
+    const seniorAssessment = await prisma.assessment.findFirst({
+      where: { examSessionId: session.id, evaluatorId: seniorTeacherId },
+      select: { status: true },
+    });
+    if (!seniorAssessment || seniorAssessment.status !== AssessmentStatus.APPROVED) {
       throw new Error("يجب أن يعتمد المعلم الأكبر التقييم قبل الاعتماد النهائي");
     }
     await prisma.assessment.update({
@@ -287,8 +365,11 @@ export async function getAssessmentState(examSessionId: string) {
   });
 }
 
-/** هل الدور من الأدوار الإدارية العليا؟ */
+/** هل الدور من الأدوار الإدارية العليا؟
+ * (المادة 8/4) يغطي فقط ADMIN و TEST_SPECIALIST — رئيس الشؤون
+ * لا يدخل واجهة التقييم الحي (Assessment) بل يطلع على الدرجات النهائية فقط.
+ */
 function isAdminRole(role: Role): boolean {
-  const adminRoles = [Role.ADMIN, Role.TEST_SPECIALIST, Role.HEAD_OF_AFFAIRS];
+  const adminRoles = [Role.ADMIN, Role.TEST_SPECIALIST];
   return (adminRoles as Role[]).includes(role);
 }

@@ -255,3 +255,72 @@ export async function getCertificateDriveLink(studentId: string) {
 
   return certificate?.fileUrl ?? null;
 }
+
+/**
+ * قائمة الشهادات بانتظار التوقيع (PENDING) — لمصدر الشهادات
+ */
+export async function getPendingCertificatesForSignature() {
+  const user = await requireUser();
+  requireRole(user, [Role.CERTIFICATE_SOURCE]);
+
+  return prisma.certificate.findMany({
+    where: { status: CertificateStatus.PENDING },
+    orderBy: { createdAt: "desc" },
+    include: {
+      student: { select: { name: true, branch: true } },
+    },
+  });
+}
+
+/**
+ * توقيع الشهادة (المادة 8/6)
+ *
+ * يرفع صورة التوقيع الرقمي على Google Drive ثم يحدّث سجل الشهادة
+ * على أن يوقّع مسؤول رفيع المستوى (Admin / HeadOfAffairs).
+ */
+export async function signCertificate(certificateId: string, signatureBuffer: Buffer) {
+  const user = await requireUser();
+
+  // عزل الصلاحيات: لا يمكن التوقيع إلا بمسؤول رفيع (المادة 8)
+  requireRole(user, [Role.ADMIN, Role.HEAD_OF_AFFAIRS]);
+
+  const certificate = await prisma.certificate.findUnique({
+    where: { id: certificateId },
+    select: { id: true, serialNumber: true, status: true },
+  });
+  if (!certificate) {
+    throw new Error("الشهادة غير موجودة");
+  }
+  if (certificate.status === CertificateStatus.SIGNED) {
+    throw new Error("الشهادة موقّعة بالفعل");
+  }
+
+  // رفع صورة التوقيع على Google Drive (المادة 3)
+  const uploaded = await uploadFileToDrive(
+    signatureBuffer,
+    `signature-${certificate.serialNumber}.png`,
+    "image/png"
+  );
+
+  await prisma.certificate.update({
+    where: { id: certificateId },
+    data: {
+      signatureUrl: uploaded.webViewLink || uploaded.fileId,
+      signedById: user.id,
+      signedAt: new Date(),
+      status: CertificateStatus.SIGNED,
+    },
+  });
+
+  await recordAudit(user.id, AuditAction.APPROVE, {
+    entity: "Certificate",
+    certificateId,
+    serialNumber: certificate.serialNumber,
+    step: "CERTIFICATE_SIGNED",
+    signatureFileId: uploaded.fileId,
+  });
+
+  revalidatePath("/dashboard/certificate-source");
+
+  return { success: true, certificateId, signatureUrl: uploaded.webViewLink };
+}

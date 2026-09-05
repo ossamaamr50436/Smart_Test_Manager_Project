@@ -63,7 +63,7 @@ export function NotificationsList() {
   async function loadNotifications() {
     try {
       const data = await getUserNotifications();
-      setNotifications(data as Notification[]);
+      setNotifications(data.notifications as Notification[]);
     } catch {
       setError("تعذر تحميل الإشعارات");
     } finally {

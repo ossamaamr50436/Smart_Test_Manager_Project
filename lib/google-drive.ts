@@ -122,3 +122,89 @@ export async function deleteFileFromDrive(fileId: string): Promise<void> {
   const drive = google.drive({ version: "v3", auth });
   await drive.files.delete({ fileId });
 }
+
+/**
+ * إنشاء مجلد داخل مجلد Drive الأصلي
+ */
+export async function createDriveFolder(folderName: string): Promise<string> {
+  const drive = google.drive({ version: "v3", auth: getAuthClient() });
+  const folderId = getDriveFolderId();
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: folderName,
+      parents: [folderId],
+      mimeType: "application/vnd.google-apps.folder",
+    },
+    fields: "id",
+  });
+
+  if (!response.data.id) {
+    throw new Error("فشل إنشاء المجلد على Google Drive");
+  }
+  return response.data.id;
+}
+
+/**
+ * رفع ملف نموذج اختباري (JSON) إلى Google Drive
+ * (المادة 3 — لا تُخزن النماذج محلياً)
+ */
+export async function uploadExamModelFile(
+  buffer: Buffer,
+  fileName: string,
+  mimeType = "application/json"
+): Promise<{ fileId: string; webViewLink: string }> {
+  const auth = getAuthClient();
+  const drive = google.drive({ version: "v3", auth });
+  const parentFolder = process.env.GOOGLE_DRIVE_MODELS_FOLDER_ID || getDriveFolderId();
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      parents: [parentFolder],
+      mimeType,
+    },
+    media: {
+      mimeType,
+      body: Readable.from(buffer),
+    },
+    fields: "id, webViewLink",
+  });
+
+  if (!response.data.id) {
+    throw new Error("فشل رفع النموذج إلى Google Drive");
+  }
+
+  await drive.permissions.create({
+    fileId: response.data.id,
+    requestBody: { role: "reader", type: "anyone" },
+  });
+
+  return {
+    fileId: response.data.id,
+    webViewLink: response.data.webViewLink ?? "",
+  };
+}
+
+/**
+ * جلب قائمة النماذج من Google Drive
+ */
+export async function getExamModelsFromDrive(folderId?: string) {
+  const drive = google.drive({ version: "v3", auth: getAuthClient() });
+  const parentFolder = folderId || process.env.GOOGLE_DRIVE_MODELS_FOLDER_ID || getDriveFolderId();
+
+  const response = await drive.files.list({
+    q: `'${parentFolder}' in parents and mimeType='application/json' and trashed=false`,
+    fields: "files(id, name, webViewLink, mimeType, size, modifiedTime)",
+    orderBy: "name",
+  });
+
+  return (response.data.files ?? []).map((f) => ({
+    fileId: f.id ?? "",
+    name: f.name ?? "",
+    webViewLink: f.webViewLink ?? "",
+    mimeType: f.mimeType ?? "",
+    size: f.size ?? "",
+    modifiedTime: f.modifiedTime ?? "",
+  }));
+}

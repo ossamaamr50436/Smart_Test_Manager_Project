@@ -46,16 +46,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // حماية Brute Force: فحص عدد المحاولات الفاشلة خلال آخر 15 دقيقة
+        const recentFails = await prisma.auditLog.count({
+          where: {
+            userId: user.id,
+            action: AuditAction.LOGIN,
+            details: { equals: { method: "credentials", success: false } },
+            timestamp: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+          },
+        });
+
+        if (recentFails >= 5) {
+          throw new Error(
+            "تم تعطيل الحساب مؤقتاً بسبب كثرة المحاولات الفاشلة، حاول بعد 15 دقيقة"
+          );
+        }
+
         // التحقق من كلمة المرور المشفرة
         const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) {
-          // تسجيل محاولة الدخول الفاشلة في Audit Log
+          // تسجيل محاولة الدخول الفاشلة في Audit Log (بتنسيق JSON منظم)
           try {
             await prisma.auditLog.create({
               data: {
                 userId: user.id,
                 action: AuditAction.LOGIN,
-                details: JSON.stringify({ method: "credentials", success: false }),
+                details: {
+                  method: "credentials",
+                  success: false,
+                },
               },
             });
           } catch {
@@ -84,7 +103,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           data: {
             userId: user.id,
             action: AuditAction.LOGIN,
-            details: JSON.stringify({ method: "credentials" }),
+            details: { method: "credentials", success: true },
           },
         });
       } catch {

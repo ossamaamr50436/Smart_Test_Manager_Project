@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,9 +63,20 @@ export function AuditLogTable() {
     loadInitialData();
   }, []);
 
+  const loadLogs = useCallback(async () => {
+    startTransition(async () => {
+      try {
+        const logs = await getAuditLogs(filters);
+        setResult(logs);
+      } catch {
+        // بدون تفاصيل خطأ (أمان)
+      }
+    });
+  }, [filters]);
+
   useEffect(() => {
     loadLogs();
-  }, [filters.page, filters.action, filters.userId, filters.dateFrom, filters.dateTo, filters.search]);
+  }, [loadLogs]);
 
   async function loadInitialData() {
     try {
@@ -82,17 +93,6 @@ export function AuditLogTable() {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function loadLogs() {
-    startTransition(async () => {
-      try {
-        const logs = await getAuditLogs(filters);
-        setResult(logs);
-      } catch {
-        // بدون تفاصيل خطأ (أمان)
-      }
-    });
   }
 
   function handleFilterChange(key: keyof AuditLogFilters, value: string) {

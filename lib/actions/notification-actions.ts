@@ -10,22 +10,38 @@ import { revalidatePath } from "next/cache";
 // ============================================================
 
 /**
- * جلب جميع إشعارات المستخدم الحالي (مرتبة من الأحدث)
+ * جلب إشعارات المستخدم الحالي (مرتبة من الأحدث) مع ترقيم الصفحات
+ * إذا لم تُمرّر page تُرجع كل الإشعارات (بحد أقصى 100) للتوافق مع الشارات
  */
-export async function getUserNotifications() {
+export async function getUserNotifications(page?: number, pageSize = 100) {
   const user = await requireUser();
 
-  return prisma.notification.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      message: true,
-      type: true,
-      isRead: true,
-      createdAt: true,
-    },
-  });
+  const skip = page && page > 1 ? (page - 1) * pageSize : 0;
+  const take = page ? pageSize : undefined;
+
+  const [notifications, total] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+      select: {
+        id: true,
+        message: true,
+        type: true,
+        isRead: true,
+        createdAt: true,
+      },
+    }),
+    prisma.notification.count({ where: { userId: user.id } }),
+  ]);
+
+  return {
+    notifications,
+    total,
+    page: page ?? 1,
+    totalPages: Math.ceil(total / pageSize),
+  };
 }
 
 /**

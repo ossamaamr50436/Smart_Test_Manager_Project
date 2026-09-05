@@ -6,11 +6,13 @@ import { connectSocket, disconnectSocket } from "@/lib/socket";
 import {
   saveAssessment,
   approveAssessment,
+} from "@/lib/actions/assessment-actions";
+import {
   ERROR_PENALTY,
   DOUBT_PENALTY,
   TAJWEED_PENALTY,
   SCORE_FULL,
-} from "@/lib/actions/assessment-actions";
+} from "@/lib/score-config";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -44,6 +46,7 @@ type SegmentState = {
 type Incoming = {
   evaluatorId?: string;
   counts?: Record<string, SegmentState>;
+  assessmentStatus?: string;
 };
 
 function emptyCounts(segments: string[]): Record<string, SegmentState> {
@@ -68,13 +71,22 @@ export function AssessmentBoard({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  // حالة التقييم الحالية — تمنع التعديل بعد الاعتماد (إصلاح ثغرة Socket.IO)
+  const [locked, setLocked] = useState(false);
 
   // المزامنة الحية (Socket.IO — تمهيد)
   // يُبثّ أي تغيير لبقية المعلمين في نفس اللجنة بدون إعادة تحميل
   useEffect(() => {
+    if (locked) return;
     const socket = connectSocket();
     socket.emit("join:assessment", { sessionId });
     socket.on("assessment:update", (incoming: Incoming) => {
+      // منع التحديث إذا كانت الحالة ليست DRAFT (الإصلاح الأمني)
+      if (locked || incoming.assessmentStatus && incoming.assessmentStatus !== "DRAFT") {
+        socket.off("assessment:update");
+        setLocked(true);
+        return;
+      }
       if (incoming.counts) {
         setCounts((prev) => {
           // دمج التحديثات الواردة مع الحالة المحلية
@@ -95,7 +107,34 @@ export function AssessmentBoard({
       socket.off("assessment:update");
       disconnectSocket();
     };
-  }, [sessionId, segments]);
+  }, [sessionId, segments, locked]);
+
+  function increment(segment: string, field: keyof SegmentState) {
+    // منع التعديل بعد الاعتماد (الإصلاح الأمني)
+    if (locked) {
+      setError("التقييم معتمد — لا يمكن تعديله بعد الآن");
+      return;
+    }
+    setError("");
+    setMessage("");
+    setCounts((prev) => {
+      const current = prev[segment] ?? { errors: 0, doubts: 0, tajweed: 0 };
+      const next: Record<string, SegmentState> = { ...prev };
+      next[segment] = {
+        ...current,
+        [field]: current[field] + 1,
+      };
+      // بثّ التحديث للجنة عبر الـ WebSocket
+      const socket = connectSocket();
+      socket.emit("assessment:update", {
+        sessionId,
+        evaluatorId,
+        counts: next,
+        assessmentStatus: "DRAFT",
+      });
+      return next;
+    });
+  }
 
   // إجمالي العدّ للعرض والحساب
   const totals = useMemo(() => {
@@ -113,27 +152,6 @@ export function AssessmentBoard({
     const finalScore = Math.max(0, Math.min(SCORE_FULL, SCORE_FULL - totalDeduction));
     return { errors, doubts, tajweed, totalDeduction, finalScore };
   }, [counts, segments]);
-
-  function increment(segment: string, field: keyof SegmentState) {
-    setError("");
-    setMessage("");
-    setCounts((prev) => {
-      const current = prev[segment] ?? { errors: 0, doubts: 0, tajweed: 0 };
-      const next: Record<string, SegmentState> = { ...prev };
-      next[segment] = {
-        ...current,
-        [field]: current[field] + 1,
-      };
-      // بثّ التحديث للجنة عبر الـ WebSocket
-      const socket = connectSocket();
-      socket.emit("assessment:update", {
-        sessionId,
-        evaluatorId,
-        counts: next,
-      });
-      return next;
-    });
-  }
 
   async function handleSave() {
     setSaving(true);
@@ -166,10 +184,12 @@ export function AssessmentBoard({
         tajweedCount: totals.tajweed,
       });
       const res = await approveAssessment(sessionId, action);
+      // قفل اللوحة بعد الاعتماد (الإصلاح الأمني)
+      setLocked(true);
       setMessage(
         action === "approve"
-          ? "تم اعتماد التقييم من المعلم الأكبر"
-          : "تم الاعتماد النهائي"
+          ? "تم اعتماد التقييم من المعلم الأكبر — اللوحة مقفلة"
+          : "تم الاعتماد النهائي — اللوحة مقفلة"
       );
       router.refresh();
     } catch (e) {
@@ -278,18 +298,26 @@ export function AssessmentBoard({
       {/* أزرار الحفظ والاعتماد حسب العمر (المادة 5) */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-3 pt-6">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "جارٍ الحفظ..." : "حفظ التقييم"}
-          </Button>
-
-          {seniorIsUser ? (
-            <Button onClick={() => handleApprove("approve")} variant="secondary">
-              اعتماد (المعلم الأكبر)
-            </Button>
+          {locked ? (
+            <p className="text-sm font-medium text-destructive">
+              التقييم معتمد — لا يمكن إجراء أي تعديل إضافي
+            </p>
           ) : (
-            <Button onClick={() => handleApprove("finalize")} variant="default">
-              اعتماد نهائي (المعلم الأصغر)
-            </Button>
+            <>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "جارٍ الحفظ..." : "حفظ التقييم"}
+              </Button>
+
+              {seniorIsUser ? (
+                <Button onClick={() => handleApprove("approve")} variant="secondary">
+                  اعتماد (المعلم الأكبر)
+                </Button>
+              ) : (
+                <Button onClick={() => handleApprove("finalize")} variant="default">
+                  اعتماد نهائي (المعلم الأصغر)
+                </Button>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

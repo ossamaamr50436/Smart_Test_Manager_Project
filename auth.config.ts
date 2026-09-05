@@ -13,6 +13,8 @@ const ROLE_DASHBOARD_PATHS: Record<string, string> = {
 
 export const authConfig = {
   providers: [], // تُضاف من auth.ts (CredentialsProvider Server-side فقط)
+  // يثق بأي Host (مطلوب في بيئة الإنتاج/خلف الوكيل — يمنع خطأ UntrustedHost)
+  trustHost: true,
   pages: {
     signIn: "/login",
     error: "/login",

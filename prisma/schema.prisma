@@ -151,6 +151,23 @@ model Student {
 }
 
 // ------------------------------------------------------------
+// مواسم الاختبارات (Seasons)
+// ------------------------------------------------------------
+model ExamSeason {
+  id        String   @id @default(cuid())
+  name      String   // مثال: "1446-الفصل الأول"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  sessions ExamSession[]
+  models   ExamModel[]
+
+  @@map("exam_seasons")
+}
+
+// ------------------------------------------------------------
 // النماذج الاختبارية (100 نموذج)
 // detailsJSON يخزن السور والآيات والتفاصيل
 // ------------------------------------------------------------
@@ -159,11 +176,13 @@ model ExamModel {
   modelNumber   Int // 1-100
   detailsJSON   Json // السور والآيات والترتيب
   institutionId String
+  seasonId      String? // الموسم الذي يتبع له النموذج (المادة 6)
 
   institution Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  season      ExamSeason?  @relation(fields: [seasonId], references: [id])
   assessments Assessment[]
 
-  @@unique([institutionId, modelNumber])
+  @@unique([institutionId, modelNumber, seasonId])
   @@index([institutionId])
   @@map("exam_models")
 }
@@ -180,12 +199,14 @@ model ExamSession {
   examDate   DateTime
   period     String // صباحي / مسائي
   status     ExamSessionStatus @default(SCHEDULED)
+  seasonId   String? // الموسم الذي تنتمي إليه الجلسة
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
-  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacher1 User    @relation("Teacher1", fields: [teacher1Id], references: [id])
-  teacher2 User    @relation("Teacher2", fields: [teacher2Id], references: [id])
+  student  Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher1 User       @relation("Teacher1", fields: [teacher1Id], references: [id])
+  teacher2 User       @relation("Teacher2", fields: [teacher2Id], references: [id])
+  season   ExamSeason? @relation(fields: [seasonId], references: [id])
 
   assessments   Assessment[]
   notifications Notification[]
@@ -237,6 +258,9 @@ model Certificate {
   issuedDate   DateTime? // تاريخ الإصدار
   status       CertificateStatus @default(PENDING)
   issuedById   String?
+  signatureUrl String? // رابط صورة التوقيع الرقمي
+  signedById   String? // معرف الموقّع
+  signedAt     DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 

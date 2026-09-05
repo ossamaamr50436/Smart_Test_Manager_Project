@@ -21,28 +21,6 @@ async function recordAudit(userId: string, action: AuditAction, details: unknown
 }
 
 /**
- * جلب آخر تقييم معتمد نهائياً (FINALIZED) لطالب معيّن — لحساب الدرجة النهائية
- * عزل الصلاحيات: الأدوار الإدارية ومصدر الشهادات فقط.
- */
-export async function getFinalizedScore(studentId: string): Promise<number | null> {
-  const user = await requireUser();
-  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST, Role.HEAD_OF_AFFAIRS, Role.CERTIFICATE_SOURCE]);
-
-  const session = await prisma.examSession.findFirst({
-    where: { studentId },
-    select: {
-      assessments: {
-        where: { status: AssessmentStatus.FINALIZED },
-        select: { finalScore: true },
-        orderBy: { updatedAt: "desc" },
-        take: 1,
-      },
-    },
-  });
-  return session?.assessments?.[0]?.finalScore ?? null;
-}
-
-/**
  * 1) الاعتماد الإداري النهائي — أخصائي الاختبارات
  * - عزل الصلاحيات: لا ينفذها إلا مستخدم بدور TEST_SPECIALIST.
  * - يحوّل الطالب المكتمل (COMPLETED) إلى NOTIFIED.

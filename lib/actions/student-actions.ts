@@ -11,6 +11,7 @@ import {
   type CommitteeInput,
   type ReviewDecision,
 } from "@/lib/validations/student";
+import { getCurrentSeason } from "./season-actions";
 
 /**
  * تسجيل حدث في Audit Log
@@ -204,6 +205,32 @@ export async function assignCommittee(input: CommitteeInput) {
     throw new Error("تاريخ الاختبار غير صحيح");
   }
 
+  // التحقق أن تاريخ الاختبار في المستقبل
+  const now = new Date();
+  if (examDate <= now) {
+    throw new Error("تاريخ الاختبار يجب أن يكون في المستقبل");
+  }
+
+  // التحقق من عدم تضارب مواعيد المعلمين (نفس المعلم في لجنتين بنفس الوقت)
+  const conflicting = await prisma.examSession.findFirst({
+    where: {
+      examDate,
+      OR: [
+        { teacher1Id: data.teacher1Id },
+        { teacher2Id: data.teacher1Id },
+        { teacher1Id: data.teacher2Id },
+        { teacher2Id: data.teacher2Id },
+      ],
+    },
+  });
+  if (conflicting) {
+    throw new Error("تضارب في مواعيد أحد المعلمين في نفس التاريخ");
+  }
+
+  // الموسم النشط الحالي (المادة 6)
+  const season = await getCurrentSeason();
+  const seasonId = season?.id ?? null;
+
   // منع التوزيع المزدوج لنفس الطالب
   const existingSession = await prisma.examSession.findFirst({
     where: { studentId: data.studentId },
@@ -220,6 +247,7 @@ export async function assignCommittee(input: CommitteeInput) {
       examDate,
       period: data.period,
       status: "SCHEDULED",
+      seasonId,
     },
   });
 
@@ -261,6 +289,7 @@ export async function assignCommittee(input: CommitteeInput) {
     teacher1Id: data.teacher1Id,
     teacher2Id: data.teacher2Id,
     examDate: data.examDate,
+    seasonId,
   });
 
   revalidatePath("/dashboard/test-specialist/committees");

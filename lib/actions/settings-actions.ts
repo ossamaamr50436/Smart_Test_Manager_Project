@@ -22,18 +22,14 @@ export type PlatformSettings = {
 
 /**
  * جلب إعدادات المنصة (دالة عامة)
- * إذا لم تكن هناك إعدادات، تنشئ الافتراضية
+ * استعلام/إنشاء ذري عبر upsert — يمنع سباق الإنشاء أثناء توليد الصفحات المسبق
  */
 export async function getPlatformSettings(): Promise<PlatformSettings> {
-  let settings = await prisma.appSettings.findUnique({
+  const settings = await prisma.appSettings.upsert({
     where: { id: "singleton" },
+    update: {},
+    create: { id: "singleton" },
   });
-
-  if (!settings) {
-    settings = await prisma.appSettings.create({
-      data: { id: "singleton" },
-    });
-  }
 
   return {
     platformName: settings.platformName,
