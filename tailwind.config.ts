@@ -20,8 +20,9 @@ const config: Config = {
       colors: {
         // الهوية البصرية الجديدة (المرحلة 2)
         // الخطوط العريضة: الأزرق المخضر #015e63 (أساسي) والذهبي البيج #d3bb8b (ثانوي)
+        // تتبع الألوان الديناميكية من CSS Variables (حوكمة الأدمن)
         primary: {
-          DEFAULT: "#015e63",
+          DEFAULT: "var(--primary)",
           50: "#e6f2f2",
           100: "#c5e2e3",
           200: "#8fc7c9",
@@ -35,7 +36,7 @@ const config: Config = {
           foreground: "#FFFFFF",
         },
         secondary: {
-          DEFAULT: "#d3bb8b",
+          DEFAULT: "var(--secondary)",
           50: "#faf7f0",
           100: "#f1ead9",
           200: "#e6d7b5",
@@ -52,7 +53,7 @@ const config: Config = {
         background: "#FFFFFF",
         border: "#E5E7EB",
         input: "#E5E7EB",
-        ring: "#015e63",
+        ring: "var(--primary)",
         destructive: {
           DEFAULT: "#DC2626",
           foreground: "#FFFFFF",

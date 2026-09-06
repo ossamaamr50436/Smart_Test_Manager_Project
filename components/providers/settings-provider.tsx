@@ -40,6 +40,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         logoFileId: null,
         useTemplateMode: false,
         templateFileId: null,
+        primaryColor: "#015e63",
+        secondaryColor: "#d3bb8b",
+        whatsappNumber: null,
+        darkModeEnabled: false,
       });
     }
   }

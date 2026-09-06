@@ -22,7 +22,7 @@ export default async function AdminSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold">إعدادات المنصة</h1>
         <p className="mt-1 text-muted-foreground">
-          التحكم الكامل بالاسم والشعار وإعدادات الشهادات
+          التحكم الكامل بالاسم والشعار والألوان ورقم الدعم الفني والوضع المظلم وإعدادات الشهادات
         </p>
       </div>
 
@@ -30,6 +30,10 @@ export default async function AdminSettingsPage() {
         initialPlatformName={settings.platformName}
         initialLogoUrl={settings.logoUrl}
         initialUseTemplateMode={settings.useTemplateMode}
+        initialPrimaryColor={settings.primaryColor}
+        initialSecondaryColor={settings.secondaryColor}
+        initialWhatsappNumber={settings.whatsappNumber}
+        initialDarkModeEnabled={settings.darkModeEnabled}
       />
     </div>
   );

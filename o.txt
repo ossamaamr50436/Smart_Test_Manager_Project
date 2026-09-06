@@ -1,0 +1,88 @@
+
+أنت الآن وكيل برمجي خبير. مهمتك النهائية: إصلاح المشكلة في middleware، تجهيز المشروع بالكامل، وتشغيله على المنفذ المحلي للمعاينة.
+
+📜 **التعليمات الصارمة:**
+
+1. **إصلاح middleware.ts** نهائياً:
+   - افتح ملف `middleware.ts` في جذر المشروع.
+   - استبدل محتواه بالكامل بهذا الكود (وهو الإصلاح النهائي):
+
+   ```typescript
+   import { NextResponse, type NextRequest } from "next/server";
+   import { auth } from "@/auth";
+   import { buildCsp } from "@/lib/csp";
+
+   export default async function middleware(req: NextRequest) {
+     const nonce = crypto.randomUUID();
+
+     // تشغيل NextAuth Middleware
+     const authResult = await auth(req);
+
+     let response: NextResponse;
+
+     if (authResult && typeof authResult === "object" && "status" in authResult) {
+       response = NextResponse.next();
+       if (authResult.headers) {
+         const headers = new Headers(authResult.headers);
+         headers.forEach((value, key) => {
+           response.headers.set(key, value);
+         });
+       }
+     } else {
+       response = NextResponse.next();
+     }
+
+     const cspHeader = buildCsp(nonce);
+     response.headers.set("Content-Security-Policy", cspHeader);
+     response.headers.set("x-nonce", nonce);
+
+     return response;
+   }
+
+   export const config = {
+     matcher: [
+       "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|gif|css|js|woff|woff2|ttf|eot|pdf)).*)",
+     ],
+   };
+تنظيف الملفات المؤقتة:
+
+احذف passwords.txt و check-db.tmp.ts (إن وجدا) باستخدام:
+
+powershell
+Remove-Item -Force -ErrorAction SilentlyContinue passwords.txt, check-db.tmp.ts
+تثبيت الاعتماديات وتشغيل الفحوصات:
+
+bash
+pnpm install
+npx prisma generate
+npx prisma migrate deploy
+pnpm build
+pnpm lint
+pnpm typecheck
+تأكد من أن جميع الأوامر تنتهي بدون أخطاء.
+
+تشغيل الخادم المحلي للمعاينة:
+
+bash
+pnpm dev
+بعد تشغيل الخادم، افتح المتصفح على http://localhost:3000.
+
+تأكد من أن المنصة تعمل وتظهر واجهة تسجيل الدخول.
+
+(اختياري) رفع التغييرات إلى GitHub:
+
+bash
+git add .
+git commit -m "إصلاح نهائي: middleware + حوكمة الأدمن + BullMQ + CSP + Dark Mode"
+git push origin main
+⚠️ تعليمات إضافية للوكيل:
+
+إذا واجهت أي خطأ أثناء pnpm build أو pnpm typecheck، قم بإصلاحه فوراً وأخبرني بالخطأ.
+
+بعد تشغيل pnpm dev، أرسل لي رابط المنصة المحلي (http://localhost:3000)، وأكد أن كل شيء يعمل.
+
+لا تتردد في إعادة تشغيل الخادم إذا لزم الأمر.
+
+الهدف النهائي: الحصول على منصة تعمل محلياً، بلا أخطاء، وجاهزة للمعاينة.
+
+ابدأ الآن.

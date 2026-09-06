@@ -6,21 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   updatePlatformSettings,
   updateTemplateSettings,
+  updateAppearanceSettings,
 } from "@/lib/actions/settings-actions";
 
 type Props = {
   initialPlatformName: string;
   initialLogoUrl: string | null;
   initialUseTemplateMode: boolean;
+  initialPrimaryColor: string;
+  initialSecondaryColor: string;
+  initialWhatsappNumber: string | null;
+  initialDarkModeEnabled: boolean;
 };
 
 export function AdminSettingsForm({
   initialPlatformName,
   initialLogoUrl,
   initialUseTemplateMode,
+  initialPrimaryColor,
+  initialSecondaryColor,
+  initialWhatsappNumber,
+  initialDarkModeEnabled,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -29,6 +39,10 @@ export function AdminSettingsForm({
   const [logoPreview, setLogoPreview] = useState<string | null>(initialLogoUrl);
   const [useTemplateMode, setUseTemplateMode] = useState(initialUseTemplateMode);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [primaryColor, setPrimaryColor] = useState(initialPrimaryColor);
+  const [secondaryColor, setSecondaryColor] = useState(initialSecondaryColor);
+  const [whatsappNumber, setWhatsappNumber] = useState(initialWhatsappNumber ?? "");
+  const [darkModeEnabled, setDarkModeEnabled] = useState(initialDarkModeEnabled);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +110,28 @@ export function AdminSettingsForm({
       }
     });
   }
+
+  async function handleSaveAppearance() {
+    setError("");
+    setSuccess("");
+    startTransition(async () => {
+      try {
+        await updateAppearanceSettings({
+          primaryColor,
+          secondaryColor,
+          whatsappNumber,
+          darkModeEnabled,
+        });
+        setSuccess("تم حفظ إعدادات المظهر والحوكمة بنجاح");
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
+      }
+    });
+  }
+
+  const colorInputCls =
+    "h-10 w-10 cursor-pointer rounded-md border border-border bg-transparent p-0";
 
   return (
     <div className="space-y-6">
@@ -172,6 +208,84 @@ export function AdminSettingsForm({
 
           <Button onClick={handleSavePlatform} disabled={isPending}>
             {isPending ? "جارٍ الحفظ..." : "حفظ إعدادات المنصة"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>الحوكمة والمظهر</CardTitle>
+          <CardDescription>
+            تحكّم كامل بألوان المنصة ورقم الدعم الفني والوضع المظلم — يُطبَّق فوراً
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>اللون الأساسي</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className={colorInputCls}
+                />
+                <Input
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  dir="ltr"
+                  className="w-32"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>اللون الثانوي</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={secondaryColor}
+                  onChange={(e) => setSecondaryColor(e.target.value)}
+                  className={colorInputCls}
+                />
+                <Input
+                  value={secondaryColor}
+                  onChange={(e) => setSecondaryColor(e.target.value)}
+                  dir="ltr"
+                  className="w-32"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>رقم الواتساب (الدعم الفني)</Label>
+            <Input
+              value={whatsappNumber}
+              onChange={(e) => setWhatsappNumber(e.target.value)}
+              placeholder="966501234567"
+              dir="ltr"
+            />
+            <p className="text-xs text-muted-foreground">
+              بصيغة دولية بدون + أو أصفار بادئة — يُستخدم في الشريط الجانبي
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <Label htmlFor="darkMode">الوضع المظلم</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                تفعيل الوضع المظلم في كامل المنصة
+              </p>
+            </div>
+            <Switch
+              id="darkMode"
+              checked={darkModeEnabled}
+              onCheckedChange={setDarkModeEnabled}
+            />
+          </div>
+
+          <Button onClick={handleSaveAppearance} disabled={isPending}>
+            {isPending ? "جارٍ الحفظ..." : "حفظ إعدادات المظهر والحوكمة"}
           </Button>
         </CardContent>
       </Card>

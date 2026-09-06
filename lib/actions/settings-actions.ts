@@ -18,6 +18,10 @@ export type PlatformSettings = {
   logoFileId: string | null;
   useTemplateMode: boolean;
   templateFileId: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  whatsappNumber: string | null;
+  darkModeEnabled: boolean;
 };
 
 /**
@@ -37,6 +41,10 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     logoFileId: settings.logoFileId,
     useTemplateMode: settings.useTemplateMode,
     templateFileId: settings.templateFileId,
+    primaryColor: settings.primaryColor,
+    secondaryColor: settings.secondaryColor,
+    whatsappNumber: settings.whatsappNumber,
+    darkModeEnabled: settings.darkModeEnabled,
   };
 }
 
@@ -178,6 +186,75 @@ export async function updateTemplateSettings(
   });
 
   revalidatePath("/dashboard/admin");
+
+  return { success: true };
+}
+
+/**
+ * تحديث إعدادات المظهر والحوكمة (ADMIN فقط)
+ * - الألوان (primary/secondary)
+ * - رقم واتساب الدعم الفني
+ * - الوضع المظلم
+ */
+export async function updateAppearanceSettings(input: {
+  primaryColor: string;
+  secondaryColor: string;
+  whatsappNumber: string;
+  darkModeEnabled: boolean;
+}): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+
+  const primaryColor = (input.primaryColor || "#015e63").trim();
+  const secondaryColor = (input.secondaryColor || "#d3bb8b").trim();
+  const whatsappNumber = input.whatsappNumber.trim().replace(/\D/g, "");
+  const darkModeEnabled = !!input.darkModeEnabled;
+
+  if (!/^#[0-9a-fA-F]{6}$/.test(primaryColor)) {
+    throw new Error("اللون الأساسي غير صالح — استخدم صيغة HEX مثل #015e63");
+  }
+  if (!/^#[0-9a-fA-F]{6}$/.test(secondaryColor)) {
+    throw new Error("اللون الثانوي غير صالح — استخدم صيغة HEX مثل #d3bb8b");
+  }
+  if (whatsappNumber && (whatsappNumber.length < 8 || whatsappNumber.length > 15)) {
+    throw new Error("رقم الواتساب غير صالح — أدخل الرقم الدولي بدون + أو أصفار بادئة");
+  }
+
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    update: {
+      primaryColor,
+      secondaryColor,
+      whatsappNumber: whatsappNumber || null,
+      darkModeEnabled,
+    },
+    create: {
+      id: "singleton",
+      primaryColor,
+      secondaryColor,
+      whatsappNumber: whatsappNumber || null,
+      darkModeEnabled,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "AppSettings",
+        primaryColor,
+        secondaryColor,
+        whatsappUpdated: !!whatsappNumber,
+        darkModeEnabled,
+      }),
+    },
+  });
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard");
+  revalidatePath("/");
+  revalidatePath("/login");
 
   return { success: true };
 }

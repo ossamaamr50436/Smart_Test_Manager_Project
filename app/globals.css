@@ -3,6 +3,24 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --primary: #015e63;
+    --secondary: #d3bb8b;
+  }
+
+  .dark {
+    --background: #0c1318;
+    --foreground: #eef1f4;
+    --card: #121c22;
+    --card-foreground: #eef1f4;
+    --popover: #121c22;
+    --popover-foreground: #eef1f4;
+    --muted: #1a262e;
+    --muted-foreground: #9fb3c0;
+    --border: #24343e;
+    --input: #24343e;
+  }
+
   * {
     @apply border-border;
   }
@@ -14,5 +32,27 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-cairo), ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .bg-primary-dynamic {
+    background-color: var(--primary);
+  }
+
+  .bg-secondary-dynamic {
+    background-color: var(--secondary);
+  }
+
+  .text-primary-dynamic {
+    color: var(--primary);
+  }
+
+  .text-secondary-dynamic {
+    color: var(--secondary);
+  }
+
+  .ring-primary-dynamic {
+    --tw-ring-color: var(--primary);
   }
 }

@@ -45,21 +45,6 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), payment=()",
           },
-          {
-            key: "Content-Security-Policy",
-            value:
-              "default-src 'self'; " +
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-              "style-src 'self' 'unsafe-inline'; " +
-              "img-src 'self' data: blob: https://drive.google.com https://lh3.googleusercontent.com; " +
-              "font-src 'self' data: https://fonts.gstatic.com; " +
-              "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com ws: wss:; " +
-              "frame-ancestors 'none'; " +
-              "base-uri 'self'; " +
-              "form-action 'self'; " +
-              "object-src 'none'; " +
-              "upgrade-insecure-requests",
-          },
         ],
       },
     ];

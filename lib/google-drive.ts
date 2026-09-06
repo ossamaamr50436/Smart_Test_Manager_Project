@@ -73,19 +73,52 @@ export async function uploadFileToDrive(
     throw new Error("فشل رفع الملف إلى Google Drive");
   }
 
-  // السماح بالعرض لأي شخص لديه الرابط (لضمان فتح الشهادة من الواجهة)
-  await drive.permissions.create({
-    fileId: response.data.id,
-    requestBody: {
-      role: "reader",
-      type: "anyone",
-    },
-  });
-
   return {
     fileId: response.data.id,
     webViewLink: response.data.webViewLink ?? "",
   };
+}
+
+/**
+ * استخراج معرّف ملف Drive من أي صيغة رابط (webViewLink / open?id= / /d/..)
+ */
+export function extractDriveFileId(urlOrId: string): string | null {
+  if (!urlOrId) return null;
+  const trimmed = urlOrId.trim();
+
+  // إن كان معرّفاً خالصاً (بدون روابط)
+  if (/^[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const u = new URL(trimmed);
+    const id = u.searchParams.get("id");
+    if (id) return id;
+    const match = trimmed.match(/\/d\/([^/]+)/);
+    if (match?.[1]) return match[1];
+  } catch {
+    // ليس رابطاً — نعود للقاعدة أعلاه
+  }
+
+  return null;
+}
+
+/**
+ * جلب نوع MIME لملف على Drive (افتراضياً PDF)
+ */
+export async function getDriveFileMimeType(fileId: string): Promise<string | null> {
+  try {
+    const auth = getAuthClient();
+    const drive = google.drive({ version: "v3", auth });
+    const response = await drive.files.get({
+      fileId,
+      fields: "mimeType, name",
+    });
+    return response.data.mimeType ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -174,11 +207,6 @@ export async function uploadExamModelFile(
   if (!response.data.id) {
     throw new Error("فشل رفع النموذج إلى Google Drive");
   }
-
-  await drive.permissions.create({
-    fileId: response.data.id,
-    requestBody: { role: "reader", type: "anyone" },
-  });
 
   return {
     fileId: response.data.id,

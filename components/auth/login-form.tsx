@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LottiePlayer } from "@/components/ui/lottie-player";
 
 export function LoginForm({
   className,
@@ -44,6 +45,11 @@ export function LoginForm({
   return (
     <Card className="w-full overflow-hidden border-t-4 border-t-secondary-300">
       <CardHeader>
+        {loading && (
+          <div className="mx-auto mb-1 flex h-16 w-16 items-center justify-center">
+            <LottiePlayer src="/lottie/loading.json" className="h-full w-full" />
+          </div>
+        )}
         <CardTitle className="text-center text-lg">تسجيل الدخول</CardTitle>
       </CardHeader>
       <CardContent>

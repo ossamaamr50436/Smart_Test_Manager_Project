@@ -4,6 +4,7 @@ import { requireUser, requireRole, assertInstitutionOwnsStudent } from "@/lib/se
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus, NotificationType, AuditAction } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { uniq, size } from "lodash";
 import {
   studentApplicationSchema,
   committeeSchema,
@@ -68,7 +69,7 @@ export async function createStudentApplication(input: StudentApplicationInput) {
     select: { id: true },
   });
 
-  if (specialists.length > 0) {
+  if (size(specialists) > 0) {
     await prisma.notification.createMany({
       data: specialists.map((s) => ({
         userId: s.id,
@@ -274,7 +275,7 @@ export async function assignCommittee(input: CommitteeInput) {
     )} — الفترة ${data.period}`;
 
   await prisma.notification.createMany({
-    data: [...new Set(recipients)].map((userId) => ({
+    data: uniq(recipients).map((userId) => ({
       userId,
       message,
       type: NotificationType.SCHEDULE,

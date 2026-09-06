@@ -301,6 +301,10 @@ model AppSettings {
   logoUrl         String?  // رابط الشعار العام
   useTemplateMode Boolean  @default(false) // تفعيل القالب الذكي للشهادات
   templateFileId  String?  // معرف ملف قالب الشهادة في Drive
+  primaryColor    String   @default("#015e63") // اللون الأساسي للمنصة
+  secondaryColor  String   @default("#d3bb8b") // اللون الثانوي للمنصة
+  whatsappNumber  String?  // رقم الدعم الفني (ديناميكي)
+  darkModeEnabled Boolean  @default(false) // تفعيل الوضع المظلم
   updatedAt       DateTime @updatedAt
 
   @@map("app_settings")

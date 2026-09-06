@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -62,10 +63,11 @@ export function DashboardSidebar() {
   const roleLabel = role ? ROLE_LABELS[role] : "مستخدم";
   const links = role ? ROLE_LINKS[role] ?? [] : [];
   const platformName = settings?.platformName ?? "تطبيق الاختبارات";
+  const whatsappNumber = settings?.whatsappNumber ?? null;
 
   return (
     <aside className="flex w-64 flex-col border-l bg-card">
-      <div className="border-b bg-gradient-to-l from-primary-800 to-primary-500 p-4">
+      <div className="border-b bg-primary-dynamic p-4">
         <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -76,7 +78,6 @@ export function DashboardSidebar() {
           <p className="text-lg font-bold text-white">{platformName}</p>
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mb-4 rounded-lg border-l-4 border-secondary-300 bg-muted p-3">
           <p className="font-medium text-foreground">{user?.name}</p>
@@ -119,6 +120,18 @@ export function DashboardSidebar() {
               );
             })}
           </nav>
+        )}
+
+        {whatsappNumber && (
+          <Link
+            href={`https://wa.me/${whatsappNumber}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 flex items-center gap-2 rounded-md bg-secondary-200/60 px-3 py-2 text-sm font-medium text-primary-800 transition-colors hover:bg-secondary-200"
+          >
+            <MessageCircle className="h-4 w-4" />
+            تواصل مع الدعم الفني
+          </Link>
         )}
       </div>
 
