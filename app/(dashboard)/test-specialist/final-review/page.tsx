@@ -14,7 +14,7 @@ export default async function FinalReviewPage() {
 
   // عزل الصلاحيات: صفحة خاصة بأخصائي الاختبارات
   if (!user || user.role !== Role.TEST_SPECIALIST) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   // الطلاب المكتملون (انتهوا من التقييم والاعتماد المتسلسل)

@@ -3,12 +3,12 @@ import type { NextAuthConfig } from "next-auth";
 // مسارات الدور الافتراضية — مُعرّفة بمفاتيح نصية فقط ( ללא imports من Prisma)
 // لضمان التوافق مع Edge Runtime
 const ROLE_DASHBOARD_PATHS: Record<string, string> = {
-  ADMIN: "/dashboard/admin",
-  HEAD_OF_AFFAIRS: "/dashboard/head-of-affairs",
-  CERTIFICATE_SOURCE: "/dashboard/certificate-source",
-  TEST_SPECIALIST: "/dashboard/test-specialist",
-  EXAMINER: "/dashboard/examiner",
-  INSTITUTION: "/dashboard/institution",
+  ADMIN: "/admin",
+  HEAD_OF_AFFAIRS: "/head-of-affairs",
+  CERTIFICATE_SOURCE: "/certificate-source",
+  TEST_SPECIALIST: "/test-specialist",
+  EXAMINER: "/examiner",
+  INSTITUTION: "/institution",
 };
 
 export const authConfig = {
@@ -40,21 +40,36 @@ export const authConfig = {
         return true; // يسمح بالدخول لصفحة login
       }
 
-      // مسجل الدخول ويسعى لصفحة عامة → وجّه لصفحته حسب دوره
-      if (isPublic) {
-        const role = auth.user?.role as string | undefined;
-        const home = (role && ROLE_DASHBOARD_PATHS[role]) || "/dashboard";
-        return Response.redirect(new URL(home, nextUrl));
-      }
-
-      // مسجل الدخول يزور /dashboard — وجّهه لصفحة دوره ما لم يكن هناك بالفعل
       const role = auth.user?.role as string | undefined;
-      if (role && path.startsWith("/dashboard")) {
-        const home = ROLE_DASHBOARD_PATHS[role] || "/dashboard";
-        // /dashboard (الجذر) أو مسار مختلف عن دوره → وجّهه لصفحته
-        if (path === "/dashboard" || !path.startsWith(home + "/") && path !== home) {
+      const home = (role && ROLE_DASHBOARD_PATHS[role]) as string | undefined;
+
+      // مسجل الدخول ويسعى لصفحة عامة → وجّهه لصفحته حسب دوره
+      if (isPublic) {
+        if (home) {
           return Response.redirect(new URL(home, nextUrl));
         }
+        return true;
+      }
+
+      // الجذر (/) — لوحة التحكم العامة → وجّهه لصفحته حسب دوره
+      if (path === "/") {
+        if (home && home !== "/") {
+          return Response.redirect(new URL(home, nextUrl));
+        }
+        return true;
+      }
+
+      // صفحات عامة لكل المستخدمين المسجلين
+      if (path === "/audit-log" || path === "/notifications") {
+        return true;
+      }
+
+      // مسار ليس ضمن منطقة دوره → وجّهه لصفحته
+      if (!home) {
+        return true;
+      }
+      if (path !== home && !path.startsWith(home + "/")) {
+        return Response.redirect(new URL(home, nextUrl));
       }
 
       return true;

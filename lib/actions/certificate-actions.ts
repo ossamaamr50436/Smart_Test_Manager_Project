@@ -225,7 +225,7 @@ export async function generateCertificate(studentId: string) {
     step: "CERTIFICATE_ISSUED",
   });
 
-  revalidatePath("/dashboard/certificate-source");
+  revalidatePath("/certificate-source");
 
   return { success: true, certificateId: certificate.id, serialNumber, fileUrl };
 }
@@ -320,7 +320,7 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
     signatureFileId: uploaded.fileId,
   });
 
-  revalidatePath("/dashboard/certificate-source");
+  revalidatePath("/certificate-source");
 
   return { success: true, certificateId, signatureUrl: uploaded.webViewLink };
 }

@@ -1,88 +1,240 @@
+أنت الآن وكيل برمجي خبير في Next.js، NextAuth.js، وأخطاء المصادقة. لديك صلاحيات كاملة ووقت غير محدود.
 
-أنت الآن وكيل برمجي خبير. مهمتك النهائية: إصلاح المشكلة في middleware، تجهيز المشروع بالكامل، وتشغيله على المنفذ المحلي للمعاينة.
+🎯 **المهمة: إصلاح مشكلة تسجيل الدخول نهائياً وحذف الجملة الفرعية من صفحة الدخول.**
 
-📜 **التعليمات الصارمة:**
+---
 
-1. **إصلاح middleware.ts** نهائياً:
-   - افتح ملف `middleware.ts` في جذر المشروع.
-   - استبدل محتواه بالكامل بهذا الكود (وهو الإصلاح النهائي):
+## 🔴 المشكلة الحالية:
 
-   ```typescript
-   import { NextResponse, type NextRequest } from "next/server";
-   import { auth } from "@/auth";
-   import { buildCsp } from "@/lib/csp";
+1. **صفحة تسجيل الدخول تظهر** (`http://localhost:3000/login` → 200 OK).
+2. **المستخدم موجود في قاعدة البيانات** (`ossamaamr50436@gmail.com` / `Aa123456`).
+3. **عند الضغط على زر "دخول"، لا يحدث أي شيء** (لا يظهر طلب POST إلى `/api/auth/callback/credentials` في Network).
+4. **تحت اسم التطبيق في صفحة الدخول، تظهر الجملة:** "جمعية تعليم القرآن وعلومه — فرع المدينة المنورة". **يجب حذفها نهائياً.**
 
-   export default async function middleware(req: NextRequest) {
-     const nonce = crypto.randomUUID();
+---
 
-     // تشغيل NextAuth Middleware
-     const authResult = await auth(req);
+## 📋 المطلوب منك تنفيذه (خطوة بخطوة):
 
-     let response: NextResponse;
+### 1. حذف الجملة الفرعية من صفحة تسجيل الدخول
 
-     if (authResult && typeof authResult === "object" && "status" in authResult) {
-       response = NextResponse.next();
-       if (authResult.headers) {
-         const headers = new Headers(authResult.headers);
-         headers.forEach((value, key) => {
-           response.headers.set(key, value);
-         });
-       }
-     } else {
-       response = NextResponse.next();
-     }
+**المطلوب:**
+- افتح ملف `app/(auth)/login/page.tsx`.
+- ابحث عن النص: "جمعية تعليم القرآن وعلومه — فرع المدينة المنورة".
+- **احذف هذا السطر بالكامل** من ملف الصفحة.
 
-     const cspHeader = buildCsp(nonce);
-     response.headers.set("Content-Security-Policy", cspHeader);
-     response.headers.set("x-nonce", nonce);
+**مثال على التعديل:**
+```tsx
+// قبل التعديل
+<p className="mt-2 text-sm text-secondary-100">
+  جمعية تعليم القرآن وعلومه — فرع المدينة المنورة
+</p>
 
-     return response;
-   }
+// بعد التعديل
+{/* تم حذف الجملة الفرعية */}
+2. فحص وتصحيح ملف components/auth/login-form.tsx
+المشكلة المحتملة:
 
-   export const config = {
-     matcher: [
-       "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|gif|css|js|woff|woff2|ttf|eot|pdf)).*)",
-     ],
-   };
-تنظيف الملفات المؤقتة:
+الزر ليس من نوع type="submit".
 
-احذف passwords.txt و check-db.tmp.ts (إن وجدا) باستخدام:
+الدالة handleSubmit لا تستدعي signIn.
 
-powershell
-Remove-Item -Force -ErrorAction SilentlyContinue passwords.txt, check-db.tmp.ts
-تثبيت الاعتماديات وتشغيل الفحوصات:
+يوجد خطأ في useState أو useRouter.
+
+المطلوب:
+
+اقرأ ملف components/auth/login-form.tsx بالكامل.
+
+تأكد من أن الكود التالي موجود ويعمل:
+
+tsx
+<form onSubmit={handleSubmit}>
+  <Button type="submit">دخول</Button>
+</form>
+تأكد من أن دالة handleSubmit تستدعي signIn بشكل صحيح:
+
+tsx
+async function handleSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+
+  const result = await signIn("credentials", {
+    email,
+    password,
+    redirect: false,
+  });
+
+  setLoading(false);
+
+  if (result?.error) {
+    setError("بيانات الدخول غير صحيحة");
+    return;
+  }
+
+  router.push("/dashboard");
+  router.refresh();
+}
+إذا كان الكود مختلفاً، أعد كتابته بالكامل كما هو موضح أعلاه.
+
+3. فحص وتصحيح ملف auth.ts
+المشكلة المحتملة:
+
+دالة authorize لا تعمل بشكل صحيح.
+
+bcrypt.compare يفشل بسبب تنسيق كلمة المرور.
+
+المطلوب:
+
+اقرأ ملف auth.ts بالكامل.
+
+تأكد من أن دالة authorize تحتوي على:
+
+typescript
+async function authorize(credentials) {
+  const user = await prisma.user.findUnique({
+    where: { email: credentials.email },
+  });
+
+  if (!user) return null;
+
+  const isValid = await bcrypt.compare(credentials.password, user.password);
+  if (!isValid) return null;
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+  };
+}
+تأكد من أن bcryptjs مستوردة بشكل صحيح.
+
+تأكد من أن prisma مستوردة.
+
+4. فحص وتصحيح ملف auth.config.ts
+المشكلة المحتملة:
+
+callbacks لا تعمل بشكل صحيح.
+
+المطلوب:
+
+اقرأ ملف auth.config.ts.
+
+تأكد من أن callbacks.jwt و callbacks.session تحتويان على:
+
+typescript
+callbacks: {
+  async jwt({ token, user }) {
+    if (user) {
+      token.id = user.id;
+      token.role = user.role;
+    }
+    return token;
+  },
+  async session({ session, token }) {
+    if (session.user) {
+      session.user.id = token.id;
+      session.user.role = token.role;
+    }
+    return session;
+  },
+}
+5. فحص متغيرات البيئة في ملف .env
+المطلوب:
+
+تأكد من وجود المتغيرات التالية:
+
+env
+NEXTAUTH_SECRET="072f8bca0bf4fdaad71e5f00d0e19e98"
+NEXTAUTH_URL="http://localhost:3000"
+DATABASE_URL="postgresql://..."
+ADMIN_PASSWORD="Aa123456"
+6. فحص ملف app/api/auth/[...nextauth]/route.ts
+المطلوب:
+
+تأكد من أن الملف يحتوي على:
+
+typescript
+import { handlers } from "@/auth";
+
+export const { GET, POST } = handlers;
+7. فحص ملف middleware.ts
+المطلوب:
+
+تأكد من أن matcher لا يستثني /api/auth:
+
+typescript
+matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|gif|css|js|woff|woff2|ttf|eot|pdf)).*)"]
+8. تنظيف وإعادة البناء (بدون تشغيل الخادم)
+بعد إجراء الإصلاحات، اكتب التعليمات التالية للمستخدم لتنفيذها يدوياً:
 
 bash
+# 1. إيقاف الخادم الحالي (Ctrl+C)
+# 2. تنظيف ذاكرة التخزين المؤقت
+rm -rf .next
+# 3. إعادة تثبيت الاعتماديات
 pnpm install
+# 4. توليد عميل Prisma
 npx prisma generate
-npx prisma migrate deploy
-pnpm build
-pnpm lint
-pnpm typecheck
-تأكد من أن جميع الأوامر تنتهي بدون أخطاء.
-
-تشغيل الخادم المحلي للمعاينة:
-
-bash
+# 5. تشغيل الخادم (يقوم بها المستخدم)
 pnpm dev
-بعد تشغيل الخادم، افتح المتصفح على http://localhost:3000.
+أخبر المستخدم بأنه بعد تنفيذ هذه الأوامر، سيعمل التطبيق على http://localhost:3000.
 
-تأكد من أن المنصة تعمل وتظهر واجهة تسجيل الدخول.
+9. اختبار تسجيل الدخول (تعليمات للمستخدم)
+بعد تشغيل الخادم، افتح المتصفح على: http://localhost:3000/login
 
-(اختياري) رفع التغييرات إلى GitHub:
+أدخل البيانات التالية:
 
-bash
-git add .
-git commit -m "إصلاح نهائي: middleware + حوكمة الأدمن + BullMQ + CSP + Dark Mode"
-git push origin main
-⚠️ تعليمات إضافية للوكيل:
+البريد الإلكتروني: ossamaamr50436@gmail.com
 
-إذا واجهت أي خطأ أثناء pnpm build أو pnpm typecheck، قم بإصلاحه فوراً وأخبرني بالخطأ.
+كلمة المرور: Aa123456
 
-بعد تشغيل pnpm dev، أرسل لي رابط المنصة المحلي (http://localhost:3000)، وأكد أن كل شيء يعمل.
+تأكد من:
 
-لا تتردد في إعادة تشغيل الخادم إذا لزم الأمر.
+ظهور طلب POST إلى /api/auth/callback/credentials في Network.
 
-الهدف النهائي: الحصول على منصة تعمل محلياً، بلا أخطاء، وجاهزة للمعاينة.
+حالة الطلب 200 أو 302 (وليس 401 أو 403).
+
+التوجيه إلى /dashboard بعد النجاح.
+
+10. إذا ما زال الزر لا يعمل
+أضف console.log في login-form.tsx:
+
+tsx
+async function handleSubmit(e: React.FormEvent) {
+  console.log("✅ تم الضغط على زر الدخول");
+  e.preventDefault();
+  // ... باقي الكود
+}
+ثم افتح Console في أدوات المطور (F12) وتأكد من ظهور الرسالة عند الضغط على الزر.
+
+إذا لم تظهر الرسالة:
+
+الزر ليس من نوع submit.
+
+هناك خطأ في JavaScript يمنع تنفيذ الكود.
+
+إذا ظهرت الرسالة ولكن لا يوجد طلب POST:
+
+signIn لا تُستدعى بشكل صحيح.
+
+هناك خطأ في useRouter أو useState.
+
+11. التقرير النهائي
+بعد أن يقوم المستخدم بتشغيل الخادم واختبار تسجيل الدخول، اطلب منه إرسال تقرير موجز يشمل:
+
+ما كان السبب الرئيسي للمشكلة.
+
+ما هي الملفات التي تم تعديلها.
+
+تأكيد بأن التطبيق يعمل على http://localhost:3000.
+
+⚠️ تعليمات صارمة للوكيل:
+
+لا تقم بتشغيل الخادم بنفسك. اكتب فقط التعليمات للمستخدم.
+
+احذف الجملة الفرعية من صفحة تسجيل الدخول.
+
+لا تتوقف حتى تصلح جميع الملفات.
 
 ابدأ الآن.

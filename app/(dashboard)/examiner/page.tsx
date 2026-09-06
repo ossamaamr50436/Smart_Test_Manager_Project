@@ -19,7 +19,7 @@ export default async function ExaminerDashboardPage() {
   const user = await getCurrentUser();
 
   if (!user || user.role !== Role.EXAMINER) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   // عزل الصلاحيات: المختبر يرى فقط الطلاب الموزعين على لجنه
@@ -67,7 +67,7 @@ export default async function ExaminerDashboardPage() {
                     </p>
                   </div>
                   <Button asChild size="sm">
-                    <Link href={`/dashboard/examiner/assess/${session.student.id}`}>
+                    <Link href={`/examiner/assess/${session.student.id}`}>
                       تقييم
                     </Link>
                   </Button>

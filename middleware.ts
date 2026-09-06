@@ -44,9 +44,15 @@ export default async function middleware(req: NextRequest) {
     response = NextResponse.next();
   }
 
-  const cspHeader = buildCsp(nonce);
-  response.headers.set("Content-Security-Policy", cspHeader);
   response.headers.set("x-nonce", nonce);
+
+  // تطبيق CSP الصارمة (Nonce) في وضع الإنتاج فقط، لأن Next.js في وضع
+  // التطوير (dev) يشغّل وحداته عبر eval() (Webpack/Hot Refresh) ويضيف
+  // سكربت inline للسكربت عبر next-themes؛ إرسال هذه السياسة في dev يكسر
+  // تشغيل التطبيق كلياً ولا يُفعَّل الزر. في الإنتاج تظل السياسة مشددة.
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Content-Security-Policy", buildCsp(nonce));
+  }
 
   return response;
 }

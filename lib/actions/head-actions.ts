@@ -144,10 +144,10 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
     newStatus: StudentStatus.APPROVED,
   });
 
-  revalidatePath("/dashboard/head-of-affairs");
-  revalidatePath("/dashboard/test-specialist/final-review");
-  revalidatePath("/dashboard/certificate-source");
-  revalidatePath("/dashboard/admin");
+  revalidatePath("/head-of-affairs");
+  revalidatePath("/test-specialist/final-review");
+  revalidatePath("/certificate-source");
+  revalidatePath("/admin");
 
   return { studentId, rejected: true, newStatus: StudentStatus.APPROVED };
 }

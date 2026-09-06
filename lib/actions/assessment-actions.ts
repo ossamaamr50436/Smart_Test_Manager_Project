@@ -188,8 +188,8 @@ export async function saveAssessment(input: AssessmentInput) {
     finalScore,
   });
 
-  revalidatePath("/dashboard/examiner");
-  revalidatePath("/dashboard/examiner/assess");
+  revalidatePath("/examiner");
+  revalidatePath("/examiner/assess");
 
   return { success: true, assessmentId: assessment.id, totalDeduction, finalScore };
 }
@@ -331,8 +331,8 @@ export async function approveAssessment(examSessionId: string, action: "approve"
     role: seniorIsUser ? "senior" : "junior",
   });
 
-  revalidatePath("/dashboard/examiner");
-  revalidatePath("/dashboard/examiner/assess");
+  revalidatePath("/examiner");
+  revalidatePath("/examiner/assess");
 
   return { success: true, status: action === "approve" ? AssessmentStatus.APPROVED : AssessmentStatus.FINALIZED };
 }

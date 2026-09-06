@@ -14,7 +14,7 @@ export default async function CertificateSourceDashboardPage() {
 
   // عزل الصلاحيات: صفحة خاصة بمصدر الشهادات (المادة 8/5)
   if (!user || user.role !== Role.CERTIFICATE_SOURCE) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   // الطلاب الجاهزون لإصدار الشهادة (أكملوا جميع المراحل)

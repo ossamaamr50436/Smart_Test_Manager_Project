@@ -49,7 +49,7 @@ export function NominationForm() {
     setLoading(true);
     try {
       await createStudentApplication(data);
-      router.push("/dashboard/institution");
+      router.push("/institution");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
@@ -159,7 +159,7 @@ export function NominationForm() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push("/dashboard/institution")}
+              onClick={() => router.push("/institution")}
             >
               إلغاء
             </Button>

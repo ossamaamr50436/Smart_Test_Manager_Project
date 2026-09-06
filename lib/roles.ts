@@ -15,12 +15,12 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 // المسار الافتراضي لكل دور (يُستخدم في الـ Middleware للتوجيه)
 export const ROLE_DASHBOARD_PATHS: Record<Role, string> = {
-  ADMIN: "/dashboard/admin",
-  HEAD_OF_AFFAIRS: "/dashboard/head-of-affairs",
-  CERTIFICATE_SOURCE: "/dashboard/certificate-source",
-  TEST_SPECIALIST: "/dashboard/test-specialist",
-  EXAMINER: "/dashboard/examiner",
-  INSTITUTION: "/dashboard/institution",
+  ADMIN: "/admin",
+  HEAD_OF_AFFAIRS: "/head-of-affairs",
+  CERTIFICATE_SOURCE: "/certificate-source",
+  TEST_SPECIALIST: "/test-specialist",
+  EXAMINER: "/examiner",
+  INSTITUTION: "/institution",
 };
 
 export function getDashboardPath(role: Role): string {

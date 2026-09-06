@@ -20,7 +20,7 @@ export async function loginAction(prevState: { error?: string }, formData: FormD
     await signIn("credentials", {
       email: formData.get("email") as string,
       password: formData.get("password") as string,
-      redirectTo: "/dashboard",
+      redirectTo: "/",
     });
     return {};
   } catch (error) {

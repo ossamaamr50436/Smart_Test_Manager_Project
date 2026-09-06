@@ -33,9 +33,6 @@ export default async function LoginPage() {
           <h1 className="text-2xl font-bold text-white">
             {settings.platformName}
           </h1>
-          <p className="mt-2 text-sm text-secondary-100">
-            جمعية تعليم القرآن وعلومه — فرع المدينة المنورة
-          </p>
         </div>
         <LoginForm />
       </div>

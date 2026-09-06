@@ -16,7 +16,7 @@ export default async function AuditLogPage() {
     !session?.user ||
     (session.user.role !== Role.ADMIN && session.user.role !== Role.TEST_SPECIALIST)
   ) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   return (

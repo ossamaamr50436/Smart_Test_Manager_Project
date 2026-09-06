@@ -13,7 +13,7 @@ export default async function NewStudentPage() {
 
   // عزل الصلاحيات: صفحة خاصة بالجهات التعليمية
   if (!user || user.role !== Role.INSTITUTION) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   return (

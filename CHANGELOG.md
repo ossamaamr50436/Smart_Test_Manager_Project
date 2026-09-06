@@ -3,6 +3,33 @@
 > كل تغيير في هذه الجولة موثّق هنا مع السبب والأثر
 > (التوثيق مطلوب من متطلبات الجولة النهائية).
 
+## جولة إصلاح تسجيل الدخول + CSP (2026-09-06)
+
+> **المشكلة:** كل محاولة تسجيل دخول لا تُرسل أي طلب إلى الخادم حتى مع صحة البيانات (لا توجد أي POST في تبويب Network).
+
+### السبب الجذري
+- **وضع التطوير (dev):** Next.js يشغّل وحدات JavaScript عبر `eval()` (Webpack/Hot Refresh الخاصة بـ Fast Refresh). كانت الميدل وير ترسل دائماً سياسة CSP صارمة `script-src 'self' 'nonce-…'` **بدون** `unsafe-eval`، فأغلق المتصفح تنفيذ الكل‎ient بالكامل (`Uncaught EvalError: Evaluating a string as JavaScript violates CSP` في `main-app.js`). النتيجة: لا يتم الـ Hydration إطلاقاً، فلا يُربط زر الدخول بـ `onSubmit`، ولهذا لا يصل أي طلب إلى الخادم.
+
+### الحل
+- `middleware.ts`: تطبيق CSP الصارمة في **الإنتاج فقط** (`process.env.NODE_ENV === "production"`)، مع بقاء رأس `x-nonce` في كل الحالات (يستخدمه التخطيط لوسوم style/head).
+- أُضيف دعم الـ nonce لسكربت الثيم: `components/providers/theme-provider.tsx` (خاصية `nonce` من next-themes) و `app/layout.tsx` (تمرير `nonce` المقرؤ من الرأس إلى الـ ThemeProvider) — حتى تعمل "الوضع الداكن" في الإنتاج وتحت CSP.
+- **التحقق:**
+  - إعادة البناء والتشغيل في الإنتاج (`next start -p 3100`): رأس CSP موجود وكل السكربتات تحمل nonce حقيقي، **صفر** أخطاء في الـ Console (Chrome Headless).
+  - إعادة التحميل في dev (`الخادم على الرابط 3000`): **صفر** أخطاء (لا EvalError ولا مخالفة CSP) وبدء React بنجاح.
+  - مسار الخادم مثبت مسبقاً: POST `/api/auth/callback/credentials` ببيانات صحيحة (مع جلسة CSRF) يعيد `{"url":"http://localhost:3000/dashboard"}`.
+
+### إصلاح الخطأ 404 بعد تسجيل الدخول
+- **المشكلة:** بعد نجاح الدخول تُوجَّه الصفحة فوراً إلى 404.
+- **السبب:** كل المسارات تُشير إلى `/dashboard/...` (توجيهات الـ middleware، الشريط الجانبي، `revalidatePath`، الأزرار) بينما الصفحات الفعلية تقع مباشرة على `/admin`, `/examiner`, ... (مجموعة المسارات `(dashboard)` لا تُضيف مقطع URL، ولا يوجد مسار `/dashboard` أصلاً).
+- **الحل:** تصحيح كل مراجع `/dashboard/...` إلى المسارات الصحيحة (26 ملفاً + `auth.config.ts`):
+  - `auth.config.ts` — `ROLE_DASHBOARD_PATHS` والقيم الافتراضية للجذر، وإعادة كتابة منطق `authorized` (الجذر `/` توجيهه لصفحة الدور، صفحات عامة `/audit-log` و `/notifications`، وعزل الصلاحيات).
+  - `lib/roles.ts`, `components/dashboard/dashboard-sidebar.tsx`, `components/auth/login-form.tsx`, `components/students/nomination-form.tsx`, `components/dashboard/role-placeholder.tsx`.
+  - كل `revalidatePath`/`redirect` داخل `lib/actions/*.ts` وصفحات `app/(dashboard)/` تم تصحيحها.
+- **التحقق عبر HTTP:**
+  - تسجيل الدخول → 302 إلى `/` ← الميدل وير توجّه إلى `/admin` (دوره ADMIN) → 200.
+  - `/dashboard` القديم يتحول إلى 302 → `/admin` بدلاً من 404.
+  - `/login` وهو مسجل الدخول → 302 → `/admin`؛ `/examiner` لغير دوره → 302 → `/admin` (عزل صلاحيات).
+
 ## جولة الهوية والتقنيات الحديثة (2026-09-06)
 
 > دمج التقنيات المستفادة من موقع الجمعية وتوحيد الهوية البصرية باللونين `#015e63` و `#d3bb8b`.

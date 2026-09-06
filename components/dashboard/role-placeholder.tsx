@@ -22,7 +22,7 @@ export function RolePlaceholder({
         <CardContent>
           <p className="text-sm text-muted-foreground">
             هذا القسم مخصص لدورك وسيُبنى في المراحل القادمة من المشروع.{" "}
-            <Link href="/dashboard" className="text-primary underline">
+            <Link href="/" className="text-primary underline">
               العودة للوحة الرئيسية
             </Link>
           </p>

@@ -62,7 +62,7 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-title" content={settings.platformName} />
       </head>
       <body className={`${cairo.variable} font-sans antialiased`}>
-        <ThemeProvider defaultTheme={defaultTheme}>
+        <ThemeProvider defaultTheme={defaultTheme} nonce={nonce}>
           <ServiceWorkerRegister />
           {children}
         </ThemeProvider>

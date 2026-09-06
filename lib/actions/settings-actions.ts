@@ -120,8 +120,8 @@ export async function updatePlatformSettings(
     },
   });
 
-  revalidatePath("/dashboard/admin");
-  revalidatePath("/dashboard");
+  revalidatePath("/admin");
+  revalidatePath("/");
   revalidatePath("/login");
   revalidatePath("/");
 
@@ -185,7 +185,7 @@ export async function updateTemplateSettings(
     },
   });
 
-  revalidatePath("/dashboard/admin");
+  revalidatePath("/admin");
 
   return { success: true };
 }
@@ -251,8 +251,8 @@ export async function updateAppearanceSettings(input: {
     },
   });
 
-  revalidatePath("/dashboard/admin");
-  revalidatePath("/dashboard");
+  revalidatePath("/admin");
+  revalidatePath("/");
   revalidatePath("/");
   revalidatePath("/login");
 

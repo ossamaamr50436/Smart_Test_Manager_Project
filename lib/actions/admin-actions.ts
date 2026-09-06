@@ -82,8 +82,8 @@ export async function specialistFinalApprove(studentId: string) {
     newStatus: StudentStatus.NOTIFIED,
   });
 
-  revalidatePath("/dashboard/test-specialist/final-review");
-  revalidatePath("/dashboard/head-of-affairs");
+  revalidatePath("/test-specialist/final-review");
+  revalidatePath("/head-of-affairs");
 
   return { success: true, status: StudentStatus.NOTIFIED };
 }
@@ -150,9 +150,9 @@ export async function headOfAffairsFinalApprove(studentId: string) {
     newStatus: StudentStatus.READY_FOR_CERTIFICATE,
   });
 
-  revalidatePath("/dashboard/head-of-affairs");
-  revalidatePath("/dashboard/test-specialist/final-review");
-  revalidatePath("/dashboard/certificate-source");
+  revalidatePath("/head-of-affairs");
+  revalidatePath("/test-specialist/final-review");
+  revalidatePath("/certificate-source");
 
   return { success: true, status: StudentStatus.READY_FOR_CERTIFICATE };
 }

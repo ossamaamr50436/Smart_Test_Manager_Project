@@ -18,7 +18,7 @@ export default async function AssessStudentPage({
 
   // عزل الصلاحيات: المقيّم (المعلم) فقط
   if (!user || user.role !== Role.EXAMINER) {
-    redirect("/dashboard/examiner");
+    redirect("/examiner");
   }
 
   // اللجنة/الجلسة الخاصة بهذا الطالب والتي يشارك فيها المقيّم الحالي

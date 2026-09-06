@@ -14,7 +14,7 @@ export default async function RequestsPage() {
 
   // عزل الصلاحيات: صفحة خاصة بأخصائي الاختبارات
   if (!user || user.role !== Role.TEST_SPECIALIST) {
-    redirect("/dashboard/test-specialist");
+    redirect("/test-specialist");
   }
 
   const pendingStudents = await prisma.student.findMany({

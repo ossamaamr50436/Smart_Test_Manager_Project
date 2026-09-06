@@ -14,7 +14,7 @@ export default async function HeadOfAffairsDashboardPage() {
 
   // عزل الصلاحيات: صفحة خاصة برئيس الشؤون التعليمية
   if (!user || user.role !== Role.HEAD_OF_AFFAIRS) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   // الطلاب الذين اعتمدهم الأخصائي وبانتظار الاعتماد النهائي لرئيس الشؤون

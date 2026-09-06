@@ -85,7 +85,7 @@ export async function createStudentApplication(input: StudentApplicationInput) {
     name: student.name,
   });
 
-  revalidatePath("/dashboard/test-specialist/requests");
+  revalidatePath("/test-specialist/requests");
 
   return { success: true, studentId: student.id };
 }
@@ -147,8 +147,8 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
     reason,
   });
 
-  revalidatePath("/dashboard/test-specialist/requests");
-  revalidatePath("/dashboard/test-specialist/committees");
+  revalidatePath("/test-specialist/requests");
+  revalidatePath("/test-specialist/committees");
 
   return { success: true, status };
 }
@@ -293,9 +293,9 @@ export async function assignCommittee(input: CommitteeInput) {
     seasonId,
   });
 
-  revalidatePath("/dashboard/test-specialist/committees");
-  revalidatePath("/dashboard/test-specialist/requests");
-  revalidatePath("/dashboard/examiner");
+  revalidatePath("/test-specialist/committees");
+  revalidatePath("/test-specialist/requests");
+  revalidatePath("/examiner");
 
   return { success: true, sessionId: session.id };
 }

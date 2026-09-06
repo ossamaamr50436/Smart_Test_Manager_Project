@@ -20,7 +20,7 @@ export default async function CommitteesPage() {
 
   // عزل الصلاحيات: صفحة خاصة بأخصائي الاختبارات
   if (!user || user.role !== Role.TEST_SPECIALIST) {
-    redirect("/dashboard/test-specialist");
+    redirect("/test-specialist");
   }
 
   // الطلاب المقبولون وغير الموزعين على لجان بعد

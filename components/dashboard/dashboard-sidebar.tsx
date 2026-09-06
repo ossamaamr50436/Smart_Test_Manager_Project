@@ -19,37 +19,37 @@ type NavLink = {
 // روابط التنقل لكل دور (عزل الصلاحيات — كل دور يرى مساراته فقط)
 const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
   ADMIN: [
-    { href: "/dashboard/admin", label: "لوحة المسؤول" },
-    { href: "/dashboard/admin/settings", label: "إعدادات المنصة" },
-    { href: "/dashboard/audit-log", label: "سجل التدقيق" },
+    { href: "/admin", label: "لوحة المسؤول" },
+    { href: "/admin/settings", label: "إعدادات المنصة" },
+    { href: "/audit-log", label: "سجل التدقيق" },
   ],
   HEAD_OF_AFFAIRS: [
-    { href: "/dashboard/head-of-affairs", label: "الاعتماد الإداري النهائي" },
+    { href: "/head-of-affairs", label: "الاعتماد الإداري النهائي" },
   ],
   CERTIFICATE_SOURCE: [
-    { href: "/dashboard/certificate-source", label: "إصدار الشهادات" },
+    { href: "/certificate-source", label: "إصدار الشهادات" },
   ],
   TEST_SPECIALIST: [
-    { href: "/dashboard/test-specialist/requests", label: "طلبات الترشيح" },
-    { href: "/dashboard/test-specialist/committees", label: "تشكيل اللجان" },
+    { href: "/test-specialist/requests", label: "طلبات الترشيح" },
+    { href: "/test-specialist/committees", label: "تشكيل اللجان" },
     {
-      href: "/dashboard/test-specialist/final-review",
+      href: "/test-specialist/final-review",
       label: "مراجعة التقييمات النهائية",
     },
-    { href: "/dashboard/audit-log", label: "سجل التدقيق" },
+    { href: "/audit-log", label: "سجل التدقيق" },
   ],
   EXAMINER: [
-    { href: "/dashboard/examiner", label: "طلاب لجانك" },
+    { href: "/examiner", label: "طلاب لجانك" },
   ],
   INSTITUTION: [
-    { href: "/dashboard/institution", label: "طلاب جهتي" },
-    { href: "/dashboard/institution/students/new", label: "ترشيح طالب جديد" },
+    { href: "/institution", label: "طلاب جهتي" },
+    { href: "/institution/students/new", label: "ترشيح طالب جديد" },
   ],
 };
 
 // رابط الإشعارات يظهر لجميع المستخدمين
 const NOTIFICATIONS_LINK: NavLink = {
-  href: "/dashboard/notifications",
+  href: "/notifications",
   label: "الإشعارات",
   showBadge: true,
 };
