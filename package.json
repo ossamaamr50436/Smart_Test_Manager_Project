@@ -14,7 +14,8 @@
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "server": "node server/index.js",
-    "dev:all": "concurrently -n next,express -c blue,yellow \"next dev\" \"node server/index.js\""
+    "dev:all": "concurrently -n next,express -c blue,yellow \"next dev\" \"node server/index.js\"",
+    "test:security": "tsx --test tests/security/*.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -52,7 +53,7 @@
     "lottie-react": "^3.1.1",
     "lucide-react": "^0.312.0",
     "next": "14.2.35",
-    "next-auth": "5.0.0-beta.16",
+    "next-auth": "5.0.0-beta.32",
     "next-themes": "^0.2.1",
     "pdf-lib": "^1.17.1",
     "pusher": "^5.3.4",
@@ -60,8 +61,6 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.50.0",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.22.4"

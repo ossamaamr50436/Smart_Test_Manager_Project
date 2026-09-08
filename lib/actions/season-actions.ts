@@ -13,8 +13,10 @@ import { Role, AuditAction } from "@prisma/client";
 /**
  * جلب الموسم النشط حالياً
  * (يُستخدم لتحديد seasonId عند إنشاء جلسة أو اختيار نموذج)
+ * يتطلب مصادقة — إذ يُستدعى من إجراءات موثّقة فقط
  */
 export async function getCurrentSeason() {
+  await requireUser();
   const season = await prisma.examSeason.findFirst({
     where: { isActive: true },
     orderBy: { startDate: "desc" },
@@ -37,6 +39,9 @@ export async function createExamSeason(input: {
   if (!input.name || input.name.trim().length < 2) {
     throw new Error("اسم الموسم مطلوب");
   }
+  if (input.name.length > 200) {
+    throw new Error("اسم الموسم طويل جداً (الحد الأقصى 200 حرف)");
+  }
 
   const startDate = new Date(input.startDate);
   const endDate = new Date(input.endDate);
@@ -45,6 +50,14 @@ export async function createExamSeason(input: {
   }
   if (endDate <= startDate) {
     throw new Error("تاريخ نهاية الموسم يجب أن يكون بعد تاريخ بدايته");
+  }
+
+  // منع إنشاء أكثر من موسم نشط واحد (بيزنس لوجيك)
+  if (input.isActive) {
+    await prisma.examSeason.updateMany({
+      where: { isActive: true },
+      data: { isActive: false },
+    });
   }
 
   const season = await prisma.examSeason.create({
@@ -74,6 +87,10 @@ export async function createExamSeason(input: {
 export async function setSeasonActive(seasonId: string, isActive: boolean) {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+
+  if (!seasonId || typeof seasonId !== "string" || seasonId.length < 1 || seasonId.length > 64) {
+    throw new Error("معرّف الموسم غير صالح");
+  }
 
   const season = await prisma.examSeason.findUnique({
     where: { id: seasonId },
@@ -107,9 +124,11 @@ export async function setSeasonActive(seasonId: string, isActive: boolean) {
 }
 
 /**
- * جلب جميع المواسم
+ * جلب جميع المواسم — يحتاج مصادقة + صلاحيات إدارية
  */
 export async function getExamSeasons() {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST, Role.HEAD_OF_AFFAIRS]);
   return prisma.examSeason.findMany({
     orderBy: { startDate: "desc" },
   });

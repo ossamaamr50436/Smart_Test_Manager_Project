@@ -2,15 +2,51 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { headers } from "next/headers";
 
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "./auth.config";
 import { AuditAction } from "@prisma/client";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+// النطاقات المسموح قبولها في ترويسة Host أثناء الدخول
+// (حماية إضافية من Host Header Injection — لا تغطيها الـ Middleware للـ /api)
+function assertAllowedHostHeader() {
+  const collected = new Set<string>();
+  const na = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "";
+  try {
+    if (na) collected.add(new URL(na).host);
+  } catch {
+    /* تجاهل */
+  }
+  if (process.env.VERCEL_URL) collected.add(process.env.VERCEL_URL);
+  if (process.env.VERCEL_DOMAIN) collected.add(process.env.VERCEL_DOMAIN);
+  (process.env.ALLOWED_HOSTS || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean).forEach((h) => collected.add(h));
+
+  // لا يوجد نطاق معروف — نرفض الطلب (fail-closed)
+  if (collected.size === 0) {
+    throw new Error("خطأ في الإعداد: لا يوجد نطاق مصرح — NEXTAUTH_URL أو ALLOWED_HOSTS غير مضبوط");
+  }
+
+  const h = headers();
+  const raw = h.get("x-forwarded-host") || h.get("host") || "";
+  let host = raw;
+  if (/:\d+$/.test(host)) host = host.slice(0, host.lastIndexOf(":"));
+  if (host.startsWith("[")) host = host.slice(1);
+  if (host.endsWith("]")) host = host.slice(0, -1);
+  host = host.toLowerCase();
+  if (!collected.has(host)) {
+    throw new Error("Host غير مصرح");
+  }
+}
 
 // مخطط التحقق من بيانات الدخول
 const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+  email: z
+    .string()
+    .email()
+    .max(254, "البريد الإلكتروني طويل جداً"),
+  password: z.string().min(8).max(128, "كلمة المرور طويلة جداً"),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -23,12 +59,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "كلمة المرور", type: "password" },
       },
       async authorize(credentials) {
+        // التحقق من ترويسة Host (منع Host Header Injection)
+        assertAllowedHostHeader();
+
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) {
           return null;
         }
 
         const { email, password } = parsed.data;
+
+        // Rate limit: حد أقصى 10 محاولات لكل بريد إلكتروني خلال 15 دقيقة
+        // (منع brute force مع تقليل فرصة استغلاله لتعطيل الحسابات DoS)
+        await checkRateLimit(`login:${email}`, 10);
+
+        // Rate limit على مستوى IP لمنع الهجوم الموزّع
+        const forwarded = headers().get("x-forwarded-for");
+        const ip = forwarded?.split(",")[0]?.trim() || "unknown";
+        await checkRateLimit(`login-ip:${ip}`, 50);
 
         // إيجاد المستخدم بالبريد الإلكتروني
         const user = await prisma.user.findUnique({

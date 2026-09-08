@@ -7,8 +7,43 @@ type AuthMiddlewareResult = {
   headers: Headers;
 } | null;
 
+// قائمة النطاقات المسموح قبولها في ترويسة Host
+// (حماية من Host Header Injection / Password Reset Poisoning)
+function getAllowedHosts(): Set<string> {
+  const hosts = new Set<string>();
+  const na = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "";
+  try {
+    if (na) hosts.add(new URL(na).host);
+  } catch {
+    /* تجاهل عنوان غير صالح */
+  }
+  if (process.env.VERCEL_URL) hosts.add(process.env.VERCEL_URL);
+  if (process.env.VERCEL_DOMAIN) hosts.add(process.env.VERCEL_DOMAIN);
+  (process.env.ALLOWED_HOSTS || "")
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean)
+    .forEach((h) => hosts.add(h));
+  return hosts;
+}
+
 export default async function middleware(req: NextRequest) {
   const nonce = crypto.randomUUID();
+
+  // حماية من اختطاف النطاق: رفض الطلبات ذات Host غير مصرح
+  // يقرأ x-forwarded-host أولاً (خلف Reverse Proxy) ثم host
+  const allowed = getAllowedHosts();
+  if (allowed.size > 0) {
+    let raw = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+    let host = raw;
+    if (/:\d+$/.test(host)) host = host.slice(0, host.lastIndexOf(":"));
+    if (host.startsWith("[")) host = host.slice(1);
+    if (host.endsWith("]")) host = host.slice(0, -1);
+    host = host.toLowerCase();
+    if (!allowed.has(host)) {
+      return new NextResponse("Forbidden: Host غير مصرح", { status: 403 });
+    }
+  }
 
   // تشغيل NextAuth Middleware
   const nextAuth = auth as unknown as (

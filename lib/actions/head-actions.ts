@@ -42,20 +42,30 @@ export async function getStudentsForHeadReview(
   const user = await requireUser();
   requireRole(user, [Role.HEAD_OF_AFFAIRS]);
 
+  // التحقق من قيم ترقيم الصفحات (منع DoS عبر قيم ضخمة)
+  const numericPage = Number(page);
+  const numericPageSize = Number(pageSize);
+  if (!Number.isInteger(numericPage) || numericPage < 1 || numericPage > 10000) {
+    throw new Error("رقم الصفحة غير صالح");
+  }
+  if (!Number.isInteger(numericPageSize) || numericPageSize < 1 || numericPageSize > 100) {
+    throw new Error("حجم الصفحة غير صالح (الحد الأقصى 100)");
+  }
+
   const where = { status: StudentStatus.NOTIFIED };
-  const skip = (page - 1) * pageSize;
+  const skip = (numericPage - 1) * numericPageSize;
 
   const [students, total] = await Promise.all([
     prisma.student.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip,
-      take: pageSize,
+      take: numericPageSize,
     }),
     prisma.student.count({ where }),
   ]);
 
-  return { students, total, totalPages: Math.ceil(total / pageSize), page };
+  return { students, total, totalPages: Math.ceil(total / numericPageSize), page: numericPage };
 }
 
 /**
@@ -72,6 +82,10 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
 
   // عزل الصلاحيات: رئيس الشؤون فقط (المادة 8)
   requireRole(user, [Role.HEAD_OF_AFFAIRS]);
+
+  if (!studentId || typeof studentId !== "string" || studentId.length < 1 || studentId.length > 64) {
+    throw new Error("معرّف الطالب غير صالح");
+  }
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },

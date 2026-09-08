@@ -12,6 +12,7 @@ const cors = require("cors");
 const path = require("path");
 const { Queue, Worker } = require("bullmq");
 const IORedis = require("ioredis");
+const crypto = require("crypto");
 
 // دعم ملفات .env عند التشغيل المحلي (قراءة البورت والمفاتيح)
 try {
@@ -22,9 +23,76 @@ try {
 
 const app = express();
 const PORT = process.env.MICROSERVICE_PORT || 4000;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
 
-app.use(cors());
+// CORS: السماح فقط لنطاقات محددة
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // في الإنتاج: يجب ضبط ALLOWED_ORIGINS صراحةً — لا نسمح fail-open
+      if (IS_PRODUCTION && ALLOWED_ORIGINS.length === 0) {
+        return callback(new Error("CORS: ALLOWED_ORIGINS غير مضبوط — رفض"));
+      }
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.length === 0) {
+        callback(null, true);
+        return;
+      }
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS: غير مصرح"));
+      }
+    },
+  })
+);
 app.use(express.json({ limit: "2mb" }));
+
+// Rate Limiting بسيط في الذاكرة (للخدمة المصغّرة فقط)
+const rateLimitStore = new Map();
+function rateLimit({ windowMs = 60000, max = 30 } = {}) {
+  return (req, res, next) => {
+    const ip = req.ip || req.connection.remoteAddress || "unknown";
+    const now = Date.now();
+    const key = `${ip}:${req.path}`;
+    const record = rateLimitStore.get(key) || { count: 0, resetAt: now + windowMs };
+    if (now > record.resetAt) {
+      record.count = 0;
+      record.resetAt = now + windowMs;
+    }
+    record.count++;
+    rateLimitStore.set(key, record);
+    if (record.count > max) {
+      return res.status(429).json({ error: "تم تجاوز حد الطلبات المسموح" });
+    }
+    next();
+  };
+}
+
+// تنظيف الذاكرة كل 5 دقائق
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitStore.entries()) {
+    if (now > record.resetAt) rateLimitStore.delete(key);
+  }
+}, 300000);
+
+// مصادقة للنقطة الحساسة (Internal API Key)
+function requireApiKey(req, res, next) {
+  if (!INTERNAL_API_KEY) {
+    return res.status(503).json({ error: "الخدمة المصغّرة غير مفعّلة — اضبط INTERNAL_API_KEY" });
+  }
+  const provided = req.headers["x-api-key"] || req.query?.key;
+  if (!provided || provided !== INTERNAL_API_KEY) {
+    return res.status(401).json({ error: "غير مصرح: مفتاح API مطلوب" });
+  }
+  next();
+}
+
+// تطبيق rate limit على نقاط النهاية الحساسة
+app.use("/api/queue", rateLimit({ windowMs: 60000, max: 30 }));
 
 // ------------------------------------------------------------
 // طابور الإنتاج عبر BullMQ + Redis
@@ -114,7 +182,7 @@ async function setupBullMQ() {
     return true;
   } catch (err) {
     console.warn(
-      `[BullMQ] تعذّر الاتصال بـ Redis (${err.message}) — العمل بوضع الذاكرة التدهوري`
+      "[BullMQ] تعذّر الاتصال بـ Redis — العمل بوضع الذاكرة التدهوري"
     );
     bullConnection?.disconnect();
     bullConnection = null;
@@ -127,20 +195,19 @@ async function setupBullMQ() {
 // نقاط نهاية أساسية
 // ------------------------------------------------------------
 
-// فحص الصحة — تستخدمه Nginx/موازن الأحمال للتأكد من حيوية الخدمة
+// فحص الصحة — تستخدمه Nginx/موازن الأحمال للتأكد من حيوية الخدمة (لا يحتاج مصادقة)
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     service: "smart-test-manager-microservice",
     queueMode: queue.mode,
-    redisUrl: REDIS_URL ? "configured" : "not-configured",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
 });
 
-// حالة الطابور — تُستهلك من لوحة المراقبة أو Next.js
-app.get("/api/queue/status", async (_req, res) => {
+// حالة الطابور — تُستهلك من لوحة المراقبة أو Next.js (مصادقة مطلوبة)
+app.get("/api/queue/status", requireApiKey, async (_req, res) => {
   if (queue.mode === "bullmq" && bullQueue) {
     try {
       const counts = await bullQueue.getJobCounts("waiting", "active", "completed", "failed");
@@ -156,8 +223,8 @@ app.get("/api/queue/status", async (_req, res) => {
           (counts.active || 0) +
           (counts.completed || 0),
       });
-    } catch (err) {
-      return res.status(500).json({ error: `تعذر قراءة حالة الطابور: ${err.message}` });
+    } catch {
+      return res.status(500).json({ error: "تعذر قراءة حالة الطابور" });
     }
   }
   res.json({
@@ -170,11 +237,11 @@ app.get("/api/queue/status", async (_req, res) => {
   });
 });
 
-// نقطة حجز مهمة ثقيلة في الطابور
-app.post("/api/queue/enqueue", async (req, res) => {
+// نقطة حجز مهمة ثقيلة في الطابور (مصادقة مطلوبة)
+app.post("/api/queue/enqueue", requireApiKey, async (req, res) => {
   const { type, payload } = req.body || {};
-  if (!type) {
-    return res.status(400).json({ error: "type مطلوب" });
+  if (!type || typeof type !== "string" || type.length > 100) {
+    return res.status(400).json({ error: "type مطلوب ويجب أن يكون نصاً أقصاه 100 حرف" });
   }
 
   if (queue.mode === "bullmq" && bullQueue) {
@@ -187,16 +254,15 @@ app.post("/api/queue/enqueue", async (req, res) => {
       });
       return res
         .status(201)
-        .json({ job: { id: job.id.toString(), type, payload: payload || {}, createdAt: new Date().toISOString() } });
-    } catch (err) {
-      return res.status(500).json({ error: `تعذر حجز المهمة: ${err.message}` });
+        .json({ job: { id: job.id.toString(), type, createdAt: new Date().toISOString() } });
+    } catch {
+      return res.status(500).json({ error: "تعذر حجز المهمة" });
     }
   }
 
   const job = {
     id: `job_${Date.now()}`,
     type,
-    payload,
     createdAt: new Date().toISOString(),
   };
   queue.pending.push(job);

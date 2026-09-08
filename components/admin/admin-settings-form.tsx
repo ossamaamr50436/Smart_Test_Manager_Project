@@ -187,7 +187,7 @@ export function AdminSettingsForm({
                 <input
                   ref={logoInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/svg+xml"
+                  accept="image/png,image/jpeg,image/webp"
                   className="hidden"
                   onChange={handleLogoChange}
                 />
@@ -200,7 +200,7 @@ export function AdminSettingsForm({
                   اختيار شعار جديد
                 </Button>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  PNG، JPG، أو SVG
+                  PNG، JPG، أو WEBP
                 </p>
               </div>
             </div>

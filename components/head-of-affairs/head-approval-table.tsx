@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { headOfAffairsFinalApprove } from "@/lib/actions/admin-actions";
+import { rejectStudentByHead } from "@/lib/actions/head-actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,6 +25,8 @@ export function HeadApprovalTable({ students }: { students: NotifiedStudent[] })
   const router = useRouter();
   const [error, setError] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   async function handleApprove(studentId: string) {
     setError("");
@@ -35,6 +38,20 @@ export function HeadApprovalTable({ students }: { students: NotifiedStudent[] })
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally {
       setProcessingId(null);
+    }
+  }
+
+  async function handleReject(studentId: string) {
+    setError("");
+    setRejectingId(studentId);
+    try {
+      await rejectStudentByHead(studentId, rejectReason.trim() || undefined);
+      setRejectReason("");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
+    } finally {
+      setRejectingId(null);
     }
   }
 
@@ -83,15 +100,34 @@ export function HeadApprovalTable({ students }: { students: NotifiedStudent[] })
                     {student.notifiedAt.toLocaleDateString("ar-SA")}
                   </td>
                   <td className="py-3">
-                    <Button
-                      size="sm"
-                      disabled={processingId === student.id}
-                      onClick={() => handleApprove(student.id)}
-                    >
-                      {processingId === student.id
-                        ? "جارٍ الاعتماد..."
-                        : "اعتماد نهائي (Final Approve)"}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        disabled={processingId === student.id || rejectingId === student.id}
+                        onClick={() => handleApprove(student.id)}
+                      >
+                        {processingId === student.id
+                          ? "جارٍ الاعتماد..."
+                          : "اعتماد نهائي (Final Approve)"}
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={rejectingId === student.id ? rejectReason : ""}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder="سبب الرفض (اختياري)"
+                          className="h-8 w-40 rounded-md border border-input bg-transparent px-2 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={processingId === student.id || rejectingId === student.id}
+                          onClick={() => handleReject(student.id)}
+                        >
+                          {rejectingId === student.id ? "جارٍ الرفض..." : "رفض"}
+                        </Button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ))}

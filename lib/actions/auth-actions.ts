@@ -98,7 +98,17 @@ export async function getStudentsForCurrentUser(
     redirect("/login");
   }
 
-  const skip = (page - 1) * pageSize;
+  // التحقق من قيم ترقيم الصفحات (منع DoS عبر قيم ضخمة)
+  const numericPage = Number(page);
+  const numericPageSize = Number(pageSize);
+  if (!Number.isInteger(numericPage) || numericPage < 1 || numericPage > 10000) {
+    throw new Error("رقم الصفحة غير صالح");
+  }
+  if (!Number.isInteger(numericPageSize) || numericPageSize < 1 || numericPageSize > 100) {
+    throw new Error("حجم الصفحة غير صالح (الحد الأقصى 100)");
+  }
+
+  const skip = (numericPage - 1) * numericPageSize;
 
   switch (user.role) {
     case Role.INSTITUTION: {
@@ -112,11 +122,11 @@ export async function getStudentsForCurrentUser(
           select: { id: true, name: true, age: true, branch: true, status: true },
           orderBy: { createdAt: "desc" },
           skip,
-          take: pageSize,
+          take: numericPageSize,
         }),
         prisma.student.count({ where: { institutionId: user.institutionId } }),
       ]);
-      return { students, total, totalPages: Math.ceil(total / pageSize), page };
+      return { students, total, totalPages: Math.ceil(total / numericPageSize), page: numericPage };
     }
 
     case Role.EXAMINER: {
@@ -134,15 +144,15 @@ export async function getStudentsForCurrentUser(
             },
           },
           skip,
-          take: pageSize,
+          take: numericPageSize,
         }),
         prisma.examSession.count({ where: baseWhere }),
       ]);
       return {
         students: sessions.map((s) => s.student),
         total,
-        totalPages: Math.ceil(total / pageSize),
-        page,
+        totalPages: Math.ceil(total / numericPageSize),
+        page: numericPage,
       };
     }
 
@@ -155,11 +165,11 @@ export async function getStudentsForCurrentUser(
           select: { id: true, name: true, age: true, branch: true, status: true },
           orderBy: { createdAt: "desc" },
           skip,
-          take: pageSize,
+          take: numericPageSize,
         }),
         prisma.student.count({ where }),
       ]);
-      return { students, total, totalPages: Math.ceil(total / pageSize), page };
+      return { students, total, totalPages: Math.ceil(total / numericPageSize), page: numericPage };
     }
 
     case Role.ADMIN:
@@ -171,11 +181,11 @@ export async function getStudentsForCurrentUser(
           select: { id: true, name: true, age: true, branch: true, status: true },
           orderBy: { createdAt: "desc" },
           skip,
-          take: pageSize,
+          take: numericPageSize,
         }),
         prisma.student.count(),
       ]);
-      return { students, total, totalPages: Math.ceil(total / pageSize), page };
+      return { students, total, totalPages: Math.ceil(total / numericPageSize), page: numericPage };
     }
   }
 }

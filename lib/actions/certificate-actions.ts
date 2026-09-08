@@ -18,6 +18,8 @@ import {
   downloadTemplateFromDrive,
   fillPdfTemplate,
 } from "@/lib/certificate-template";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { validateFileUpload } from "@/lib/upload-security";
 
 // ============================================================
 // نظام إصدار الشهادات (القسم 8)
@@ -75,7 +77,10 @@ export async function generateCertificate(studentId: string) {
   // عزل الصلاحيات: مصدر الشهادات فقط (المادة 8/5)
   requireRole(user, [Role.CERTIFICATE_SOURCE]);
 
-  if (!studentId || studentId.length < 1) {
+  // منع إساءة الاستخدام: حد أقصى 30 شهادة لكل مستخدم خلال 15 دقيقة
+  await checkRateLimit(`certificate:${user.id}`, 30);
+
+  if (!studentId || studentId.length < 1 || studentId.length > 64) {
     throw new Error("معرّف الطالب غير صالح");
   }
 
@@ -92,6 +97,13 @@ export async function generateCertificate(studentId: string) {
 
   if (!student) {
     throw new Error("الطالب غير موجود");
+  }
+
+  // التحقق من أن هناك موسم اختبارات نشط (لا إصدار خارج الموسم)
+  const { getCurrentSeason } = await import("./season-actions");
+  const currentSeason = await getCurrentSeason();
+  if (!currentSeason) {
+    throw new Error("لا يوجد موسم اختبارات نشط — لا يمكن إصدار الشهادات");
   }
 
   // المرحلة الصحيحة فقط: جاهز لإصدار الشهادة
@@ -115,20 +127,24 @@ export async function generateCertificate(studentId: string) {
     throw new Error("لا توجد درجة نهائية معتمدة لهذا الطالب");
   }
 
-  // الرقم التسلسلي التالي (بدون race condition)
-  const count = await prisma.certificate.count();
-  let serialNumber = buildSerialNumber(count + 1);
-
-  // التأكد من عدم التكرار (حماية من race condition)
-  let attempts = 0;
-  while (attempts < 10) {
-    const existing = await prisma.certificate.findUnique({
+  // الرقم التسلسلي التالي — استخدام مسار ذري آمن من race condition
+  // نستخدم create مع unique constraint ونعيد المحاولة عند التعارض
+  let serialNumber = "";
+  let created = false;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const count = await prisma.certificate.count();
+    serialNumber = buildSerialNumber(count + 1 + attempt);
+    const exists = await prisma.certificate.findUnique({
       where: { serialNumber },
       select: { id: true },
     });
-    if (!existing) break;
-    attempts++;
-    serialNumber = buildSerialNumber(count + 1 + attempts);
+    if (!exists) {
+      created = true;
+      break;
+    }
+  }
+  if (!created) {
+    throw new Error("تعذر توليد رقم تسلسلي فريد — حاول مرة أخرى");
   }
 
   // 1) توليد PDF (وضع القالب الذكي أو الافتراضي)
@@ -173,11 +189,7 @@ export async function generateCertificate(studentId: string) {
     fileUrl = uploaded.webViewLink;
   } catch (uploadError) {
     // عدم توفر إعدادات Drive يمنع إتمام الإصدار — لا نخزن الملف محلياً (المادة 3)
-    throw new Error(
-      `تعذر رفع الشهادة على Google Drive: ${
-        uploadError instanceof Error ? uploadError.message : "خطأ غير معروف"
-      }`
-    );
+    throw new Error("تعذر رفع الشهادة على Google Drive — تحقق من إعدادات الاتصال");
   }
 
   // 3) حفظ سجل الشهادة
@@ -188,7 +200,7 @@ export async function generateCertificate(studentId: string) {
       finalScore,
       fileUrl,
       issuedDate: new Date(),
-      status: CertificateStatus.UPLOADED,
+      status: CertificateStatus.PENDING,
       issuedById: user.id,
     },
   });
@@ -237,21 +249,19 @@ export async function getCertificateDriveLink(studentId: string) {
   const user = await requireUser();
   requireRole(user, [Role.CERTIFICATE_SOURCE, Role.INSTITUTION, Role.ADMIN]);
 
+  if (!studentId || studentId.length < 1 || studentId.length > 64) {
+    throw new Error("معرّف الطالب غير صالح");
+  }
+
+  // حماية IDOR: التحقق من ملكية الطالب لجميع الأدوار
+  const { assertCanAccessStudent } = await import("@/lib/security");
+  await assertCanAccessStudent(user, studentId);
+
   const certificate = await prisma.certificate.findFirst({
     where: { studentId },
     select: { fileUrl: true },
     orderBy: { createdAt: "desc" },
   });
-
-  if (user.role === Role.INSTITUTION) {
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: { institutionId: true },
-    });
-    if (!student || student.institutionId !== user.institutionId) {
-      throw new Error("غير مصرح: هذا الطالب ليس من جهتك التعليمية");
-    }
-  }
 
   return certificate?.fileUrl ?? null;
 }
@@ -278,11 +288,43 @@ export async function getPendingCertificatesForSignature() {
  * يرفع صورة التوقيع الرقمي على Google Drive ثم يحدّث سجل الشهادة
  * على أن يوقّع مسؤول رفيع المستوى (Admin / HeadOfAffairs).
  */
-export async function signCertificate(certificateId: string, signatureBuffer: Buffer) {
+export async function signCertificate(certificateId: string, signatureBuffer: Buffer | ArrayBuffer | Uint8Array) {
   const user = await requireUser();
 
   // عزل الصلاحيات: لا يمكن التوقيع إلا بمسؤول رفيع (المادة 8)
   requireRole(user, [Role.ADMIN, Role.HEAD_OF_AFFAIRS]);
+
+  // منع إساءة الاستخدام: حد أقصى 20 توقيع لكل مستخدم خلال 15 دقيقة
+  await checkRateLimit(`sign-certificate:${user.id}`, 20);
+
+  if (!certificateId || certificateId.length < 5) {
+    throw new Error("معرّف الشهادة غير صالح");
+  }
+
+  // تحقق من حجم صورة التوقيع (منع DoS عبر ملفات ضخمة)
+  const signatureSize =
+    signatureBuffer instanceof Buffer
+      ? signatureBuffer.byteLength
+      : signatureBuffer?.byteLength ?? 0;
+  if (!signatureSize || signatureSize === 0 || signatureSize < 100) {
+    throw new Error("صورة التوقيع فارغة أو غير صالحة");
+  }
+
+  const buffer =
+    signatureBuffer instanceof Buffer
+      ? signatureBuffer
+      : Buffer.from(signatureBuffer as ArrayBuffer);
+
+  // التحقق الشامل من صورة التوقيع (MIME + Magic Bytes + الحجم)
+  const signatureMime = "image/png";
+  try {
+    validateFileUpload(buffer, signatureMime, `signature.png`, {
+      maxBytes: 2 * 1024 * 1024,
+      allowedMimes: ["image/png", "image/jpeg"],
+    });
+  } catch {
+    throw new Error("صورة التوقيع غير صالحة (يُقبل PNG/JPG بحد أقصى 2MB)");
+  }
 
   const certificate = await prisma.certificate.findUnique({
     where: { id: certificateId },
@@ -297,7 +339,7 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
 
   // رفع صورة التوقيع على Google Drive (المادة 3)
   const uploaded = await uploadFileToDrive(
-    signatureBuffer,
+    buffer,
     `signature-${certificate.serialNumber}.png`,
     "image/png"
   );
@@ -323,4 +365,76 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
   revalidatePath("/certificate-source");
 
   return { success: true, certificateId, signatureUrl: uploaded.webViewLink };
+}
+
+/**
+ * إرسال شهادة موقّعة إلى الجهة التعليمية (مرحلة 8 بند "إرسال للجهة")
+ * - يحدّث حالة الشهادة إلى SENT
+ * - يضيف إشعاراً للجهة: "الشهادة جاهزة للتحميل"
+ */
+export async function sendCertificateToInstitution(certificateId: string) {
+  const user = await requireUser();
+
+  // عزل الصلاحيات: مصدر الشهادات فقط (المادة 8/5)
+  requireRole(user, [Role.CERTIFICATE_SOURCE]);
+
+  await checkRateLimit(`send-certificate:${user.id}`, 30);
+
+  if (!certificateId || certificateId.length < 5) {
+    throw new Error("معرّف الشهادة غير صالح");
+  }
+
+  const certificate = await prisma.certificate.findUnique({
+    where: { id: certificateId },
+    select: {
+      id: true,
+      serialNumber: true,
+      status: true,
+      student: { select: { id: true, name: true, institutionId: true } },
+    },
+  });
+  if (!certificate) {
+    throw new Error("الشهادة غير موجودة");
+  }
+  if (certificate.status === CertificateStatus.SENT) {
+    throw new Error("الشهادة أُرسلت للجهة من قبل");
+  }
+  if (certificate.status === CertificateStatus.PENDING || certificate.status === CertificateStatus.UPLOADED) {
+    throw new Error("لا يمكن إرسال شهادة لم تُوقَّع بعد — انتظر توقيع الإدارة");
+  }
+
+  await prisma.certificate.update({
+    where: { id: certificateId },
+    data: { status: CertificateStatus.SENT },
+  });
+
+  // إشعار الجهة: "الشهادة جاهزة للتحميل"
+  if (certificate.student.institutionId) {
+    const institutionUsers = await prisma.user.findMany({
+      where: { role: Role.INSTITUTION, institutionId: certificate.student.institutionId },
+      select: { id: true },
+    });
+    if (institutionUsers.length > 0) {
+      await prisma.notification.createMany({
+        data: institutionUsers.map((u) => ({
+          userId: u.id,
+          message: `الشهادة جاهزة للتحميل للطالب «${certificate.student.name}»`,
+          type: NotificationType.CERTIFICATE,
+        })),
+      });
+    }
+  }
+
+  await recordAudit(user.id, AuditAction.UPDATE, {
+    entity: "Certificate",
+    certificateId,
+    serialNumber: certificate.serialNumber,
+    step: "CERTIFICATE_SENT_TO_INSTITUTION",
+    status: CertificateStatus.SENT,
+  });
+
+  revalidatePath("/certificate-source");
+  revalidatePath("/admin/certificates");
+
+  return { success: true, certificateId, status: CertificateStatus.SENT };
 }

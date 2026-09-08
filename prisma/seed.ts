@@ -4,29 +4,48 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 // الحساب الرسمي النهائي للمنصة — المسؤول العام
-const ADMIN_EMAIL = "ossamaamr50436@gmail.com";
-const ADMIN_NAME = "Osama Amr (المسؤول العام)";
-// كلمة مرور مؤقتة بسيطة (حروف وأرقام) — تُغيَّر بعد أول دخول
-const ADMIN_TEMP_PASSWORD = "Aa123456";
+// تُقرأ بيانات الأدمن من متغيرات البيئة بدلاً من تخزينها في الكود (أمان)
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "";
+const ADMIN_NAME = process.env.ADMIN_NAME || "المسؤول العام";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const ADMIN_BIRTH_DATE = process.env.ADMIN_BIRTH_DATE || "1990-01-01";
 
 async function main() {
-  // تشفير كلمة المرور المؤقتة
-  const hashedPassword = await bcrypt.hash(ADMIN_TEMP_PASSWORD, 10);
+  // منع تشغيل البذر بدون كلمة مرور للأدمن (لا ننشئ حساباً بكلمة مرور معروفة)
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    console.error(
+      "❌ يجب ضبط ADMIN_EMAIL و ADMIN_PASSWORD في متغيرات البيئة لتشغيل البذر — يُرفض بسبب الأمان"
+    );
+    process.exit(1);
+  }
+
+  if (ADMIN_PASSWORD.length < 12) {
+    console.error(
+      "❌ كلمة مرور الأدمن يجب أن تكون 12 حرفاً على الأقل — تُرفض كلمة المرور الضعيفة"
+    );
+    process.exit(1);
+  }
+
+  // تشفير كلمة المرور
+  const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 12);
 
   // 1) إنشاء/تحديث حساب الأدمن الرسمي الوحيد
+  //    تحديث كلمة المرور أيضاً: كلمة المرور القديمة كانت مكشوفة في Git History
+  //    لذا يجب تدويرها عند كل بذر متعمد بمتغير بيئة جديد.
   const admin = await prisma.user.upsert({
     where: { email: ADMIN_EMAIL },
     update: {
       name: ADMIN_NAME,
       role: "ADMIN",
-      birthDate: new Date("1990-01-01"),
+      birthDate: new Date(ADMIN_BIRTH_DATE),
+      password: hashedPassword,
     },
     create: {
       email: ADMIN_EMAIL,
       name: ADMIN_NAME,
       password: hashedPassword,
       role: "ADMIN",
-      birthDate: new Date("1990-01-01"),
+      birthDate: new Date(ADMIN_BIRTH_DATE),
     },
   });
 

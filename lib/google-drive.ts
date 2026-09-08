@@ -40,25 +40,46 @@ export function getDriveFolderId(): string {
 }
 
 /**
+ * تطهير اسم الملف من الأحرف الخطرة (منع path traversal / أحرف Drive غير صالحة)
+ */
+export function sanitizeFileName(fileName: string, fallback = "file"): string {
+  const safe = String(fileName || "")
+    .replace(/[\u0000-\u001f\\/:*?"<>|\r\n]/g, "")
+    .replace(/\.\./g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+  if (safe.length === 0) return fallback;
+  return safe;
+}
+
+/**
  * رفع ملف إلى Google Drive داخل المجلد المحدد.
  *
  * @param fileBuffer محتوى الملف (على سبيل المثال PDF الشهادة)
- * @param fileName    اسم الملف الظاهر في Drive
+ * @param fileName    اسم الملف الظاهر في Drive (يُطهَّر من الأحرف الخطرة)
  * @param mimeType    نوع MIME للملف (افتراضياً application/pdf)
  * @returns { fileId, webViewLink }
  */
+const MAX_UPLOAD_SIZE = 20 * 1024 * 1024; // 20MB
+
 export async function uploadFileToDrive(
   fileBuffer: Buffer,
   fileName: string,
   mimeType = "application/pdf"
 ): Promise<{ fileId: string; webViewLink: string }> {
+  // حد أقصى للحجم لمنع DoS
+  if (fileBuffer.byteLength > MAX_UPLOAD_SIZE) {
+    throw new Error(`حجم الملف (${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB) يتجاوز الحد الأقصى (20MB)`);
+  }
+
   const auth = getAuthClient();
   const drive = google.drive({ version: "v3", auth });
   const folderId = getDriveFolderId();
 
   const response = await drive.files.create({
     requestBody: {
-      name: fileName,
+      name: sanitizeFileName(fileName, "file"),
       parents: [folderId],
       mimeType,
     },
@@ -86,8 +107,8 @@ export function extractDriveFileId(urlOrId: string): string | null {
   if (!urlOrId) return null;
   const trimmed = urlOrId.trim();
 
-  // إن كان معرّفاً خالصاً (بدون روابط)
-  if (/^[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
+  // إن كان معرّفاً خالصاً (بدون روابط) — مع حد أقصى للطول
+  if (/^[A-Za-z0-9_-]{20,200}$/.test(trimmed)) {
     return trimmed;
   }
 
@@ -136,15 +157,34 @@ export async function getPublicUrl(fileId: string): Promise<string> {
 
 /**
  * تحميل محتوى ملف من Google Drive كـ Buffer
+ * مع حد أقصى للحجم لمنع استهلاك الذاكرة في البيئة Serverless
  */
-export async function downloadFileFromDrive(fileId: string): Promise<Buffer> {
+const MAX_DOWNLOAD_SIZE = 20 * 1024 * 1024; // 20MB
+
+export async function downloadFileFromDrive(fileId: string, maxSize?: number): Promise<Buffer> {
+  const limit = maxSize ?? MAX_DOWNLOAD_SIZE;
   const auth = getAuthClient();
   const drive = google.drive({ version: "v3", auth });
+
+  // جلب حجم الملف أولاً للتحقق من الحد قبل التحميل
+  const meta = await drive.files.get({
+    fileId,
+    fields: "size",
+  });
+  const size = Number(meta.data.size ?? 0);
+  if (size > limit) {
+    throw new Error("حجم الملف أكبر من الحد المسموح");
+  }
+
   const response = await drive.files.get(
     { fileId, alt: "media" },
     { responseType: "arraybuffer" }
   );
-  return Buffer.from(response.data as ArrayBuffer);
+  const buffer = Buffer.from(response.data as ArrayBuffer);
+  if (buffer.byteLength > limit) {
+    throw new Error("حجم الملف أكبر من الحد المسموح");
+  }
+  return buffer;
 }
 
 /**
@@ -193,7 +233,7 @@ export async function uploadExamModelFile(
 
   const response = await drive.files.create({
     requestBody: {
-      name: fileName,
+      name: sanitizeFileName(fileName, "exam-model"),
       parents: [parentFolder],
       mimeType,
     },

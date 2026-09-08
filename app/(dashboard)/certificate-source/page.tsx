@@ -53,7 +53,7 @@ export default async function CertificateSourceDashboardPage() {
 
   // الشهادات الصادرة مؤخراً (عرض مباشر من قاعدة البيانات — بدون بيانات وهمية)
   const issuedCertificates = await prisma.certificate.findMany({
-    where: { status: { in: ["UPLOADED", "SIGNED", "SENT"] } },
+    where: { status: { in: ["PENDING", "UPLOADED", "SIGNED", "SENT"] } },
     include: {
       student: {
         select: { name: true, branch: true },
@@ -82,6 +82,7 @@ export default async function CertificateSourceDashboardPage() {
           finalScore: c.finalScore,
           fileUrl: c.fileUrl,
           issuedDate: c.issuedDate,
+          status: c.status,
         }))}
       />
     </div>

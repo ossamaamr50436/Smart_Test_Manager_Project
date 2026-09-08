@@ -3,6 +3,41 @@
 > كل تغيير في هذه الجولة موثّق هنا مع السبب والأثر
 > (التوثيق مطلوب من متطلبات الجولة النهائية).
 
+## جولة PHASE B — بناء لوحة تحكم المسؤول الكاملة (2026-09-07)
+
+> **الهدف:** إغلاق الفجوات الحرجة (P1) الموثقة في `ADMIN_PANEL_STATUS.md` وبناء لوحة تحكم المسؤول كاملة النطاق (المادة 3.1 من المواصفات).
+
+### 1) الطبقة الخلفية: `lib/actions/admin-panel-actions.ts` (جديد)
+- كل الإجراءات Server Actions محمية بـ `requireUser()` + `requireRole(user, [Role.ADMIN])` — عزل صلاحيات صارم على مستوى الخادم.
+- تسجيل كل عملية إنشاء/تعديل/حذف في سجل التدقيق (`AuditLog`).
+- rate limit على عمليات الحساسة (`checkRateLimit`) لمنع إساءة الاستخدام.
+- **الإدارة**:
+  - `getAdminDashboardStats`: 16 إحصائية حقيقية من قاعدة البيانات + آخر الأنشطة.
+  - `getAdminUsers` / `createAdminUser` / `updateAdminUser` / `resetAdminUserPassword` / `adminDeleteUser`: إدارة كاملة (بريد مكرر ممنوع، كلمة مرور ≥ 12، ربط الجهة لدور INSTITUTION، منع حذف الذات ومن لديه جلسات، منع حذف مؤسسة لديها مستخدمون).
+  - `getAdminInstitutions` / `createAdminInstitution` / `updateAdminInstitution` / `adminDeleteInstitution`.
+  - `getAdminSeasons` / `createAdminSeason` / `updateAdminSeason` (تفعيل موسم واحد فقط).
+  - `getAdminModels` / `getAdminStudents` / `getAdminSessions` / `getAdminCertificates` (قوائم مرقّمة مع فلاتر حسب الحالة/الجهة/البحث).
+  - `getInstitutionsOptions` / `getExaminersOptions` (للقوائم المنسدلة).
+
+### 2) صفحة لوحة المسؤول الرئيسية — `app/(dashboard)/admin/page.tsx`
+- استُبدل القالب "قيد التطوير" بشاشة إحصائيات حقيقية + روابط سريعة + آخر الأنشطة من AuditLog.
+- `dynamic = "force-dynamic"` لضمان لعرض بيانات لحظية ومحمية خلف المصادقة.
+
+### 3) صفحات فرعية (جديدة) — كلها محمية في الصفحة والدالة معاً
+- `/admin/users` — مبيّن مستخدمين (`components/admin/admin-users-manager.tsx`): إنشاء/تعديل/حذف/تغيير كلمة مرور.
+- `/admin/institutions` — إدارة المؤسسات (`admin-institutions-manager.tsx`): إنشاء/تعديل/حذف + عدد الطلاب/المستخدمين/النماذج.
+- `/admin/seasons` — إدارة المواسم (`admin-seasons-manager.tsx`): إنشاء/تفعيل.
+- `/admin/models` — عرض النماذج مع الفلاتر (`admin-models-list.tsx`).
+- `/admin/students` — عرض الطلاب مع الفلاتر (`admin-students-list.tsx`).
+- `/admin/sessions` — عرض الجلسات مع الفلاتر (`admin-sessions-list.tsx`).
+- `/admin/certificates` — عرض الشهادات مع الفلاتر (`admin-certificates-list.tsx`).
+
+### 4) الشريط الجانبي
+- `components/dashboard/dashboard-sidebar.tsx`: أُضيفت روابط ADMIN الجديدة (المستخدمون/المؤسسات/المواسم/النماذج/الطلاب/الجلسات/الشهادات) قبل إعدادات المنصة وسجل التدقيق.
+
+### التحقق (2026-09-07)
+- `npx tsc --noEmit` ✅ | `npm run lint` ✅ | `npm run build` ✅ (31 مساراً، كل صفحات `/admin/*` مترجمة) | `npm run test:security` ✅ (39/39).
+
 ## جولة إصلاح تسجيل الدخول + CSP (2026-09-06)
 
 > **المشكلة:** كل محاولة تسجيل دخول لا تُرسل أي طلب إلى الخادم حتى مع صحة البيانات (لا توجد أي POST في تبويب Network).

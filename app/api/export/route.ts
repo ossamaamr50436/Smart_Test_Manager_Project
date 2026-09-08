@@ -21,7 +21,10 @@ export async function GET() {
     // حسب الدور نحدد نطاق الطلاب
     const where: Prisma.StudentWhereInput =
       user.role === Role.CERTIFICATE_SOURCE
-        ? { status: StudentStatus.COMPLETED }
+        ? {
+            status: StudentStatus.COMPLETED,
+            ...(user.institutionId ? { institutionId: user.institutionId } : {}),
+          }
         : user.institutionId
           ? { institutionId: user.institutionId }
           : {};
@@ -39,11 +42,21 @@ export async function GET() {
         status: true,
       },
       orderBy: { createdAt: "desc" },
+      take: 10000,
     });
+
+    if (students.length === 0) {
+      return NextResponse.json({ error: "لا توجد بيانات للتصدير" }, { status: 404 });
+    }
 
     const escape = (v: unknown) => {
       const s = String(v ?? "");
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      // OWASP CSV Injection (CWE-1236):
+      // تحييد بادئات صيغ Excel (= + - @) حتى لا تُنفَّذ داخل خلية
+      const neutralized = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return /[",\n]/.test(neutralized)
+        ? `"${neutralized.replace(/"/g, '""')}"`
+        : neutralized;
     };
 
     const header = [

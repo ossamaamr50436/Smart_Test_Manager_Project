@@ -5,6 +5,8 @@ import { requireUser, requireRole } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { uploadFileToDrive } from "@/lib/google-drive";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { validateFileUpload } from "@/lib/upload-security";
 
 // ============================================================
 // إعدادات المنصة الديناميكية (الاسم + الشعار)
@@ -64,6 +66,16 @@ export async function updatePlatformSettings(
   if (!platformName || platformName.trim().length === 0) {
     throw new Error("اسم المنصة مطلوب");
   }
+  if (platformName.trim().length > 100) {
+    throw new Error("اسم المنصة طويل جداً (الحد الأقصى 100 حرف)");
+  }
+  // منع حقن HTML كطبقة دفاع إضافية
+  if (/<[^>]*>/.test(platformName)) {
+    throw new Error("اسم المنصة لا يسمح بوسوم HTML");
+  }
+
+  // منع إساءة الاستخدام (رفع ملفات متكررة)
+  await checkRateLimit(`settings-update:${user.id}`, 10);
 
   const data: {
     platformName: string;
@@ -72,32 +84,27 @@ export async function updatePlatformSettings(
   } = { platformName: platformName.trim() };
 
   if (logoFile) {
-    // التحقق من نوع الملف وحجمه (OWASP — منع DoS)
-    const allowedMimeTypes = [
-      "image/png",
-      "image/jpeg",
-      "image/svg+xml",
-    ];
-    if (!allowedMimeTypes.includes(logoFile.mimeType)) {
-      throw new Error("نوع الشعار غير مسموح: PNG, JPG, أو SVG فقط");
-    }
-    if (logoFile.buffer.byteLength > 5 * 1024 * 1024) {
-      throw new Error("حجم الشعار كبير جداً (الحد الأقصى 5MB)");
+    // التحقق الشامل من نوع الملف وحجمه ومحتواه (OWASP — منع DoS و XSS عبر SVG)
+    // ملاحظة أمنية: مُنع SVG لأن ملفات SVG قد تحمل سكربتات ضارة (XSS)
+    const buffer = Buffer.from(logoFile.buffer);
+    try {
+      validateFileUpload(buffer, logoFile.mimeType, logoFile.fileName, {
+        maxBytes: 5 * 1024 * 1024,
+        allowedMimes: ["image/png", "image/jpeg", "image/webp"],
+      });
+    } catch {
+      throw new Error("الشعار غير صالح: PNG, JPG, أو WEBP فقط (الحد الأقصى 5MB)");
     }
     try {
       const uploaded = await uploadFileToDrive(
-        Buffer.from(logoFile.buffer),
+        buffer,
         logoFile.fileName,
         logoFile.mimeType
       );
       data.logoUrl = uploaded.webViewLink;
       data.logoFileId = uploaded.fileId;
-    } catch (err) {
-      throw new Error(
-        `تعذر رفع الشعار على Google Drive: ${
-          err instanceof Error ? err.message : "خطأ غير معروف"
-        }`
-      );
+    } catch {
+      throw new Error("تعذر رفع الشعار على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً");
     }
   }
 
@@ -138,32 +145,34 @@ export async function updateTemplateSettings(
   const user = await requireUser();
   requireRole(user, [Role.ADMIN]);
 
+  // منع إساءة الاستخدام (رفع قوالب متكررة)
+  await checkRateLimit(`settings-update:${user.id}`, 10);
+
   const data: {
     useTemplateMode: boolean;
     templateFileId?: string;
   } = { useTemplateMode };
 
   if (templateFile) {
-    // التحقق من نوع وحجم قالب الشهادة
-    if (templateFile.mimeType !== "application/pdf") {
-      throw new Error("قالب الشهادة يجب أن يكون ملف PDF");
-    }
-    if (templateFile.buffer.byteLength > 10 * 1024 * 1024) {
-      throw new Error("حجم قالب الشهادة كبير جداً (الحد الأقصى 10MB)");
+    // التحقق الشامل من قالب الشهادة (PDF فقط + حجم + محتوى)
+    const buffer = Buffer.from(templateFile.buffer);
+    try {
+      validateFileUpload(buffer, templateFile.mimeType, templateFile.fileName, {
+        maxBytes: 10 * 1024 * 1024,
+        allowedMimes: ["application/pdf"],
+      });
+    } catch {
+      throw new Error("قالب الشهادة يجب أن يكون ملف PDF (الحد الأقصى 10MB)");
     }
     try {
       const uploaded = await uploadFileToDrive(
-        Buffer.from(templateFile.buffer),
+        buffer,
         templateFile.fileName,
         templateFile.mimeType
       );
       data.templateFileId = uploaded.fileId;
-    } catch (err) {
-      throw new Error(
-        `تعذر رفع قالب الشهادة على Google Drive: ${
-          err instanceof Error ? err.message : "خطأ غير معروف"
-        }`
-      );
+    } catch {
+      throw new Error("تعذر رفع قالب الشهادة على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً");
     }
   }
 

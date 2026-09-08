@@ -13,6 +13,7 @@ import {
   type ReviewDecision,
 } from "@/lib/validations/student";
 import { getCurrentSeason } from "./season-actions";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
  * تسجيل حدث في Audit Log
@@ -41,6 +42,9 @@ export async function createStudentApplication(input: StudentApplicationInput) {
   if (!user.institutionId) {
     throw new Error("حساب الجهة غير مرتبط بمؤسسة تعليمية");
   }
+
+  // منع إساءة الاستخدام: حد أقصى 20 طالب لكل جهة خلال 15 دقيقة
+  await checkRateLimit(`student-create:${user.id}`, 20);
 
   // التحقق من صحة البيانات
   const parsed = studentApplicationSchema.safeParse(input);
@@ -102,11 +106,16 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { id: true, name: true, institutionId: true },
+    select: { id: true, name: true, institutionId: true, status: true },
   });
 
   if (!student) {
     throw new Error("الطالب غير موجود");
+  }
+
+  // منع مراجعة طالب تم مراجعته مسبقاً (يجب أن يكون بحالة PENDING فقط)
+  if (student.status !== StudentStatus.PENDING) {
+    throw new Error("لا يمكن مراجعة طلب تم معالجته مسبقاً");
   }
 
   // نص السبب الثابت (حالياً)
@@ -230,31 +239,35 @@ export async function assignCommittee(input: CommitteeInput) {
 
   // الموسم النشط الحالي (المادة 6)
   const season = await getCurrentSeason();
-  const seasonId = season?.id ?? null;
-
-  // منع التوزيع المزدوج لنفس الطالب
-  const existingSession = await prisma.examSession.findFirst({
-    where: { studentId: data.studentId },
-  });
-  if (existingSession) {
-    throw new Error("هذا الطالب موزع على لجنة مسبقاً");
+  if (!season) {
+    throw new Error("لا يوجد موسم اختبارات نشط حالياً — يجب تفعيل موسم أولاً");
   }
+  const seasonId = season.id;
 
-  const session = await prisma.examSession.create({
-    data: {
-      studentId: data.studentId,
-      teacher1Id: data.teacher1Id,
-      teacher2Id: data.teacher2Id,
-      examDate,
-      period: data.period,
-      status: "SCHEDULED",
-      seasonId,
-    },
-  });
+  // منع التوزيع المزدوج لنفس الطالب (حماية ذرّية ضد Race Condition)
+  // نستخدم updateMany بشرط الحالة APPROVED داخل معاملة — إن لم يحدّث أي صف
+  // فهذا يعني أن الطالب لم يعد APPROVED (مُوزّع أو غيّرت حالته) → نرفض.
+  const session = await prisma.$transaction(async (tx) => {
+    const updated = await tx.student.updateMany({
+      where: { id: data.studentId, status: StudentStatus.APPROVED },
+      data: { status: StudentStatus.ASSIGNED },
+    });
 
-  await prisma.student.update({
-    where: { id: data.studentId },
-    data: { status: StudentStatus.ASSIGNED },
+    if (updated.count !== 1) {
+      throw new Error("تعذر توزيع الطالب: يجب أن يكون بحالة APPROVED ولم يُوزَّع مسبقاً");
+    }
+
+    return tx.examSession.create({
+      data: {
+        studentId: data.studentId,
+        teacher1Id: data.teacher1Id,
+        teacher2Id: data.teacher2Id,
+        examDate,
+        period: data.period,
+        status: "SCHEDULED",
+        seasonId,
+      },
+    });
   });
 
   // إشعارات للمعلمين والجهة

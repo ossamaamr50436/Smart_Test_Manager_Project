@@ -23,6 +23,34 @@ export const authConfig = {
     strategy: "jwt" as const,
     // انتهاء الجلسة بعد 8 ساعات (OWASP Broken Authentication)
     maxAge: 8 * 60 * 60,
+    updateAge: 60 * 60, // تجديد الجلسة النشطة كل ساعة
+  },
+  // تقوية ملفات تعريف الارتباط (OWASP Secure Cookies)
+  cookies: {
+    sessionToken: {
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    callbackUrl: {
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    csrfToken: {
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
   callbacks: {
     authorized({ auth, request }) {

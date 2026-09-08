@@ -2,7 +2,7 @@
 CREATE TYPE "Role" AS ENUM ('ADMIN', 'HEAD_OF_AFFAIRS', 'CERTIFICATE_SOURCE', 'TEST_SPECIALIST', 'EXAMINER', 'INSTITUTION');
 
 -- CreateEnum
-CREATE TYPE "StudentStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'ASSIGNED', 'COMPLETED');
+CREATE TYPE "StudentStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'ASSIGNED', 'COMPLETED', 'NOTIFIED', 'READY_FOR_CERTIFICATE', 'CERTIFICATE_ISSUED');
 
 -- CreateEnum
 CREATE TYPE "ExamSessionStatus" AS ENUM ('SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
@@ -26,7 +26,7 @@ CREATE TABLE "users" (
     "email" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "role" "Role" NOT NULL,
-    "birthDate" TIMESTAMP(3),
+    "birthDate" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "institutionId" TEXT,
@@ -65,11 +65,24 @@ CREATE TABLE "students" (
 );
 
 -- CreateTable
+CREATE TABLE "exam_seasons" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3) NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "exam_seasons_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "exam_models" (
     "id" TEXT NOT NULL,
     "modelNumber" INTEGER NOT NULL,
     "detailsJSON" JSONB NOT NULL,
     "institutionId" TEXT NOT NULL,
+    "seasonId" TEXT NOT NULL,
 
     CONSTRAINT "exam_models_pkey" PRIMARY KEY ("id")
 );
@@ -83,6 +96,8 @@ CREATE TABLE "exam_sessions" (
     "examDate" TIMESTAMP(3) NOT NULL,
     "period" TEXT NOT NULL,
     "status" "ExamSessionStatus" NOT NULL DEFAULT 'SCHEDULED',
+    "seasonId" TEXT NOT NULL,
+    "modelId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -111,12 +126,18 @@ CREATE TABLE "assessments" (
 -- CreateTable
 CREATE TABLE "certificates" (
     "id" TEXT NOT NULL,
+    "serialNumber" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "finalScore" DOUBLE PRECISION NOT NULL,
     "fileUrl" TEXT,
+    "fileId" TEXT,
+    "signatureFileId" TEXT,
     "issuedDate" TIMESTAMP(3),
     "status" "CertificateStatus" NOT NULL DEFAULT 'PENDING',
     "issuedById" TEXT,
+    "signatureUrl" TEXT,
+    "signedById" TEXT,
+    "signedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -137,6 +158,23 @@ CREATE TABLE "notifications" (
 );
 
 -- CreateTable
+CREATE TABLE "app_settings" (
+    "id" TEXT NOT NULL DEFAULT 'singleton',
+    "platformName" TEXT NOT NULL DEFAULT 'تطبيق الاختبارات',
+    "logoFileId" TEXT,
+    "logoUrl" TEXT,
+    "useTemplateMode" BOOLEAN NOT NULL DEFAULT false,
+    "templateFileId" TEXT,
+    "primaryColor" TEXT NOT NULL DEFAULT '#015e63',
+    "secondaryColor" TEXT NOT NULL DEFAULT '#d3bb8b',
+    "whatsappNumber" TEXT,
+    "darkModeEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "app_settings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "audit_logs" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
@@ -145,6 +183,15 @@ CREATE TABLE "audit_logs" (
     "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "rate_limits" (
+    "key" TEXT NOT NULL,
+    "count" INTEGER NOT NULL DEFAULT 0,
+    "resetAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "rate_limits_pkey" PRIMARY KEY ("key")
 );
 
 -- CreateIndex
@@ -160,7 +207,7 @@ CREATE INDEX "students_institutionId_idx" ON "students"("institutionId");
 CREATE INDEX "exam_models_institutionId_idx" ON "exam_models"("institutionId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "exam_models_institutionId_modelNumber_key" ON "exam_models"("institutionId", "modelNumber");
+CREATE UNIQUE INDEX "exam_models_institutionId_modelNumber_seasonId_key" ON "exam_models"("institutionId", "modelNumber", "seasonId");
 
 -- CreateIndex
 CREATE INDEX "exam_sessions_studentId_idx" ON "exam_sessions"("studentId");
@@ -172,13 +219,19 @@ CREATE INDEX "exam_sessions_teacher1Id_idx" ON "exam_sessions"("teacher1Id");
 CREATE INDEX "exam_sessions_teacher2Id_idx" ON "exam_sessions"("teacher2Id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "exam_sessions_seasonId_modelId_key" ON "exam_sessions"("seasonId", "modelId");
+
+-- CreateIndex
 CREATE INDEX "assessments_examSessionId_idx" ON "assessments"("examSessionId");
 
 -- CreateIndex
 CREATE INDEX "assessments_evaluatorId_idx" ON "assessments"("evaluatorId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "assessments_examSessionId_modelId_key" ON "assessments"("examSessionId", "modelId");
+CREATE UNIQUE INDEX "assessments_examSessionId_evaluatorId_key" ON "assessments"("examSessionId", "evaluatorId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "certificates_serialNumber_key" ON "certificates"("serialNumber");
 
 -- CreateIndex
 CREATE INDEX "certificates_studentId_idx" ON "certificates"("studentId");
@@ -195,6 +248,9 @@ CREATE INDEX "audit_logs_userId_idx" ON "audit_logs"("userId");
 -- CreateIndex
 CREATE INDEX "audit_logs_timestamp_idx" ON "audit_logs"("timestamp");
 
+-- CreateIndex
+CREATE INDEX "rate_limits_resetAt_idx" ON "rate_limits"("resetAt");
+
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -205,6 +261,9 @@ ALTER TABLE "students" ADD CONSTRAINT "students_institutionId_fkey" FOREIGN KEY 
 ALTER TABLE "exam_models" ADD CONSTRAINT "exam_models_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "exam_models" ADD CONSTRAINT "exam_models_seasonId_fkey" FOREIGN KEY ("seasonId") REFERENCES "exam_seasons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "students"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -212,6 +271,12 @@ ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_teacher1Id_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_teacher2Id_fkey" FOREIGN KEY ("teacher2Id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_seasonId_fkey" FOREIGN KEY ("seasonId") REFERENCES "exam_seasons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_modelId_fkey" FOREIGN KEY ("modelId") REFERENCES "exam_models"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "assessments" ADD CONSTRAINT "assessments_examSessionId_fkey" FOREIGN KEY ("examSessionId") REFERENCES "exam_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;

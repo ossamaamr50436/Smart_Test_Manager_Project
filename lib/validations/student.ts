@@ -8,30 +8,36 @@ export const PERIODS = ["صباحي", "مسائي"] as const;
 
 // مخطط ترشيح طالب جديد — خاص بالجهة التعليمية
 export const studentApplicationSchema = z.object({
-  name: z.string().min(2, "اسم الطالب لا يقل عن حرفين"),
+  name: z
+    .string()
+    .min(2, "اسم الطالب لا يقل عن حرفين")
+    .max(100, "اسم الطالب طويل جداً (الحد الأقصى 100 حرف)"),
   age: z.coerce
     .number({ invalid_type_error: "أدخل عمر الطالب" })
     .int("العمر يجب أن يكون عدداً صحيحاً")
     .min(4, "العمر يجب أن يكون 4 سنوات فأكثر")
     .max(18, "العمر يجب أن يكون 18 سنة فأقل"),
   branch: z.enum(BRANCHES, { message: "اختر عدد الأجزاء المحفوظة" }),
-  teacherName: z.string().min(2, "اسم المعلم لا يقل عن حرفين"),
+  teacherName: z
+    .string()
+    .min(2, "اسم المعلم لا يقل عن حرفين")
+    .max(100, "اسم المعلم طويل جداً (الحد الأقصى 100 حرف)"),
   parentPhone: z
     .string()
     .min(9, "رقم ولي الأمر غير صحيح")
     .max(15, "رقم ولي الأمر طويل جداً"),
-  address: z.string().optional(),
-  phone: z.string().optional(),
+  address: z.string().max(200, "العنوان طويل جداً").optional(),
+  phone: z.string().max(15, "رقم الهاتف طويل جداً").optional(),
 });
 
 export type StudentApplicationInput = z.infer<typeof studentApplicationSchema>;
 
 // مخطط تشكيل لجنة — خاص بأخصائي الاختبارات
 export const committeeSchema = z.object({
-  studentId: z.string().min(1, "اختر الطالب"),
-  teacher1Id: z.string().min(1, "اختر المعلم الأول"),
-  teacher2Id: z.string().min(1, "اختر المعلم الثاني"),
-  examDate: z.string().min(1, "حدد تاريخ الاختبار"),
+  studentId: z.string().min(1, "اختر الطالب").max(64, "معرّف الطالب غير صالح"),
+  teacher1Id: z.string().min(1, "اختر المعلم الأول").max(64, "معرّف المعلم غير صالح"),
+  teacher2Id: z.string().min(1, "اختر المعلم الثاني").max(64, "معرّف المعلم غير صالح"),
+  examDate: z.string().min(1, "حدد تاريخ الاختبار").max(50, "تاريخ الاختبار غير صالح"),
   period: z.enum(PERIODS, { message: "اختر الفترة" }),
 });
 

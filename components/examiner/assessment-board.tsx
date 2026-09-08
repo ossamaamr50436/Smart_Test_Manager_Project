@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { connectSocket, disconnectSocket } from "@/lib/socket";
+import { subscribeToSession } from "@/lib/realtime-client";
 import {
   saveAssessment,
   approveAssessment,
@@ -74,16 +74,13 @@ export function AssessmentBoard({
   // حالة التقييم الحالية — تمنع التعديل بعد الاعتماد (إصلاح ثغرة Socket.IO)
   const [locked, setLocked] = useState(false);
 
-  // المزامنة الحية (Socket.IO — تمهيد)
-  // يُبثّ أي تغيير لبقية المعلمين في نفس اللجنة بدون إعادة تحميل
+  // المزامنة الحية (Pusher) — تعمل على Vercel Serverless
+  // يُبثّ أي تغيير محفوظ لبقية المعلمين في نفس اللجنة بدون إعادة تحميل
   useEffect(() => {
     if (locked) return;
-    const socket = connectSocket();
-    socket.emit("join:assessment", { sessionId });
-    socket.on("assessment:update", (incoming: Incoming) => {
+    const unsubscribe = subscribeToSession(sessionId, (incoming: Incoming) => {
       // منع التحديث إذا كانت الحالة ليست DRAFT (الإصلاح الأمني)
-      if (locked || incoming.assessmentStatus && incoming.assessmentStatus !== "DRAFT") {
-        socket.off("assessment:update");
+      if (incoming.assessmentStatus && incoming.assessmentStatus !== "DRAFT") {
         setLocked(true);
         return;
       }
@@ -103,10 +100,7 @@ export function AssessmentBoard({
         });
       }
     });
-    return () => {
-      socket.off("assessment:update");
-      disconnectSocket();
-    };
+    return unsubscribe;
   }, [sessionId, segments, locked]);
 
   function increment(segment: string, field: keyof SegmentState) {
@@ -124,14 +118,6 @@ export function AssessmentBoard({
         ...current,
         [field]: current[field] + 1,
       };
-      // بثّ التحديث للجنة عبر الـ WebSocket
-      const socket = connectSocket();
-      socket.emit("assessment:update", {
-        sessionId,
-        evaluatorId,
-        counts: next,
-        assessmentStatus: "DRAFT",
-      });
       return next;
     });
   }

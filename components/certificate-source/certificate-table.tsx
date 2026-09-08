@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { generateCertificate } from "@/lib/actions/certificate-actions";
+import { generateCertificate, sendCertificateToInstitution } from "@/lib/actions/certificate-actions";
 
 type ReadyStudent = {
   id: string;
@@ -12,6 +12,13 @@ type ReadyStudent = {
   branch: string;
   institutionName: string;
   finalScore: number | null;
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: "بانتظار التوقيع",
+  SIGNED: "موقّعة",
+  UPLOADED: "مرفوعة",
+  SENT: "أُرسلت للجهة",
 };
 
 type IssuedCertificate = {
@@ -22,6 +29,7 @@ type IssuedCertificate = {
   finalScore: number;
   fileUrl: string | null;
   issuedDate: Date | null;
+  status: string;
 };
 
 export function CertificateTable({
@@ -48,6 +56,23 @@ export function CertificateTable({
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "تعذر إصدار الشهادة");
+      } finally {
+        setPendingId(null);
+      }
+    });
+  }
+
+  async function handleSend(certificateId: string) {
+    setPendingId(certificateId);
+    setError("");
+    setSuccess("");
+    startTransition(async () => {
+      try {
+        await sendCertificateToInstitution(certificateId);
+        setSuccess("تم إرسال الشهادة للجهة — ستتلقى الجهة إشعاراً");
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "تعذر إرسال الشهادة");
       } finally {
         setPendingId(null);
       }
@@ -144,19 +169,36 @@ export function CertificateTable({
                       {cert.issuedDate
                         ? new Date(cert.issuedDate).toLocaleDateString("ar-SA")
                         : "—"}
+                      {" — "}
+                      <span className="font-medium">
+                        {STATUS_LABELS[cert.status] ?? cert.status}
+                      </span>
                     </p>
                   </div>
-                  {cert.fileUrl && (
-                    <Button asChild size="sm" variant="outline">
-                      <a
-                        href={cert.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                  <div className="flex items-center gap-2">
+                    {cert.status === "SIGNED" && (
+                      <Button
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() => handleSend(cert.id)}
                       >
-                        عرض الشهادة
-                      </a>
-                    </Button>
-                  )}
+                        {isPending && pendingId === cert.id
+                          ? "جارٍ الإرسال..."
+                          : "إرسال للجهة"}
+                      </Button>
+                    )}
+                    {cert.fileUrl && (
+                      <Button asChild size="sm" variant="outline">
+                        <a
+                          href={cert.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          عرض الشهادة
+                        </a>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

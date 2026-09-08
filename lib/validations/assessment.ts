@@ -2,7 +2,10 @@ import { z } from "zod";
 
 // مخطط التحقق من مدخلات التقييم (OWASP — تحقق من صحة المدخلات)
 export const assessmentInputSchema = z.object({
-  examSessionId: z.string().min(1, "معرّف الجلسة مطلوب"),
+  examSessionId: z
+    .string()
+    .min(1, "معرّف الجلسة مطلوب")
+    .max(64, "معرّف الجلسة غير صالح"),
   errorsCount: z.coerce
     .number({ invalid_type_error: "عدد الأخطاء يجب أن يكون رقماً" })
     .int("عدد الأخطاء يجب أن يكون عدداً صحيحاً")
@@ -24,7 +27,10 @@ export type AssessmentInput = z.infer<typeof assessmentInputSchema>;
 
 // مخطط التحقق من عملية الاعتماد المتسلسل (المادة 5)
 export const assessmentApprovalSchema = z.object({
-  examSessionId: z.string().min(1, "معرّف الجلسة مطلوب"),
+  examSessionId: z
+    .string()
+    .min(1, "معرّف الجلسة مطلوب")
+    .max(64, "معرّف الجلسة غير صالح"),
   action: z.enum(["approve", "finalize"], { message: "إجراء غير صحيح" }),
 });
 

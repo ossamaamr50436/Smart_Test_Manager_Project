@@ -17,6 +17,7 @@ import {
 } from "@/lib/validations/assessment";
 import { getCurrentSeason } from "./season-actions";
 import { getExamModelsFromDrive } from "@/lib/google-drive";
+import { broadcastAssessmentUpdate } from "@/lib/realtime";
 
 // معاملات الخصم لكل نوع من الأخطاء (الدرجة من 20) — تُعرَّف في وحدة منفصلة
 // حفاظاً على قاعدة "use server" (يُسمح بتصدير الدوال غير المتزامنة فقط)
@@ -84,6 +85,8 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
       const models = await getExamModelsFromDrive();
       const driveModel = models[0];
       if (driveModel) {
+        // إن لم يوجد موسم نشط فلا يمكن إنشاء نموذج (seasonId إلزامي — المادة 6)
+        if (!season) return null;
         // نأخذ النموذج الأول المتوفر (لا يُخزّن محلياً — المادة 3)
         // تسجيل نموذج من Drive في قاعدة البيانات لتتبع الاستخدام (المادة 6)
         const created = await prisma.examModel.create({
@@ -91,7 +94,7 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
             modelNumber: 1,
             detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
             institutionId: session.student.institutionId,
-            seasonId: season?.id ?? null,
+            seasonId: season.id,
           },
         });
         return created.id;
@@ -154,7 +157,13 @@ export async function saveAssessment(input: AssessmentInput) {
 
   const existing = await prisma.assessment.findFirst({
     where: { examSessionId: session.id, evaluatorId: user.id },
+    select: { id: true, status: true },
   });
+
+  // منع تعديل تقييم تم اعتماده بالفعل
+  if (existing && existing.status !== AssessmentStatus.DRAFT) {
+    throw new Error("لا يمكن تعديل تقييم تم اعتماده بالفعل");
+  }
 
   const assessment = await prisma.assessment.upsert({
     where: { id: existing?.id ?? "no-assessment-yet" },
@@ -191,6 +200,13 @@ export async function saveAssessment(input: AssessmentInput) {
   revalidatePath("/examiner");
   revalidatePath("/examiner/assess");
 
+  // المزامنة الحية: إعلام بقية اللجنة بحفظ التقييم (يبقى قابلاً للتعديل حتى الاعتماد)
+  await broadcastAssessmentUpdate(session.id, {
+    evaluatorId: user.id,
+    finalScore,
+    assessmentStatus: AssessmentStatus.DRAFT,
+  });
+
   return { success: true, assessmentId: assessment.id, totalDeduction, finalScore };
 }
 
@@ -217,6 +233,14 @@ export async function approveAssessment(examSessionId: string, action: "approve"
 
   // عزل الصلاحيات: يجب أن يكون المقيّم ضمن لجنة الطالب
   const session = await assertExaminerInSession(user, examSessionId);
+
+  // منع الاعتماد على جلسة ملغاة أو مكتملة
+  if (session.status === "CANCELLED") {
+    throw new Error("لا يمكن الاعتماد على جلسة ملغاة");
+  }
+  if (session.status === "COMPLETED") {
+    throw new Error("هذه الجلسة اكتملت بالفعل");
+  }
 
   // استرجاع تقييم هذا المقيّم (يجب أن يكون حفظه أولاً)
   const assessment = await prisma.assessment.findFirst({
@@ -333,6 +357,13 @@ export async function approveAssessment(examSessionId: string, action: "approve"
 
   revalidatePath("/examiner");
   revalidatePath("/examiner/assess");
+
+  // المزامنة الحية: قفل لوحة باقي اللجنة بعد الاعتماد (المادة 5 — منع التعديل بعد الاعتماد)
+  await broadcastAssessmentUpdate(session.id, {
+    evaluatorId: user.id,
+    assessmentStatus:
+      action === "approve" ? AssessmentStatus.APPROVED : AssessmentStatus.FINALIZED,
+  });
 
   return { success: true, status: action === "approve" ? AssessmentStatus.APPROVED : AssessmentStatus.FINALIZED };
 }

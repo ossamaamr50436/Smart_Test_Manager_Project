@@ -45,8 +45,17 @@ export async function getAuditLogs(
   const user = await requireUser();
   requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
 
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 20;
+  // التحقق من قيم ترقيم الصفحات (منع DoS عبر قيم ضخمة)
+  const rawPage = Number(filters.page ?? 1);
+  const rawPageSize = Number(filters.pageSize ?? 20);
+  if (!Number.isInteger(rawPage) || rawPage < 1 || rawPage > 10000) {
+    throw new Error("رقم الصفحة غير صالح");
+  }
+  if (!Number.isInteger(rawPageSize) || rawPageSize < 1 || rawPageSize > 100) {
+    throw new Error("حجم الصفحة غير صالح (الحد الأقصى 100)");
+  }
+  const page = rawPage;
+  const pageSize = rawPageSize;
   const skip = (page - 1) * pageSize;
 
   const where: Prisma.AuditLogWhereInput = {};
@@ -56,22 +65,41 @@ export async function getAuditLogs(
   }
 
   if (filters.userId) {
+    // منع TEST_SPECIALIST من تصفية سجلات ADMIN (تدرّج الصلاحيات)
+    if (user.role === Role.TEST_SPECIALIST) {
+      const targetUser = await prisma.user.findUnique({
+        where: { id: filters.userId },
+        select: { role: true },
+      });
+      if (targetUser?.role === Role.ADMIN) {
+        throw new Error("غير مصرح: لا يمكنك عرض سجلات المسؤول");
+      }
+    }
     where.userId = filters.userId;
   }
 
   if (filters.dateFrom || filters.dateTo) {
-    where.timestamp = {};
-    if (filters.dateFrom) {
-      where.timestamp.gte = new Date(filters.dateFrom);
+    const from = filters.dateFrom ? new Date(filters.dateFrom) : null;
+    const to = filters.dateTo ? new Date(filters.dateTo) : null;
+    if (from && Number.isNaN(from.getTime())) {
+      throw new Error("تاريخ البداية غير صحيح");
     }
-    if (filters.dateTo) {
-      const toDate = new Date(filters.dateTo);
+    if (to && Number.isNaN(to.getTime())) {
+      throw new Error("تاريخ النهاية غير صحيح");
+    }
+    where.timestamp = {};
+    if (from) where.timestamp.gte = from;
+    if (to) {
+      const toDate = to;
       toDate.setHours(23, 59, 59, 999);
       where.timestamp.lte = toDate;
     }
   }
 
-  if (filters.search) {
+  if (filters.search && filters.search.length > 0) {
+    if (filters.search.length > 200) {
+      throw new Error("نص البحث طويل جداً (الحد الأقصى 200 حرف)");
+    }
     where.details = { string_contains: filters.search };
   }
 

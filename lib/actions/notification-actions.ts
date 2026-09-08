@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ============================================================
 // نظام الإشعارات (المادة 8 — عزل الصلاحيات)
@@ -15,6 +16,18 @@ import { revalidatePath } from "next/cache";
  */
 export async function getUserNotifications(page?: number, pageSize = 100) {
   const user = await requireUser();
+
+  // التحقق من قيم ترقيم الصفحات (منع DoS عبر قيم ضخمة)
+  if (page !== undefined) {
+    const numericPage = Number(page);
+    if (!Number.isInteger(numericPage) || numericPage < 1 || numericPage > 10000) {
+      throw new Error("رقم الصفحة غير صالح");
+    }
+  }
+  const numericPageSize = Number(pageSize);
+  if (!Number.isInteger(numericPageSize) || numericPageSize < 1 || numericPageSize > 100) {
+    throw new Error("حجم الصفحة غير صالح (الحد الأقصى 100)");
+  }
 
   const skip = page && page > 1 ? (page - 1) * pageSize : 0;
   const take = page ? pageSize : undefined;
@@ -103,6 +116,9 @@ export async function markAllNotificationsAsRead() {
  */
 export async function clearAllNotifications() {
   const user = await requireUser();
+
+  // منع إساءة الاستخدام
+  await checkRateLimit(`notifications-clear:${user.id}`, 10);
 
   await prisma.notification.deleteMany({
     where: { userId: user.id },

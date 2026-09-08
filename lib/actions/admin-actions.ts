@@ -32,6 +32,10 @@ export async function specialistFinalApprove(studentId: string) {
   // عزل الصلاحيات: الأخصائي فقط
   requireRole(user, [Role.TEST_SPECIALIST]);
 
+  if (!studentId || typeof studentId !== "string" || studentId.length < 1 || studentId.length > 64) {
+    throw new Error("معرّف الطالب غير صالح");
+  }
+
   const student = await prisma.student.findUnique({
     where: { id: studentId },
     select: { id: true, name: true, status: true, institutionId: true },
@@ -99,6 +103,10 @@ export async function headOfAffairsFinalApprove(studentId: string) {
 
   // عزل الصلاحيات: رئيس الشؤون فقط
   requireRole(user, [Role.HEAD_OF_AFFAIRS]);
+
+  if (!studentId || typeof studentId !== "string" || studentId.length < 1 || studentId.length > 64) {
+    throw new Error("معرّف الطالب غير صالح");
+  }
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },

@@ -77,6 +77,18 @@ export async function GET(
       getDriveFileMimeType(fileId),
     ]);
 
+    // قائمة بيضاء صارمة لأنواع المحتوى المسموح تسليمها (المادة 8/5)
+    // يمنع تسليم ملف بمحتوى غير متوقع (Content Sniffing / MIME spoofing)
+    const unsafeMime = ["text/html", "application/xhtml+xml", "image/svg+xml"].includes(
+      mimeType ?? ""
+    );
+    if (!mimeType || unsafeMime) {
+      return NextResponse.json(
+        { error: "نوع ملف الشهادة غير مدعوم" },
+        { status: 415 }
+      );
+    }
+
     const safeName = `${certificate.serialNumber}-${certificate.student.name.replace(
       /[^\p{L}\p{N}\s-]/gu,
       ""

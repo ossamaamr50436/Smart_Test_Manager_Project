@@ -20,6 +20,13 @@ type NavLink = {
 const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
   ADMIN: [
     { href: "/admin", label: "لوحة المسؤول" },
+    { href: "/admin/users", label: "إدارة المستخدمين" },
+    { href: "/admin/institutions", label: "إدارة المؤسسات" },
+    { href: "/admin/seasons", label: "إدارة المواسم" },
+    { href: "/admin/models", label: "النماذج" },
+    { href: "/admin/students", label: "الطلاب" },
+    { href: "/admin/sessions", label: "الجلسات" },
+    { href: "/admin/certificates", label: "الشهادات" },
     { href: "/admin/settings", label: "إعدادات المنصة" },
     { href: "/audit-log", label: "سجل التدقيق" },
   ],

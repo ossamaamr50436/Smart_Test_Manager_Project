@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { Role } from "@prisma/client";
 import { getPlatformSettings } from "@/lib/actions/settings-actions";
 import { AdminSettingsForm } from "@/components/admin/admin-settings-form";
+import { requireUser, requireRole } from "@/lib/security";
+import { Role } from "@prisma/client";
 
 export const metadata: Metadata = {
   title: "إعدادات المنصة",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminSettingsPage() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== Role.ADMIN) {
-    redirect("/");
-  }
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
 
   const settings = await getPlatformSettings();
 
