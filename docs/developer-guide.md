@@ -115,10 +115,11 @@ export async function someAction(id: string) {
 - `middleware.ts` يحمي `/api` و `/dashboard` ويرصد دورات الجلسة.
 - `next.config.mjs` يضيف رؤوس أمان (CSP و headers) لجميع المسارات.
 
-## التزامن اللحظي (Socket.IO)
+## التزامن اللحظي (Pusher)
 
-- `lib/socket.ts` يفتح اتصالاً من المتصفح إلى نفس الأصل، ويُستخدم داخل صفحات التقييم لعرض التعديلات اللحظية.
-- للاستخدام الموسّع في الإنتاج: شغّل خادم Socket.IO مستقلاً (Serverless لا يدعم اتصالات طويلة) ووجّهه بنفس بيانات الجلسة.
+- `lib/realtime-client.ts` يوفر `subscribeToSession()` للاشتراك في قناة جلسة تقييم خاصة (`private-session-{id}`) لعرض التعديلات اللحظية.
+- `lib/realtime.ts` يستخدم حزمة `pusher` (خادم) لبث أحداث الحفظ والاعتماد؛ والمصادقة عبر `/api/pusher/auth`.
+- ملاحظة: أُزيل Socket.IO (`lib/socket.ts` وحزمتا `socket.io`/`socket.io-client`) لأنه لا يعمل على Serverless.
 
 ## إضافة سمة جديدة (Prisma)
 
