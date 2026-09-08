@@ -24,6 +24,10 @@ function getAllowedHosts(): Set<string> {
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean)
     .forEach((h) => hosts.add(h));
+  // السماح دائمًا بالوصول المحلي (localhost / 127.0.0.1 / ::1) — التجربة على Port 3000
+  hosts.add("localhost");
+  hosts.add("127.0.0.1");
+  hosts.add("::1");
   return hosts;
 }
 

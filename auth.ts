@@ -23,6 +23,11 @@ function assertAllowedHostHeader() {
   if (process.env.VERCEL_DOMAIN) collected.add(process.env.VERCEL_DOMAIN);
   (process.env.ALLOWED_HOSTS || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean).forEach((h) => collected.add(h));
 
+  // السماح دائمًا بالوصول المحلي (localhost / 127.0.0.1 / ::1)
+  collected.add("localhost");
+  collected.add("127.0.0.1");
+  collected.add("::1");
+
   // لا يوجد نطاق معروف — نرفض الطلب (fail-closed)
   if (collected.size === 0) {
     throw new Error("خطأ في الإعداد: لا يوجد نطاق مصرح — NEXTAUTH_URL أو ALLOWED_HOSTS غير مضبوط");

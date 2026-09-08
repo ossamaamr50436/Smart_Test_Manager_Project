@@ -92,15 +92,19 @@ test("الموسم: رفض الجلسة بدون موسم نشط", () => {
   assert.equal(canAssignCommittee(true), true);
 });
 
-// محاكاة فحص Host Header (من auth.ts assertAllowedHostHeader)
+// محاكاة فحص Host Header (من auth.ts assertAllowedHostHeader + middleware)
+// النطاقات المحلية (loopback) مسموحة دائمًا بغض النظر عن قائمة النطاقات المصرحة
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 function isHostAllowed(
   host: string,
-  allowedHosts: Set<string>
+  configuredHosts: Set<string>
 ): boolean {
   let h = host;
   if (/:\d+$/.test(h)) h = h.slice(0, h.lastIndexOf(":"));
+  if (h.startsWith("[")) h = h.slice(1);
+  if (h.endsWith("]")) h = h.slice(0, -1);
   h = h.toLowerCase();
-  return allowedHosts.has(h);
+  return configuredHosts.has(h) || LOOPBACK_HOSTS.has(h);
 }
 
 test("Host Header: رفض النطاقات غير المصرح بها", () => {
@@ -108,6 +112,8 @@ test("Host Header: رفض النطاقات غير المصرح بها", () => {
   assert.equal(isHostAllowed("exam.example.com", allowed), true);
   assert.equal(isHostAllowed("evil-attacker.com", allowed), false);
   assert.equal(isHostAllowed("exam.example.com:3000", allowed), true);
+  assert.equal(isHostAllowed("127.0.0.1:3000", allowed), true);
+  assert.equal(isHostAllowed("[::1]:3000", allowed), true);
 });
 
 test("CSV Injection: تحييد بادئات Excel الخطيرة", () => {
