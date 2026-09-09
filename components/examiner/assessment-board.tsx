@@ -8,12 +8,21 @@ import {
   approveAssessment,
 } from "@/lib/actions/assessment-actions";
 import {
-  ERROR_PENALTY,
+  WORD_ERROR_PENALTY,
+  LETTER_ERROR_PENALTY,
+  DIACRITIC_ERROR_PENALTY,
+  SERIOUS_ERROR_PENALTY,
+  SUBTLE_ERROR_PENALTY,
+  PROMPTING_PENALTY,
   DOUBT_PENALTY,
-  TAJWEED_PENALTY,
+  MEMORIZATION_SCORE,
+  RECITATION_SCORE_MAX,
+  TAJWEED_SCORE_MAX,
   SCORE_FULL,
 } from "@/lib/score-config";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -28,20 +37,37 @@ type StudentForAssess = {
   branch: string;
 };
 
+type Segment = {
+  number: number;
+  fromText: string;
+  fromSurah: string;
+  fromVerse: number;
+  toText: string;
+  toSurah: string;
+  toVerse: number;
+};
+
 type Props = {
   student: StudentForAssess;
   sessionId: string;
   seniorIsUser: boolean;
   evaluatorId: string;
-  segments: string[];
+  segments: Segment[];
 };
 
-// حالة كل مقطع
-type SegmentState = {
-  errors: number;
-  doubts: number;
-  tajweed: number;
-};
+type EvaluationKeys =
+  | "wordErrors"
+  | "letterErrors"
+  | "diacriticErrors"
+  | "seriousErrors"
+  | "subtleErrors"
+  | "promptingCount"
+  | "doubtCount";
+
+// حالة كل مقطع: عدّادات التقييم السبعة
+type SegmentState = Record<EvaluationKeys, number>;
+
+type Counts = Record<string, SegmentState>;
 
 type Incoming = {
   evaluatorId?: string;
@@ -49,10 +75,33 @@ type Incoming = {
   assessmentStatus?: string;
 };
 
-function emptyCounts(segments: string[]): Record<string, SegmentState> {
-  const map: Record<string, SegmentState> = {};
+// الأعمدة السبعة للتقييم (وفق اللائحة)
+const COLUMNS: { key: EvaluationKeys; label: string; penalty: number }[] = [
+  { key: "wordErrors", label: "أخطاء الكلمات", penalty: WORD_ERROR_PENALTY },
+  { key: "letterErrors", label: "أخطاء الحروف", penalty: LETTER_ERROR_PENALTY },
+  { key: "diacriticErrors", label: "أخطاء الضبط", penalty: DIACRITIC_ERROR_PENALTY },
+  { key: "seriousErrors", label: "اللحن الجلي", penalty: SERIOUS_ERROR_PENALTY },
+  { key: "subtleErrors", label: "اللحن الخفي", penalty: SUBTLE_ERROR_PENALTY },
+  { key: "promptingCount", label: "التنبيه", penalty: PROMPTING_PENALTY },
+  { key: "doubtCount", label: "الشك (التردد)", penalty: DOUBT_PENALTY },
+];
+
+function emptySegment(): SegmentState {
+  return {
+    wordErrors: 0,
+    letterErrors: 0,
+    diacriticErrors: 0,
+    seriousErrors: 0,
+    subtleErrors: 0,
+    promptingCount: 0,
+    doubtCount: 0,
+  };
+}
+
+function emptyCounts(segments: Segment[]): Counts {
+  const map: Counts = {};
   for (const seg of segments) {
-    map[seg] = { errors: 0, doubts: 0, tajweed: 0 };
+    map[String(seg.number)] = emptySegment();
   }
   return map;
 }
@@ -65,36 +114,31 @@ export function AssessmentBoard({
   segments,
 }: Props) {
   const router = useRouter();
-  const [counts, setCounts] = useState<Record<string, SegmentState>>(() =>
-    emptyCounts(segments)
-  );
+  const [counts, setCounts] = useState<Counts>(() => emptyCounts(segments));
+  const [recitationScore, setRecitationScore] = useState(0);
+  const [tajweedScore, setTajweedScore] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  // حالة التقييم الحالية — تمنع التعديل بعد الاعتماد (إصلاح ثغرة Socket.IO)
   const [locked, setLocked] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
-  // المزامنة الحية (Pusher) — تعمل على Vercel Serverless
-  // يُبثّ أي تغيير محفوظ لبقية المعلمين في نفس اللجنة بدون إعادة تحميل
+  // المزامنة الحية (Pusher)
   useEffect(() => {
     if (locked) return;
     const unsubscribe = subscribeToSession(sessionId, (incoming: Incoming) => {
-      // منع التحديث إذا كانت الحالة ليست DRAFT (الإصلاح الأمني)
       if (incoming.assessmentStatus && incoming.assessmentStatus !== "DRAFT") {
         setLocked(true);
         return;
       }
       if (incoming.counts) {
         setCounts((prev) => {
-          // دمج التحديثات الواردة مع الحالة المحلية
-          const merged: Record<string, SegmentState> = {};
+          const merged: Counts = {};
           for (const seg of segments) {
-            const current = prev[seg] ?? { errors: 0, doubts: 0, tajweed: 0 };
-            merged[seg] = {
-              errors: incoming.counts?.[seg]?.errors ?? current.errors,
-              doubts: incoming.counts?.[seg]?.doubts ?? current.doubts,
-              tajweed: incoming.counts?.[seg]?.tajweed ?? current.tajweed,
-            };
+            const key = String(seg.number);
+            const current = prev[key] ?? emptySegment();
+            const incomingSeg = incoming.counts?.[key];
+            merged[key] = incomingSeg ? { ...emptySegment(), ...incomingSeg } : current;
           }
           return merged;
         });
@@ -103,8 +147,43 @@ export function AssessmentBoard({
     return unsubscribe;
   }, [sessionId, segments, locked]);
 
-  function increment(segment: string, field: keyof SegmentState) {
-    // منع التعديل بعد الاعتماد (الإصلاح الأمني)
+  // استرجاع التقييم المحفوظ عند فتح الصفحة وما تبقى من حالة المقيّمين
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getAssessmentState } = await import(
+          "@/lib/actions/assessment-actions"
+        );
+        const states = await getAssessmentState(sessionId);
+        const mine = states.find((s) => s.evaluatorId === evaluatorId);
+        if (mine) {
+          const merged: Counts = emptyCounts(segments);
+          for (const seg of segments) {
+            const key = String(seg.number);
+            merged[key] = {
+              wordErrors: mine.wordErrors,
+              letterErrors: mine.letterErrors,
+              diacriticErrors: mine.diacriticErrors,
+              seriousErrors: mine.seriousErrors,
+              subtleErrors: mine.subtleErrors,
+              promptingCount: mine.promptingCount,
+              doubtCount: mine.doubtCount,
+            };
+          }
+          setCounts(merged);
+          setRecitationScore(mine.recitationScore);
+          setTajweedScore(mine.tajweedScore);
+          if (mine.status !== "DRAFT") setLocked(true);
+        }
+      } catch {
+        // تجاهل — بدون حفظ أولي
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, [sessionId, evaluatorId, segments]);
+
+  function increment(segment: number, field: EvaluationKeys) {
     if (locked) {
       setError("التقييم معتمد — لا يمكن تعديله بعد الآن");
       return;
@@ -112,32 +191,50 @@ export function AssessmentBoard({
     setError("");
     setMessage("");
     setCounts((prev) => {
-      const current = prev[segment] ?? { errors: 0, doubts: 0, tajweed: 0 };
-      const next: Record<string, SegmentState> = { ...prev };
-      next[segment] = {
-        ...current,
-        [field]: current[field] + 1,
-      };
+      const key = String(segment);
+      const current = prev[key] ?? emptySegment();
+      const next: Counts = { ...prev };
+      next[key] = { ...current, [field]: current[field] + 1 };
       return next;
     });
   }
 
-  // إجمالي العدّ للعرض والحساب
+  // إجمالي العدّ للعرض والحساب (عبر جميع المقاطع)
   const totals = useMemo(() => {
-    let errors = 0;
-    let doubts = 0;
-    let tajweed = 0;
+    const sums: Record<EvaluationKeys, number> = {
+      wordErrors: 0,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 0,
+    };
     for (const seg of segments) {
-      const c = counts[seg] ?? { errors: 0, doubts: 0, tajweed: 0 };
-      errors += c.errors;
-      doubts += c.doubts;
-      tajweed += c.tajweed;
+      const c = counts[String(seg.number)] ?? emptySegment();
+      for (const key of Object.keys(sums) as EvaluationKeys[]) {
+        sums[key] += c[key];
+      }
     }
-    const totalDeduction =
-      errors * ERROR_PENALTY + doubts * DOUBT_PENALTY + tajweed * TAJWEED_PENALTY;
-    const finalScore = Math.max(0, Math.min(SCORE_FULL, SCORE_FULL - totalDeduction));
-    return { errors, doubts, tajweed, totalDeduction, finalScore };
-  }, [counts, segments]);
+    const memorizationDeduction =
+      sums.wordErrors * WORD_ERROR_PENALTY +
+      sums.letterErrors * LETTER_ERROR_PENALTY +
+      sums.diacriticErrors * DIACRITIC_ERROR_PENALTY +
+      sums.seriousErrors * SERIOUS_ERROR_PENALTY +
+      sums.subtleErrors * SUBTLE_ERROR_PENALTY;
+    const promptingDeduction = sums.promptingCount * PROMPTING_PENALTY;
+    const doubtDeduction = sums.doubtCount * DOUBT_PENALTY;
+    const totalDeduction = memorizationDeduction + promptingDeduction + doubtDeduction;
+    const memorizationScore = Math.max(0, MEMORIZATION_SCORE - totalDeduction);
+    const finalScore = Math.max(
+      0,
+      Math.min(
+        SCORE_FULL,
+        memorizationScore + recitationScore + tajweedScore
+      )
+    );
+    return { sums, memorizationDeduction, totalDeduction, memorizationScore, finalScore };
+  }, [counts, segments, recitationScore, tajweedScore]);
 
   async function handleSave() {
     setSaving(true);
@@ -146,9 +243,15 @@ export function AssessmentBoard({
     try {
       const res = await saveAssessment({
         examSessionId: sessionId,
-        errorsCount: totals.errors,
-        doubtsCount: totals.doubts,
-        tajweedCount: totals.tajweed,
+        wordErrors: totals.sums.wordErrors,
+        letterErrors: totals.sums.letterErrors,
+        diacriticErrors: totals.sums.diacriticErrors,
+        seriousErrors: totals.sums.seriousErrors,
+        subtleErrors: totals.sums.subtleErrors,
+        promptingCount: totals.sums.promptingCount,
+        doubtCount: totals.sums.doubtCount,
+        recitationScore,
+        tajweedScore,
       });
       setMessage(`تم الحفظ — الدرجة النهائية: ${res.finalScore} من ${SCORE_FULL}`);
       router.refresh();
@@ -165,12 +268,17 @@ export function AssessmentBoard({
     try {
       await saveAssessment({
         examSessionId: sessionId,
-        errorsCount: totals.errors,
-        doubtsCount: totals.doubts,
-        tajweedCount: totals.tajweed,
+        wordErrors: totals.sums.wordErrors,
+        letterErrors: totals.sums.letterErrors,
+        diacriticErrors: totals.sums.diacriticErrors,
+        seriousErrors: totals.sums.seriousErrors,
+        subtleErrors: totals.sums.subtleErrors,
+        promptingCount: totals.sums.promptingCount,
+        doubtCount: totals.sums.doubtCount,
+        recitationScore,
+        tajweedScore,
       });
-      const res = await approveAssessment(sessionId, action);
-      // قفل اللوحة بعد الاعتماد (الإصلاح الأمني)
+      await approveAssessment(sessionId, action);
       setLocked(true);
       setMessage(
         action === "approve"
@@ -195,9 +303,9 @@ export function AssessmentBoard({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">جدول التقييم (5 مقاطع)</CardTitle>
+          <CardTitle className="text-base">جدول التقييم ({segments.length} مقاطع)</CardTitle>
           <CardDescription>
-            استخدم زر «+» لتسجيل الخطأ أو الشك أو خطأ التجويد لكل مقطع
+            وفق لائحة اختيار فرع كامل القرآن — سجّل الأخطاء لكل مقطع
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -206,35 +314,32 @@ export function AssessmentBoard({
               <thead>
                 <tr className="border-b">
                   <th className="p-2 text-right font-medium">المقطع</th>
-                  <th className="p-2 text-center font-medium">الأخطاء (-1)</th>
-                  <th className="p-2 text-center font-medium">الشك (-0.5)</th>
-                  <th className="p-2 text-center font-medium">التجويد (-0.25)</th>
+                  {COLUMNS.map((col) => (
+                    <th key={col.key} className="p-2 text-center font-medium">
+                      {col.label} ({col.penalty})
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {segments.map((seg) => {
-                  const c = counts[seg] ?? { errors: 0, doubts: 0, tajweed: 0 };
+                  const c = counts[String(seg.number)] ?? emptySegment();
                   return (
-                    <tr key={seg} className="border-b">
-                      <td className="p-2 font-medium">{seg}</td>
-                      <td className="p-2 text-center">
-                        <CellCount
-                          value={c.errors}
-                          onAdd={() => increment(seg, "errors")}
-                        />
+                    <tr key={seg.number} className="border-b">
+                      <td className="p-2">
+                        <p className="font-medium">م{seg.number}</p>
+                        <p className="text-xs text-muted-foreground" dir="rtl">
+                          {seg.fromText.slice(0, 40)}...
+                        </p>
                       </td>
-                      <td className="p-2 text-center">
-                        <CellCount
-                          value={c.doubts}
-                          onAdd={() => increment(seg, "doubts")}
-                        />
-                      </td>
-                      <td className="p-2 text-center">
-                        <CellCount
-                          value={c.tajweed}
-                          onAdd={() => increment(seg, "tajweed")}
-                        />
-                      </td>
+                      {COLUMNS.map((col) => (
+                        <td key={col.key} className="p-2 text-center">
+                          <CellCount
+                            value={c[col.key]}
+                            onAdd={() => increment(seg.number, col.key)}
+                          />
+                        </td>
+                      ))}
                     </tr>
                   );
                 })}
@@ -242,23 +347,64 @@ export function AssessmentBoard({
             </table>
           </div>
 
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 rounded-lg border p-4">
+              <Label htmlFor="recitationScore">
+                التلاوة وحسن الأداء (من {RECITATION_SCORE_MAX}) — تُقيّم من المعلم مباشرة
+              </Label>
+              <Input
+                id="recitationScore"
+                type="number"
+                min={0}
+                max={RECITATION_SCORE_MAX}
+                step={0.5}
+                value={recitationScore}
+                disabled={locked}
+                onChange={(e) => setRecitationScore(Number(e.target.value) || 0)}
+              />
+            </div>
+            <div className="space-y-2 rounded-lg border p-4">
+              <Label htmlFor="tajweedScore">
+                التجويد التطبيقي (من {TAJWEED_SCORE_MAX}) — يُقيّم من المعلم مباشرة
+              </Label>
+              <Input
+                id="tajweedScore"
+                type="number"
+                min={0}
+                max={TAJWEED_SCORE_MAX}
+                step={0.5}
+                value={tajweedScore}
+                disabled={locked}
+                onChange={(e) => setTajweedScore(Number(e.target.value) || 0)}
+              />
+            </div>
+          </div>
+
           {/* ملخص الخصم والدرجة النهائية */}
           <div className="mt-4 rounded-lg border p-4 text-sm">
-            <div className="grid gap-2 sm:grid-cols-4">
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {COLUMNS.map((col) => (
+                <div key={col.key}>
+                  <p className="text-muted-foreground">{col.label}</p>
+                  <p className="text-lg font-bold">{totals.sums[col.key]}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
               <div>
-                <p className="text-muted-foreground">إجمالي الأخطاء</p>
-                <p className="text-lg font-bold">{totals.errors}</p>
+                <p className="text-muted-foreground">خصم الحفظ</p>
+                <p className="text-lg font-bold">
+                  {totals.memorizationDeduction.toFixed(2)}
+                </p>
               </div>
               <div>
-                <p className="text-muted-foreground">إجمالي الشك</p>
-                <p className="text-lg font-bold">{totals.doubts}</p>
+                <p className="text-muted-foreground">درجة الحفظ النهائية</p>
+                <p className="text-lg font-bold">
+                  {totals.memorizationScore.toFixed(2)}/{MEMORIZATION_SCORE}
+                </p>
               </div>
               <div>
-                <p className="text-muted-foreground">إجمالي التجويد</p>
-                <p className="text-lg font-bold">{totals.tajweed}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">إجمالي الخصم</p>
+                <p className="text-muted-foreground">إجمالي الخصم (تنبيه + شك + أخطاء)</p>
                 <p className="text-lg font-bold">{totals.totalDeduction.toFixed(2)}</p>
               </div>
             </div>
@@ -290,7 +436,7 @@ export function AssessmentBoard({
             </p>
           ) : (
             <>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSave} disabled={saving || !loaded}>
                 {saving ? "جارٍ الحفظ..." : "حفظ التقييم"}
               </Button>
 

@@ -66,7 +66,7 @@ export async function assertExaminerInSession(user: SessionUser, examSessionId: 
       teacher1Id: true,
       teacher2Id: true,
       status: true,
-      student: { select: { id: true, name: true, institutionId: true } },
+      student: { select: { id: true, name: true, institutionId: true, branch: true } },
     },
   });
   if (!session) {

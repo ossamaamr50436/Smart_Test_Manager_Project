@@ -49,6 +49,25 @@ export function channelNameFor(sessionId: string): string {
 }
 
 /**
+ * القناة الخاصة بإشعارات مستخدم معين
+ * private-user-{userId}
+ */
+export function userChannelNameFor(userId: string): string {
+  return `private-user-${userId}`;
+}
+
+/**
+ * بث إشعار لحظي لمستخدم محدد (يُحدّث الشارة/قائمة الإشعارات إن كان متصلاً)
+ */
+export async function pushUserNotification(
+  userId: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  if (!process.env.PUSHER_APP_ID) return; // بيئة بلا إعدادات — لا بث
+  await getServer().trigger(userChannelNameFor(userId), "notification:new", payload);
+}
+
+/**
  * بث تحديث تقييم إلى لجنة معينة (المقيّمون في نفس الجلسة فقط)
  * تُستدعى من lib/actions/assessment-actions.ts بعد كل حفظ.
  */
@@ -72,21 +91,32 @@ export async function authenticateChannel(
   requestChannel: string,
   userId: string
 ): Promise<{ auth: string }> {
+  // 1) القناة الخاصة بإشعارات المستخدم: يُسمح للمستخدم بقناته فقط
+  if (requestChannel === userChannelNameFor(userId)) {
+    return getServer().authorizeChannel(requestChannel, socketId);
+  }
+
+  // 2) قناة التقييم: فقط المقيّمون في لجنة هذه الجلسة (المادة 8/2)
   const sessionId = requestChannel.replace("private-assessment-", "");
-  if (!sessionId || sessionId.length < 5) {
-    throw new Error("القناة غير صالحة");
+  if (requestChannel.startsWith("private-assessment-")) {
+    if (!sessionId || sessionId.length < 5) {
+      throw new Error("القناة غير صالحة");
+    }
+
+    const session = await prisma.examSession.findFirst({
+      where: { id: sessionId },
+      select: { id: true, teacher1Id: true, teacher2Id: true },
+    });
+    if (!session) {
+      throw new Error("جلسة التقييم غير موجودة");
+    }
+    if (session.teacher1Id !== userId && session.teacher2Id !== userId) {
+      throw new Error("غير مصرح: لا يمكنك الاشتراك في جلسة ليست من لجنتك");
+    }
+
+    return getServer().authorizeChannel(requestChannel, socketId);
   }
 
-  const session = await prisma.examSession.findFirst({
-    where: { id: sessionId },
-    select: { id: true, teacher1Id: true, teacher2Id: true },
-  });
-  if (!session) {
-    throw new Error("جلسة التقييم غير موجودة");
-  }
-  if (session.teacher1Id !== userId && session.teacher2Id !== userId) {
-    throw new Error("غير مصرح: لا يمكنك الاشتراك في جلسة ليست من لجنتك");
-  }
-
-  return getServer().authorizeChannel(requestChannel, socketId);
+  // 3) أي قناة أخرى: مرفوض
+  throw new Error("القناة غير مسموح بها");
 }

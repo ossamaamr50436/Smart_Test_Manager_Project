@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
 import { CommitteeForm } from "@/components/specialist/committee-form";
+import { getCachedExaminers } from "@/lib/cache";
 import {
   Card,
   CardContent,
@@ -32,12 +33,8 @@ export default async function CommitteesPage() {
     orderBy: { createdAt: "asc" },
   });
 
-  // جميع المعلمين (المختبرين)
-  const examiners = await prisma.user.findMany({
-    where: { role: Role.EXAMINER },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  // جميع المعلمين (المختبرين) — مخزّن مؤقتاً (شبه ثابت)
+  const examiners = await getCachedExaminers();
 
   return (
     <div className="space-y-6">

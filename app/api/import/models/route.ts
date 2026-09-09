@@ -44,12 +44,35 @@ export async function POST(req: Request) {
     for (const item of body) {
       const modelNumber = Number(item?.modelNumber);
       const institutionId = item?.institutionId as string;
+      const branch = String(item?.branch ?? "5");
+      const seasonId =
+        item?.seasonId && typeof item.seasonId === "string" && item.seasonId.length <= 64
+          ? item.seasonId
+          : "";
 
-      if (!Number.isInteger(modelNumber) || modelNumber < 1 || modelNumber > 100) {
+      if (!Number.isInteger(modelNumber) || modelNumber < 1 || modelNumber > 20) {
         results.push({
           modelNumber: Number(item?.modelNumber) || 0,
           ok: false,
-          error: "modelNumber يجب أن يكون رقماً صحيحاً بين 1 و 100",
+          error: "modelNumber يجب أن يكون رقماً صحيحاً بين 1 و 20",
+        });
+        continue;
+      }
+
+      if (!["5", "10", "15", "20", "25", "30"].includes(branch)) {
+        results.push({
+          modelNumber,
+          ok: false,
+          error: "branch يجب أن يكون أحد الأفرع (5/10/15/20/25/30)",
+        });
+        continue;
+      }
+
+      if (!seasonId) {
+        results.push({
+          modelNumber,
+          ok: false,
+          error: "يجب تحديد seasonId (الموسم)",
         });
         continue;
       }
@@ -96,17 +119,16 @@ export async function POST(req: Request) {
           item?.details ??
           (driveRef
             ? { source: "drive", fileId: driveRef.fileId, name: `model-${modelNumber}` }
-            : {});
+            : { segments: [] });
 
         // إدراج النموذج (مع تجاهل التكرار حسب القيد الفريد للموسم)
         await prisma.examModel.create({
           data: {
             modelNumber,
+            branch,
             detailsJSON,
             institutionId,
-            seasonId: item?.seasonId && typeof item.seasonId === "string" && item.seasonId.length <= 64
-              ? item.seasonId
-              : null,
+            seasonId,
           },
         });
 

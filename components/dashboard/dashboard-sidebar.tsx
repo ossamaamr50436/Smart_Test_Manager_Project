@@ -27,11 +27,13 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/admin/students", label: "الطلاب" },
     { href: "/admin/sessions", label: "الجلسات" },
     { href: "/admin/certificates", label: "الشهادات" },
+    { href: "/admin/reports", label: "التقارير والتحليلات" },
     { href: "/admin/settings", label: "إعدادات المنصة" },
     { href: "/audit-log", label: "سجل التدقيق" },
   ],
   HEAD_OF_AFFAIRS: [
     { href: "/head-of-affairs", label: "الاعتماد الإداري النهائي" },
+    { href: "/admin/reports", label: "التقارير والتحليلات" },
   ],
   CERTIFICATE_SOURCE: [
     { href: "/certificate-source", label: "إصدار الشهادات" },
@@ -39,18 +41,22 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
   TEST_SPECIALIST: [
     { href: "/test-specialist/requests", label: "طلبات الترشيح" },
     { href: "/test-specialist/committees", label: "تشكيل اللجان" },
+    { href: "/test-specialist/models", label: "إدارة النماذج" },
     {
       href: "/test-specialist/final-review",
       label: "مراجعة التقييمات النهائية",
     },
+    { href: "/admin/reports", label: "التقارير والتحليلات" },
     { href: "/audit-log", label: "سجل التدقيق" },
   ],
   EXAMINER: [
     { href: "/examiner", label: "طلاب لجانك" },
+    { href: "/examiner/reports", label: "تقاريري" },
   ],
   INSTITUTION: [
     { href: "/institution", label: "طلاب جهتي" },
     { href: "/institution/students/new", label: "ترشيح طالب جديد" },
+    { href: "/institution/reports", label: "تقارير الجهة" },
   ],
 };
 

@@ -18,40 +18,20 @@ import {
 import { getCurrentSeason } from "./season-actions";
 import { getExamModelsFromDrive } from "@/lib/google-drive";
 import { broadcastAssessmentUpdate } from "@/lib/realtime";
+import { computeTotals } from "@/lib/score-calculation";
+import { MEMORIZATION_SCORE } from "@/lib/score-config";
+import { dispatchNotificationChannels } from "@/lib/notifications";
 
-// معاملات الخصم لكل نوع من الأخطاء (الدرجة من 20) — تُعرَّف في وحدة منفصلة
-// حفاظاً على قاعدة "use server" (يُسمح بتصدير الدوال غير المتزامنة فقط)
-import {
-  SCORE_FULL,
-  ERROR_PENALTY,
-  DOUBT_PENALTY,
-  TAJWEED_PENALTY,
-} from "@/lib/score-config";
-
-/** تسجيل حدث في Audit Log */
-async function recordAudit(userId: string, action: AuditAction, details: unknown) {
-  await prisma.auditLog.create({
-    data: { userId, action, details: JSON.stringify(details) },
-  });
-}
-
-/** حساب إجمالي الخصم والدرجة النهائية (من 20) */
-function computeTotals(input: AssessmentInput) {
-  const totalDeduction =
-    input.errorsCount * ERROR_PENALTY +
-    input.doubtsCount * DOUBT_PENALTY +
-    input.tajweedCount * TAJWEED_PENALTY;
-  const finalScore = Math.max(0, Math.min(SCORE_FULL, SCORE_FULL - totalDeduction));
-  return { totalDeduction, finalScore };
-}
+/** تسجيل حدث في Audit Log — تتم داخل prisma.$transaction عبر client المتداول */
 
 /**
  * إيجاد نموذج اختباري لجهة الطالب في الموسم النشط
- * (المادة 6 — النماذج مرتبطة بالموسم)
- * يقرأ النماذج من قاعدة البيانات، بينما تُخزَّن ملفات النماذج على Google Drive
- * (المادة 3 — لا تخزين محلي)
+ * (المادة 6 — النماذج مرتبطة بالموسم والفرع)
  */
-async function resolveModelId(sessionId: string): Promise<string | null> {
+async function resolveModelId(
+  sessionId: string,
+  branch: string
+): Promise<string | null> {
   const session = await prisma.examSession.findFirst({
     where: { id: sessionId },
     select: { student: { select: { institutionId: true } } },
@@ -60,8 +40,6 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
 
   const season = await getCurrentSeason();
 
-  // (المادة 6) — اختيار نموذج من هذه الجهة في الموسم الحالي لم يُستخدم بعد مع طالب آخر:
-  // لا نعتمد دائماً على "أول نموذج" لأنه سيتكرر مع كل طالب ويُمنع بقاعدة منع التكرار.
   const usedModels = await prisma.assessment.findMany({
     where: { examSession: { student: { institutionId: session.student.institutionId } } },
     select: { modelId: true },
@@ -72,6 +50,7 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
   const model = await prisma.examModel.findFirst({
     where: {
       institutionId: session.student.institutionId,
+      branch,
       ...(season ? { seasonId: season.id } : {}),
       NOT: usedModelIds.length > 0 ? { id: { in: usedModelIds } } : undefined,
     },
@@ -80,18 +59,15 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
   });
 
   if (!model) {
-    // إن لم يوجد نموذج في قاعدة البيانات، نتحقق من توفر النماذج على Drive
     try {
       const models = await getExamModelsFromDrive();
       const driveModel = models[0];
       if (driveModel) {
-        // إن لم يوجد موسم نشط فلا يمكن إنشاء نموذج (seasonId إلزامي — المادة 6)
         if (!season) return null;
-        // نأخذ النموذج الأول المتوفر (لا يُخزّن محلياً — المادة 3)
-        // تسجيل نموذج من Drive في قاعدة البيانات لتتبع الاستخدام (المادة 6)
         const created = await prisma.examModel.create({
           data: {
             modelNumber: 1,
+            branch,
             detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
             institutionId: session.student.institutionId,
             seasonId: season.id,
@@ -100,7 +76,6 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
         return created.id;
       }
     } catch {
-      // في حال فشل الاتصال بـ Drive نعود للوضع الحالي
       return null;
     }
   }
@@ -110,9 +85,7 @@ async function resolveModelId(sessionId: string): Promise<string | null> {
 
 /**
  * حفظ أو تحديث سجل تقييم — خاص بالمختبرين (المعلمين)
- *
- * عزل الصلاحيات (المادة 8): يستطيع المقيّم تعديل تقييم الطلاب الموزعين على
- * لجنته فقط (حيث يكون teacher1Id أو teacher2Id مساوياً لمعرف المستخدم).
+ * وفق لائحة اختيار فرع كامل القرآن (100 درجة)
  */
 export async function saveAssessment(input: AssessmentInput) {
   const user = await requireUser();
@@ -130,9 +103,9 @@ export async function saveAssessment(input: AssessmentInput) {
   // التحقق من أن اللجنة/الجلسة موجودة وأن المقيّم جزء منها (عزل الصلاحيات)
   const session = await assertExaminerInSession(user, data.examSessionId);
 
-  const { totalDeduction, finalScore } = computeTotals(data);
+  const totals = computeTotals(data);
 
-  const modelId = await resolveModelId(session.id);
+  const modelId = await resolveModelId(session.id, session.student.branch);
 
   if (!modelId) {
     throw new Error("لا يوجد نموذج اختباري مرتبط بهذه الجهة في الموسم الحالي");
@@ -165,36 +138,66 @@ export async function saveAssessment(input: AssessmentInput) {
     throw new Error("لا يمكن تعديل تقييم تم اعتماده بالفعل");
   }
 
-  const assessment = await prisma.assessment.upsert({
-    where: { id: existing?.id ?? "no-assessment-yet" },
-    create: {
-      examSessionId: session.id,
-      evaluatorId: user.id,
-      modelId,
-      errorsCount: data.errorsCount,
-      doubtsCount: data.doubtsCount,
-      tajweedCount: data.tajweedCount,
-      totalDeduction,
-      finalScore,
-      status: AssessmentStatus.DRAFT,
-    },
-    update: {
-      errorsCount: data.errorsCount,
-      doubtsCount: data.doubtsCount,
-      tajweedCount: data.tajweedCount,
-      totalDeduction,
-      finalScore,
-    },
-  });
+  const result = await prisma.$transaction(async (tx) => {
+    const saved = await tx.assessment.upsert({
+      where: { id: existing?.id ?? "no-assessment-yet" },
+      create: {
+        examSessionId: session.id,
+        evaluatorId: user.id,
+        modelId,
+        wordErrors: data.wordErrors,
+        letterErrors: data.letterErrors,
+        diacriticErrors: data.diacriticErrors,
+        seriousErrors: data.seriousErrors,
+        subtleErrors: data.subtleErrors,
+        promptingCount: data.promptingCount,
+        doubtCount: data.doubtCount,
+        recitationScore: data.recitationScore,
+        tajweedScore: data.tajweedScore,
+        memorizationDeduction: totals.memorizationDeduction,
+        totalDeduction: totals.totalDeduction,
+        finalScore: totals.finalScore,
+        status: AssessmentStatus.DRAFT,
+      },
+      update: {
+        wordErrors: data.wordErrors,
+        letterErrors: data.letterErrors,
+        diacriticErrors: data.diacriticErrors,
+        seriousErrors: data.seriousErrors,
+        subtleErrors: data.subtleErrors,
+        promptingCount: data.promptingCount,
+        doubtCount: data.doubtCount,
+        recitationScore: data.recitationScore,
+        tajweedScore: data.tajweedScore,
+        memorizationDeduction: totals.memorizationDeduction,
+        totalDeduction: totals.totalDeduction,
+        finalScore: totals.finalScore,
+      },
+    });
 
-  await recordAudit(user.id, AuditAction.ASSESS, {
-    examSessionId: session.id,
-    studentId: session.student.id,
-    errorsCount: data.errorsCount,
-    doubtsCount: data.doubtsCount,
-    tajweedCount: data.tajweedCount,
-    totalDeduction,
-    finalScore,
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.ASSESS,
+        details: JSON.stringify({
+          examSessionId: session.id,
+          studentId: session.student.id,
+          wordErrors: data.wordErrors,
+          letterErrors: data.letterErrors,
+          diacriticErrors: data.diacriticErrors,
+          seriousErrors: data.seriousErrors,
+          subtleErrors: data.subtleErrors,
+          promptingCount: data.promptingCount,
+          doubtCount: data.doubtCount,
+          recitationScore: data.recitationScore,
+          tajweedScore: data.tajweedScore,
+          memorizationDeduction: totals.memorizationDeduction,
+          totalDeduction: totals.totalDeduction,
+          finalScore: totals.finalScore,
+        }),
+      },
+    });
+    return saved;
   });
 
   revalidatePath("/examiner");
@@ -203,21 +206,23 @@ export async function saveAssessment(input: AssessmentInput) {
   // المزامنة الحية: إعلام بقية اللجنة بحفظ التقييم (يبقى قابلاً للتعديل حتى الاعتماد)
   await broadcastAssessmentUpdate(session.id, {
     evaluatorId: user.id,
-    finalScore,
+    finalScore: totals.finalScore,
     assessmentStatus: AssessmentStatus.DRAFT,
   });
 
-  return { success: true, assessmentId: assessment.id, totalDeduction, finalScore };
+  return {
+    success: true,
+    assessmentId: result.id,
+    memorizationDeduction: totals.memorizationDeduction,
+    totalDeduction: totals.totalDeduction,
+    finalScore: totals.finalScore,
+  };
 }
 
 /**
  * منطق الاعتماد حسب العمر (المادة 5):
  * - الأكبر سناً يفعّل "اعتماد" (الحالة APPROVED)، ثم يلي ذلك
  * - الأصغر سناً يفعّل "اعتماد نهائي" (الحالة FINALIZED).
- *
- * يُمنع تجاوز الترتيب: لا يستطيع الأصغر الاعتماد النهائي قبل اعتماد الأكبر.
- *
- * @param action "approve" (الأكبر) | "finalize" (الأصغر)
  */
 export async function approveAssessment(examSessionId: string, action: "approve" | "finalize") {
   const user = await requireUser();
@@ -225,16 +230,13 @@ export async function approveAssessment(examSessionId: string, action: "approve"
   // عزل الصلاحيات: المقيّم فقط (المادة 8/2)
   requireRole(user, [Role.EXAMINER]);
 
-  // التحقق من صحة المدخلات (OWASP)
   const parsed = assessmentApprovalSchema.safeParse({ examSessionId, action });
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "بيانات غير صحيحة");
   }
 
-  // عزل الصلاحيات: يجب أن يكون المقيّم ضمن لجنة الطالب
   const session = await assertExaminerInSession(user, examSessionId);
 
-  // منع الاعتماد على جلسة ملغاة أو مكتملة
   if (session.status === "CANCELLED") {
     throw new Error("لا يمكن الاعتماد على جلسة ملغاة");
   }
@@ -242,7 +244,6 @@ export async function approveAssessment(examSessionId: string, action: "approve"
     throw new Error("هذه الجلسة اكتملت بالفعل");
   }
 
-  // استرجاع تقييم هذا المقيّم (يجب أن يكون حفظه أولاً)
   const assessment = await prisma.assessment.findFirst({
     where: { examSessionId: session.id, evaluatorId: user.id },
   });
@@ -264,7 +265,6 @@ export async function approveAssessment(examSessionId: string, action: "approve"
   const teacher2BD = birthDateOf(session.teacher2Id);
 
   const isSenior = (): boolean => {
-    // إن غاب أي من تواريخ الميلاد، نرفض العملية (المادة 5 — لا افتراضات)
     if (!teacher1BD || !teacher2BD) {
       throw new Error(
         "تاريخ ميلاد أحد المعلمين غير مكتمل — لا يمكن تحديد الترتيب العمري"
@@ -277,88 +277,109 @@ export async function approveAssessment(examSessionId: string, action: "approve"
 
   const seniorIsUser = isSenior();
 
-  if (action === "approve") {
-    // لا يقبل الاعتماد النهائي: الأكبر فقط يضغط "اعتماد" (المادة 5)
-    if (!seniorIsUser) {
-      throw new Error(
-        "المعلم الأصغر سناً لا يقوم بالاعتماد الأول؛ الاعتماد الأول للمعلم الأكبر"
-      );
-    }
-    await prisma.assessment.update({
-      where: { id: assessment.id },
-      data: { status: AssessmentStatus.APPROVED },
-    });
-    await prisma.student.update({
-      where: { id: session.student.id },
-      data: { status: StudentStatus.ASSIGNED },
-    });
+  await prisma.$transaction(async (tx) => {
+    if (action === "approve") {
+      if (!seniorIsUser) {
+        throw new Error(
+          "المعلم الأصغر سناً لا يقوم بالاعتماد الأول؛ الاعتماد الأول للمعلم الأكبر"
+        );
+      }
+      await tx.assessment.update({
+        where: { id: assessment.id },
+        data: { status: AssessmentStatus.APPROVED },
+      });
+      await tx.student.update({
+        where: { id: session.student.id },
+        data: { status: StudentStatus.ASSIGNED },
+      });
 
-    // إشعار للمعلم الآخر بأن التقييم اعتمد
-    const otherTeacherId =
-      user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id;
-    await prisma.notification.create({
-      data: {
-        userId: otherTeacherId,
-        message: `اعتمد المعلم الأكبر سناً تقييم الطالب «${session.student.name}» — بانتظار اعتمادك النهائي`,
-        type: NotificationType.ASSESSMENT,
-        examSessionId: session.id,
-      },
-    });
-  } else {
-    // "اعتماد نهائي": الأصغر فقط، وفقط بعد اعتماد الأكبر (الحالة APPROVED)
-    if (seniorIsUser) {
-      throw new Error(
-        "المعلم الأكبر سناً لا يقوم بالاعتماد النهائي؛ الاعتماد النهائي للمعلم الأصغر"
-      );
-    }
-    // الشرط الصحيح (المادة 5): يجب أن يكون تقييم المعلم الأكبر (الزميل الآخر)
-    // قد اعتمد (APPROVED) قبل أن يعتمد الأصغر نهائياً — وليس تقييم المستخدم نفسه.
-    const seniorTeacherId =
-      user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id;
-    const seniorAssessment = await prisma.assessment.findFirst({
-      where: { examSessionId: session.id, evaluatorId: seniorTeacherId },
-      select: { status: true },
-    });
-    if (!seniorAssessment || seniorAssessment.status !== AssessmentStatus.APPROVED) {
-      throw new Error("يجب أن يعتمد المعلم الأكبر التقييم قبل الاعتماد النهائي");
-    }
-    await prisma.assessment.update({
-      where: { id: assessment.id },
-      data: { status: AssessmentStatus.FINALIZED },
-    });
-    await prisma.student.update({
-      where: { id: session.student.id },
-      data: { status: StudentStatus.COMPLETED },
-    });
-
-    // إشعار لأخصائي الاختبارات بأن الطالب اكتمل تقييمه
-    const specialists = await prisma.user.findMany({
-      where: { role: Role.TEST_SPECIALIST },
-      select: { id: true },
-    });
-    if (specialists.length > 0) {
-      await prisma.notification.createMany({
-        data: specialists.map((s) => ({
-          userId: s.id,
-          message: `اكتمل تقييم الطالب «${session.student.name}» واعتمده المعلمان — بانتظار اعتمادك الإداري`,
+      const otherTeacherId =
+        user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id;
+      await tx.notification.create({
+        data: {
+          userId: otherTeacherId,
+          message: `اعتمد المعلم الأكبر سناً تقييم الطالب «${session.student.name}» — بانتظار اعتمادك النهائي`,
           type: NotificationType.ASSESSMENT,
           examSessionId: session.id,
-        })),
+        },
       });
-    }
-  }
+    } else {
+      if (seniorIsUser) {
+        throw new Error(
+          "المعلم الأكبر سناً لا يقوم بالاعتماد النهائي؛ الاعتماد النهائي للمعلم الأصغر"
+        );
+      }
+      const seniorTeacherId =
+        user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id;
+      const seniorAssessment = await tx.assessment.findFirst({
+        where: { examSessionId: session.id, evaluatorId: seniorTeacherId },
+        select: { status: true },
+      });
+      if (!seniorAssessment || seniorAssessment.status !== AssessmentStatus.APPROVED) {
+        throw new Error("يجب أن يعتمد المعلم الأكبر التقييم قبل الاعتماد النهائي");
+      }
+      await tx.assessment.update({
+        where: { id: assessment.id },
+        data: { status: AssessmentStatus.FINALIZED },
+      });
+      await tx.student.update({
+        where: { id: session.student.id },
+        data: { status: StudentStatus.COMPLETED },
+      });
 
-  await recordAudit(user.id, AuditAction.APPROVE, {
-    examSessionId: session.id,
-    studentId: session.student.id,
-    action,
-    role: seniorIsUser ? "senior" : "junior",
+      const specialists = await tx.user.findMany({
+        where: { role: Role.TEST_SPECIALIST },
+        select: { id: true },
+      });
+      if (specialists.length > 0) {
+        await tx.notification.createMany({
+          data: specialists.map((s) => ({
+            userId: s.id,
+            message: `اكتمل تقييم الطالب «${session.student.name}» واعتمده المعلمان — بانتظار اعتمادك الإداري`,
+            type: NotificationType.ASSESSMENT,
+            examSessionId: session.id,
+          })),
+        });
+      }
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.APPROVE,
+        details: JSON.stringify({
+          examSessionId: session.id,
+          studentId: session.student.id,
+          action,
+          role: seniorIsUser ? "senior" : "junior",
+        }),
+      },
+    });
   });
 
   revalidatePath("/examiner");
   revalidatePath("/examiner/assess");
 
-  // المزامنة الحية: قفل لوحة باقي اللجنة بعد الاعتماد (المادة 5 — منع التعديل بعد الاعتماد)
+  // بعد نجاح المعاملة الذرية: توزيع الإشعارات على القنوات الخارجية (دفع/بريد/SMS)
+  const channelRecipients =
+    action === "approve"
+      ? [user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id]
+      : (
+          await prisma.user.findMany({
+            where: { role: Role.TEST_SPECIALIST },
+            select: { id: true },
+          })
+        ).map((s) => s.id);
+  await dispatchNotificationChannels({
+    userIds: channelRecipients,
+    message:
+      action === "approve"
+        ? `اعتمد المعلم الأكبر سناً تقييم الطالب «${session.student.name}» — بانتظار اعتمادك النهائي`
+        : `اكتمل تقييم الطالب «${session.student.name}» واعتمده المعلمان — بانتظار اعتمادك الإداري`,
+    type: NotificationType.ASSESSMENT,
+    examSessionId: session.id,
+  });
+
   await broadcastAssessmentUpdate(session.id, {
     evaluatorId: user.id,
     assessmentStatus:
@@ -370,14 +391,12 @@ export async function approveAssessment(examSessionId: string, action: "approve"
 
 /**
  * جلب بيانات التقييم الحالية لجلسة ولجنة (لعرض حالة السجل)
- * عزل الصلاحيات (OWASP): المقيّم يقرأ فقط جلسات لجنته؛ الأدوار الإدارية تقرأ أي جلسة.
  */
 export async function getAssessmentState(examSessionId: string) {
   const user = await requireUser();
 
   const isAdminOrSpecialist = isAdminRole(user.role);
   if (!isAdminOrSpecialist) {
-    // المقيّم يجب أن يكون ضمن لجنة هذه الجلسة
     await assertExaminerInSession(user, examSessionId);
   }
 
@@ -386,9 +405,16 @@ export async function getAssessmentState(examSessionId: string) {
     select: {
       id: true,
       evaluatorId: true,
-      errorsCount: true,
-      doubtsCount: true,
-      tajweedCount: true,
+      wordErrors: true,
+      letterErrors: true,
+      diacriticErrors: true,
+      seriousErrors: true,
+      subtleErrors: true,
+      promptingCount: true,
+      doubtCount: true,
+      recitationScore: true,
+      tajweedScore: true,
+      memorizationDeduction: true,
       totalDeduction: true,
       finalScore: true,
       status: true,
@@ -396,10 +422,7 @@ export async function getAssessmentState(examSessionId: string) {
   });
 }
 
-/** هل الدور من الأدوار الإدارية العليا؟
- * (المادة 8/4) يغطي فقط ADMIN و TEST_SPECIALIST — رئيس الشؤون
- * لا يدخل واجهة التقييم الحي (Assessment) بل يطلع على الدرجات النهائية فقط.
- */
+/** هل الدور من الأدوار الإدارية العليا؟ */
 function isAdminRole(role: Role): boolean {
   const adminRoles = [Role.ADMIN, Role.TEST_SPECIALIST];
   return (adminRoles as Role[]).includes(role);

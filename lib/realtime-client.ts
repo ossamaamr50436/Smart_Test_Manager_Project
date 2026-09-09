@@ -33,7 +33,18 @@ export type AssessmentUpdatePayload = {
   assessmentId?: string;
   finalScore?: number;
   evaluatorId?: string;
-  counts?: Record<string, { errors: number; doubts: number; tajweed: number }>;
+  counts?: Record<
+    string,
+    {
+      wordErrors: number;
+      letterErrors: number;
+      diacriticErrors: number;
+      seriousErrors: number;
+      subtleErrors: number;
+      promptingCount: number;
+      doubtCount: number;
+    }
+  >;
   assessmentStatus?: string;
 };
 
@@ -52,5 +63,31 @@ export function subscribeToSession(
   return () => {
     channel.unbind("assessment:update", onAssessmentUpdate);
     client.unsubscribe(`private-assessment-${sessionId}`);
+  };
+}
+
+/** شكل بيانات إشعار الدفع اللحظي */
+export type PushNotificationPayload = {
+  id?: string;
+  message?: string;
+  type?: string;
+  examSessionId?: string;
+};
+
+/**
+ * الاشتراك في قناة إشعارات مستخدم معيّن (قناة خاصة)
+ * يُستدعى من شارة الإشعارات لتحديث العداد لحظياً.
+ */
+export function subscribeToUserNotifications(
+  userId: string,
+  onNotification: (payload: PushNotificationPayload) => void
+): () => void {
+  const client = getPusher();
+  if (!client) return () => {};
+  const channel: Channel = client.subscribe(`private-user-${userId}`);
+  channel.bind("notification:new", onNotification);
+  return () => {
+    channel.unbind("notification:new", onNotification);
+    client.unsubscribe(`private-user-${userId}`);
   };
 }

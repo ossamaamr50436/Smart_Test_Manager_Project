@@ -74,9 +74,12 @@ pnpm dev
 
 ## 📚 الوثائق
 
+- [دليل البدء السريع](docs/quick-start.md)
 - [دليل المستخدم](docs/user-guide.md)
+- [دليل المسؤول](docs/admin-guide.md)
 - [دليل المطور](docs/developer-guide.md)
 - [دليل النشر](docs/deployment-guide.md)
+- [توثيق واجهات API](docs/api.md)
 
 ## 📜 الدستور
 

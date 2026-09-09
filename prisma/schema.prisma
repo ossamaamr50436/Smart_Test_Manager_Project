@@ -90,6 +90,7 @@ model User {
   password      String // مشفرة بـ bcrypt
   role          Role
   birthDate     DateTime // لحساب الترتيب الأعمار في الاعتماد المتسلسل
+  phone         String? // رقم الجوال — يُستخدم في قناة إشعارات SMS
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   institutionId String? // للمستخدمين من نوع Institution فقط (عزل الصلاحيات)
@@ -147,6 +148,7 @@ model Student {
   certificates Certificate[]
 
   @@index([institutionId])
+  @@index([status])
   @@map("students")
 }
 
@@ -168,13 +170,14 @@ model ExamSeason {
 }
 
 // ------------------------------------------------------------
-// النماذج الاختبارية (100 نموذج)
-// detailsJSON يخزن السور والآيات والتفاصيل
+// النماذج الاختبارية (20 نموذج لكل فرع)
+// وفق لائحة اختيار فرع كامل القرآن
 // ------------------------------------------------------------
 model ExamModel {
   id            String @id @default(cuid())
-  modelNumber   Int // 1-100
-  detailsJSON   Json // السور والآيات والترتيب
+  modelNumber   Int // 1-20 لكل فرع
+  branch        String // الفرع: 5/10/15/20/25/30 جزءاً
+  detailsJSON   Json // 10 مقاطع — كل مقطع: {number, fromText, fromSurah, fromVerse, toText, toSurah, toVerse}
   institutionId String
   seasonId      String // الموسم الذي يتبع له النموذج (المادة 6)
 
@@ -183,8 +186,9 @@ model ExamModel {
   assessments Assessment[]
   sessions    ExamSession[]
 
-  @@unique([institutionId, modelNumber, seasonId])
+  @@unique([institutionId, modelNumber, seasonId, branch])
   @@index([institutionId])
+  @@index([branch])
   @@map("exam_models")
 }
 
@@ -222,18 +226,38 @@ model ExamSession {
 }
 
 // ------------------------------------------------------------
-// التقييمات
+// التقييمات — وفق لائحة اختيار فرع كامل القرآن (100 درجة)
+// الحفظ (70) + التنبيه + الشك + التلاوة (20) + التجويد (10)
 // ------------------------------------------------------------
 model Assessment {
   id              String           @id @default(cuid())
   examSessionId   String
   evaluatorId     String // المقيّم الحالي
   modelId         String // النموذج المختار
-  errorsCount     Int              @default(0) // الأخطاء -1 درجة
-  doubtsCount     Int              @default(0) // الشك -0.5 درجة
-  tajweedCount    Int              @default(0) // التجويد -0.25 درجة
-  totalDeduction  Float            @default(0) // إجمالي الخصم
-  finalScore      Float            @default(0) // الدرجة النهائية
+
+  // الحفظ (70 درجة) — خصم من الدرجة القصوى
+  wordErrors      Int              @default(0) // أخطاء الكلمات — خصم 1 لكل خطأ
+  letterErrors    Int              @default(0) // أخطاء الحروف — خصم 1 لكل خطأ
+  diacriticErrors Int              @default(0) // أخطاء الضبط — خصم 1 لكل خطأ
+  seriousErrors   Int              @default(0) // اللحن الجلي — خصم 2 لكل خطأ
+  subtleErrors    Int              @default(0) // اللحن الخفي — خصم 0.5 لكل خطأ
+
+  // التنبيه (يُخصم عند الحاجة)
+  promptingCount  Int              @default(0) // عدد مرات التنبيه — خصم 1 لكل تنبيه
+
+  // الشك (التردد)
+  doubtCount      Int              @default(0) // عدد مرات الشك — خصم 0.5 لكل شك
+
+  // التلاوة وحسن الأداء (20 درجة) — تُقيّم من المعلم مباشرة
+  recitationScore Float            @default(0) // من 0 إلى 20
+
+  // التجويد التطبيقي (10 درجات) — تُقيّم من المعلم مباشرة
+  tajweedScore    Float            @default(0) // من 0 إلى 10
+
+  // الدرجات المحسوبة
+  memorizationDeduction Float     @default(0) // إجمالي خصم الحفظ
+  totalDeduction  Float            @default(0) // إجمالي جميع الخصومات
+  finalScore      Float            @default(0) // الدرجة النهائية من 100
   isFinalApproved Boolean          @default(false)
   status          AssessmentStatus @default(DRAFT)
   createdAt       DateTime         @default(now())

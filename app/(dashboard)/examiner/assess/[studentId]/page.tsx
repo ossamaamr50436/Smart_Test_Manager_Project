@@ -9,6 +9,16 @@ export const metadata: Metadata = {
   title: "التقييم الحي",
 };
 
+type Segment = {
+  number: number;
+  fromText: string;
+  fromSurah: string;
+  fromVerse: number;
+  toText: string;
+  toSurah: string;
+  toVerse: number;
+};
+
 export default async function AssessStudentPage({
   params,
 }: {
@@ -31,6 +41,7 @@ export default async function AssessStudentPage({
       student: true,
       teacher1: { select: { id: true, name: true, birthDate: true } },
       teacher2: { select: { id: true, name: true, birthDate: true } },
+      model: { select: { detailsJSON: true, branch: true, modelNumber: true } },
     },
   });
 
@@ -50,8 +61,37 @@ export default async function AssessStudentPage({
     seniorIsUser = user.id === session.teacher1Id;
   }
 
-  // المقاطع الخمسة الوهمية (تمهيد: النماذج ستأتي من Google Drive لاحقاً)
-  const mockSegments = ["المقطع الأول", "المقطع الثاني", "المقطع الثالث", "المقطع الرابع", "المقطع الخامس"];
+  // استرجاع مقاطع النموذج (10 مقاطع وفق اللائحة)
+  let segments: Segment[] = [];
+  const details = session.model?.detailsJSON as {
+    segments?: Segment[];
+  } | null;
+  if (details?.segments && Array.isArray(details.segments)) {
+    segments = details.segments
+      .filter(
+        (s: Segment) =>
+          s &&
+          typeof s.number === "number" &&
+          typeof s.fromText === "string" &&
+          typeof s.fromSurah === "string" &&
+          typeof s.toText === "string" &&
+          typeof s.toSurah === "string"
+      )
+      .sort((a: Segment, b: Segment) => a.number - b.number);
+  }
+
+  // في حال عدم وجود نموذج مرتبط، نعرض رسالة إرشادية بدل المقاطع الوهمية
+  if (segments.length === 0) {
+    return (
+      <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-card p-8 text-center">
+        <h1 className="text-2xl font-bold">لا يوجد نموذج اختباري</h1>
+        <p className="mt-3 text-muted-foreground">
+          لم يُحدَّد نموذج اختبار لهذه الجلسة حتى الآن. يرجى التواصل مع أخصائي
+          الاختبارات لربط نموذج (10 مقاطع) بجلسة الطالب {session.student.name}.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <AssessmentBoard
@@ -59,7 +99,7 @@ export default async function AssessStudentPage({
       sessionId={session.id}
       seniorIsUser={seniorIsUser}
       evaluatorId={user.id}
-      segments={mockSegments}
+      segments={segments}
     />
   );
 }

@@ -158,37 +158,135 @@ test("لجنة: رفض فترة غير صالحة (وليس enum)", () => {
   );
 });
 
-test("تقييم: رفض أعداد سلبية أو أكبر من 20", () => {
+test("تقييم: رفض أعداد سلبية أو أكبر من الحد المسموح", () => {
+  // أعداد سلبية مرفوضة لكل الحقول
   assert.equal(
     assessmentInputSchema.safeParse({
       examSessionId: "session1",
-      errorsCount: -1,
-      doubtsCount: 0,
-      tajweedCount: 0,
+      wordErrors: -1,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 0,
+      recitationScore: 0,
+      tajweedScore: 0,
     }).success,
     false
   );
   assert.equal(
     assessmentInputSchema.safeParse({
       examSessionId: "session1",
-      errorsCount: 21,
-      doubtsCount: 0,
-      tajweedCount: 0,
+      wordErrors: -2,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 0,
+      recitationScore: 0,
+      tajweedScore: 0,
+    }).success,
+    false
+  );
+  // عدد أخطاء يتجاوز 70 (أعلى من درجة الحفظ الكاملة)
+  assert.equal(
+    assessmentInputSchema.safeParse({
+      examSessionId: "session1",
+      wordErrors: 71,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 0,
+      recitationScore: 0,
+      tajweedScore: 0,
+    }).success,
+    false
+  );
+  // درجة التلاوة تتجاوز 20
+  assert.equal(
+    assessmentInputSchema.safeParse({
+      examSessionId: "session1",
+      wordErrors: 0,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 0,
+      recitationScore: 21,
+      tajweedScore: 0,
+    }).success,
+    false
+  );
+  // درجة التجويد تتجاوز 10
+  assert.equal(
+    assessmentInputSchema.safeParse({
+      examSessionId: "session1",
+      wordErrors: 0,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 0,
+      recitationScore: 10,
+      tajweedScore: 11,
     }).success,
     false
   );
 });
 
-test("تقييم: رفض أعداد عشرية (ليست صحيحة)", () => {
+test("تقييم: رفض أعداد عشرية (ليست صحيحة) لحقول العدّ", () => {
   assert.equal(
     assessmentInputSchema.safeParse({
       examSessionId: "session1",
-      errorsCount: 1.5,
-      doubtsCount: 0,
-      tajweedCount: 0,
+      wordErrors: 1.5,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 0,
+      recitationScore: 0,
+      tajweedScore: 0,
     }).success,
     false
   );
+  assert.equal(
+    assessmentInputSchema.safeParse({
+      examSessionId: "session1",
+      wordErrors: 0,
+      letterErrors: 0,
+      diacriticErrors: 0,
+      seriousErrors: 0,
+      subtleErrors: 0,
+      promptingCount: 0,
+      doubtCount: 1.5,
+      recitationScore: 0,
+      tajweedScore: 0,
+    }).success,
+    false
+  );
+});
+
+test("تقييم: قبول تقييم صحيح كامل (كل الحقول)", () => {
+  const parsed = assessmentInputSchema.safeParse({
+    examSessionId: "session1",
+    wordErrors: 5,
+    letterErrors: 2,
+    diacriticErrors: 3,
+    seriousErrors: 1,
+    subtleErrors: 4,
+    promptingCount: 1,
+    doubtCount: 2,
+    recitationScore: 15,
+    tajweedScore: 8,
+  });
+  assert.equal(parsed.success, true);
 });
 
 test("اعتماد: رفض إجراء غير معروف ومنع صارم للـ enum", () => {

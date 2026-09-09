@@ -1,14 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { getUnreadCount } from "@/lib/actions/notification-actions";
+import { subscribeToUserNotifications } from "@/lib/realtime-client";
 
 // ============================================================
 // عداد الإشعارات غير المقروءة
-// يظهر بجانب أيقونة الإشعارات في الشريط الجانبي
+// يظهر بجانب أيقونة الإشعارات في الشريط الجانبي.
+// - يقوم بتحديث لحظي عبر قناة Pusher الخاصة بالمستخدم
+// - مع تحديث دوري كخطة احتياطية عند انقطاع المزامنة
 // ============================================================
 
 export function NotificationBadge() {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -23,16 +29,26 @@ export function NotificationBadge() {
       }
     }
 
+    // عند وصول إشعار جديد عبر الدفع: نزيد العداد ونعاود الجلب من الخادم
+    const unsubscribe =
+      currentUserId
+        ? subscribeToUserNotifications(currentUserId, () => {
+            setCount((prev) => prev + 1);
+            fetchCount();
+          })
+        : undefined;
+
     fetchCount();
 
-    // تحديث العداد كل 30 ثانية
+    // تحديث دوري كخطة احتياطية
     const interval = setInterval(fetchCount, 30000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
+      unsubscribe?.();
     };
-  }, []);
+  }, [currentUserId]);
 
   if (count === 0) return null;
 
