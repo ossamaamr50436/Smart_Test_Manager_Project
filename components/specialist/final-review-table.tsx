@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { specialistFinalApprove } from "@/lib/actions/admin-actions";
@@ -73,7 +74,7 @@ export function FinalReviewTable({ students }: { students: FinalStudent[] }) {
                 <tr key={student.id} className="border-b last:border-0">
                   <td className="py-3 font-medium">{student.name}</td>
                   <td className="py-3">{student.institutionName}</td>
-                  <td className="py-3">{student.branch} أجزاء</td>
+                  <td className="py-3">{getBranchLabel(student.branch)}</td>
                   <td className="py-3">
                     {student.finalScore !== null
                       ? `${student.finalScore.toFixed(2)} / 20`

@@ -17,12 +17,7 @@ export default async function SpecialistModelsPage() {
     redirect("/test-specialist");
   }
 
-  // جميع الجهات والمواسم لاختيارها عند الإنشاء
-  const institutions = await prisma.institution.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
+  // جميع المواسم لاختيارها عند الإنشاء
   const seasons = await prisma.examSeason.findMany({
     select: { id: true, name: true },
     orderBy: { startDate: "desc" },
@@ -36,7 +31,6 @@ export default async function SpecialistModelsPage() {
       branch: true,
       detailsJSON: true,
       segmentsCount: true,
-      institution: { select: { id: true, name: true } },
       season: { select: { id: true, name: true } },
     },
     orderBy: [{ branch: "asc" }, { modelNumber: "asc" }],
@@ -52,7 +46,6 @@ export default async function SpecialistModelsPage() {
       </div>
 
       <ExamModelsManager
-        institutions={institutions}
         seasons={seasons}
         models={models}
       />

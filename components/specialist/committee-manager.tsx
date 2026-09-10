@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCommittee, deleteCommittee, assignStudentToCommittee } from "@/lib/actions/committee-actions";
@@ -158,7 +159,7 @@ export function CommitteeManager({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {BRANCHES.map((b) => (
-                    <SelectItem key={b} value={b}>فرع {b} أجزاء</SelectItem>
+                    <SelectItem key={b} value={b}>{getBranchLabel(b)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -232,7 +233,7 @@ export function CommitteeManager({
                   {committees.map((c) => (
                     <tr key={c.id} className="border-b">
                       <td className="p-2 font-medium">{c.name}</td>
-                      <td className="p-2">فرع {c.branch}</td>
+                      <td className="p-2">{getBranchLabel(c.branch)}</td>
                       <td className="p-2">{c.teacher1.name}</td>
                       <td className="p-2">{c.teacher2.name}</td>
                       <td className="p-2">{c._count.students}</td>
@@ -276,7 +277,7 @@ export function CommitteeManager({
                   <SelectTrigger><SelectValue placeholder="اختر الطالب" /></SelectTrigger>
                   <SelectContent>
                     {approvedStudents.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name} — {s.branch} أجزاء</SelectItem>
+                      <SelectItem key={s.id} value={s.id}>{s.name} — {getBranchLabel(s.branch)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

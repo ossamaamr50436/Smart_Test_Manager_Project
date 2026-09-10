@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser, requireRole } from "@/lib/security";
+import { getBranchLabel } from "@/lib/utils";
 import { Role } from "@prisma/client";
 import { getExaminerStats } from "@/lib/db.reports";
 import { ReportsDashboard, type StatCard } from "@/components/reports/reports-dashboard";
@@ -24,7 +25,7 @@ export default async function ExaminerReportsPage() {
   const rows = stats.latest.map((s) => ({
     الطالب: s.studentName,
     الجهة: s.institution,
-    الفرع: `${s.branch} أجزاء`,
+    الفرع: getBranchLabel(s.branch),
     التاريخ: s.date?.toLocaleDateString("ar-SA") ?? "—",
     الحالة: s.status,
   }));

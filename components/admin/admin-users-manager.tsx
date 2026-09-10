@@ -266,13 +266,16 @@ export function AdminUsersManager() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>كلمة المرور (12 حرفاً على الأقل)</Label>
+                <Label>كلمة المرور</Label>
                 <Input
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   dir="ltr"
                 />
+                <p className="text-xs text-muted-foreground">
+                  كلمة المرور: 5 أحرف على الأقل، وتحتوي على حرف كبير وحرف صغير ورقم.
+                </p>
               </div>
               <div className="space-y-1">
                 <Label>الدور</Label>
@@ -431,13 +434,16 @@ export function AdminUsersManager() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              <Label>كلمة المرور الجديدة (12 حرفاً على الأقل)</Label>
+              <Label>كلمة المرور الجديدة</Label>
               <Input
                 type="password"
                 value={passwordValue}
                 onChange={(e) => setPasswordValue(e.target.value)}
                 dir="ltr"
               />
+              <p className="text-xs text-muted-foreground">
+                كلمة المرور: 5 أحرف على الأقل، وتحتوي على حرف كبير وحرف صغير ورقم.
+              </p>
             </div>
             <div className="mt-4 flex gap-2">
               <Button disabled={isPending} onClick={handleResetPassword}>تغيير</Button>

@@ -115,12 +115,6 @@ export const examModelSchema = z.object({
     .min(1, "رقم النموذج يبدأ من 1")
     .max(100, "عدد النماذج لكل فرع هو 100"),
   branch: z.enum(["5", "10", "15", "20", "25", "30"], { message: "الفرع غير صالح" }),
-  institutionId: z
-    .string()
-    .min(1, "معرّف الجهة غير صالح")
-    .max(64, "معرّف الجهة غير صالح")
-    .nullable()
-    .optional(),
   seasonId: z.string().min(1, "الموسم مطلوب").max(64),
   segmentsCount: z.coerce
     .number({ invalid_type_error: "عدد المقاطع يجب أن يكون رقماً" })

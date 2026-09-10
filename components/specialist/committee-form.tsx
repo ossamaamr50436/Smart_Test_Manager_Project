@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -106,7 +107,7 @@ export function CommitteeForm({
               <SelectContent>
                 {students.map((student) => (
                   <SelectItem key={student.id} value={student.id}>
-                    {student.name} — {student.branch} أجزاء
+                    {student.name} — {getBranchLabel(student.branch)}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -101,3 +101,27 @@
 - `assertExaminerInSession` في `lib/security.ts` الآن يدعم اللجنة الجديدة (Committee) بالإضافة إلى الجلسات القديمة.
 - `resolveModelId` في `assessment-actions.ts` بُسّط ليعمل مع أي تدفق (قديم/جديد).
 - `AssessmentUpdatePayload` في `realtime-client.ts` محدّث ليتوافق مع التنسيق الجديد (3 أعمدة).
+
+## 8) التصحيحات النهائية لكلمات المرور والأداء (o.txt)
+
+### المهمة 1: إصلاح قواعد كلمة المرور
+- **المشكلة:** Zod كان يطبّق `max(8)` على كلمة المرور في `auth.ts` و`lib/validations/user.ts`، مما يمنع تسجيل الدخول بكلمات المرور الحالية الأطول من 8 أحرف.
+- **`lib/validations/user.ts` (createUserSchema):** `min(8)` + `max(128)` + حرف كبير/صغير/رقم.
+- **`auth.ts` (credentialsSchema):** `z.string().min(1, "كلمة المرور مطلوبة")` فقط — لا حد أقصى، التحقق عبر bcrypt وليس Zod.
+- **`lib/actions/admin-panel-actions.ts`:** `createAdminUser` و `resetAdminUserPassword` حُدّثا من "بين 4 و 8 أحرف" إلى "بين 8 و 128 حرفاً".
+
+### المهمة 2: إعادة تعيين كلمات المرور للأدوار الستة
+- `pnpm fix:users` ✅ — أعاد تعيين كلمات مرور الحسابات الستة (bcrypt cost 12)، 6 مستخدمين فقط.
+
+### المهمة 3: تحسين الأداء في بيئة التطوير
+- **`next.config.mjs`:** أُضيف `experimental.optimizePackageImports` (\`lucide-react\`، \`@radix-ui/...\`، \`date-fns\`، \`recharts\`).
+- **`package.json`:** `dev` أصبح `next dev --turbo`.
+- **`middleware.ts`:** matcher موجود بالفعل يستثني `api` والملفات الثابتة والصور.
+- **`loading.tsx`:** موجود في `app/(dashboard)/loading.tsx` ويغطي المسارات الثقيلة.
+
+### المهمة 4: تقرير حسابات المنصة
+- أُنشئ `ACCOUNTS_REPORT.md` في جذر المشروع مع جدول الحسابات الستة + الإحصائيات من قاعدة البيانات (المستخدمون 6، النماذج 100، الطلاب 250، الجهات 88).
+
+### التحقق النهائي
+- تسجيل الدخول لا يفرض حداً أقصى على كلمة المرور ✅
+- `pnpm typecheck` + `pnpm build` ينجحان ✅

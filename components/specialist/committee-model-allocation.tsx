@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { allocateCommitteeModelRange } from "@/lib/actions/model-actions";
@@ -114,7 +115,7 @@ export function CommitteeModelAllocation({
                 <SelectContent>
                   {BRANCHES.map((b) => (
                     <SelectItem key={b} value={b}>
-                      فرع {b} أجزاء
+                      {getBranchLabel(b)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -186,7 +187,7 @@ export function CommitteeModelAllocation({
                       c.allocations.map((a) => (
                         <tr key={a.id} className="border-b">
                           <td className="p-2">{c.label}</td>
-                          <td className="p-2">فرع {a.branch} أجزاء</td>
+                          <td className="p-2">{getBranchLabel(a.branch)}</td>
                           <td className="p-2">
                             من {a.startModelNumber} إلى {a.endModelNumber}
                           </td>

@@ -84,26 +84,27 @@ enum AuditAction {
 // المستخدمون
 // ------------------------------------------------------------
 model User {
-  id            String       @id @default(cuid())
-  name          String
-  email         String       @unique
-  password      String // مشفرة بـ bcrypt
-  role          Role
-  birthDate     DateTime // لحساب الترتيب الأعمار في الاعتماد المتسلسل
-  phone         String? // رقم الجوال — يُستخدم في قناة إشعارات SMS
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  institutionId String? // للمستخدمين من نوع Institution فقط (عزل الصلاحيات)
+  id                 String   @id @default(cuid())
+  name               String
+  email              String   @unique
+  password           String // مشفرة بـ bcrypt
+  role               Role
+  birthDate          DateTime // لحساب الترتيب الأعمار في الاعتماد المتسلسل
+  phone              String? // رقم الجوال — يُستخدم في قناة إشعارات SMS
+  mustChangePassword Boolean  @default(false) // إجبار المستخدم على تغيير كلمة المرور بعد أول دخول
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  institutionId      String? // للمستخدمين من نوع Institution فقط (عزل الصلاحيات)
 
-  institution              Institution?  @relation(fields: [institutionId], references: [id])
-  auditLogs                AuditLog[]    @relation("UserAuditLogs")
-  notifications            Notification[]
-  sessionsAsTeacher1       ExamSession[] @relation("Teacher1")
-  sessionsAsTeacher2       ExamSession[] @relation("Teacher2")
-  committeesAsTeacher1     Committee[]   @relation("CommitteeTeacher1")
-  committeesAsTeacher2     Committee[]   @relation("CommitteeTeacher2")
-  assessments              Assessment[]
-  certificatesIssued       Certificate[] @relation("CertificateIssuer")
+  institution          Institution?   @relation(fields: [institutionId], references: [id])
+  auditLogs            AuditLog[]     @relation("UserAuditLogs")
+  notifications        Notification[]
+  sessionsAsTeacher1   ExamSession[]  @relation("Teacher1")
+  sessionsAsTeacher2   ExamSession[]  @relation("Teacher2")
+  committeesAsTeacher1 Committee[]    @relation("CommitteeTeacher1")
+  committeesAsTeacher2 Committee[]    @relation("CommitteeTeacher2")
+  assessments          Assessment[]
+  certificatesIssued   Certificate[]  @relation("CertificateIssuer")
 
   @@index([institutionId])
   @@map("users")
@@ -113,10 +114,16 @@ model User {
 // الجهات التعليمية
 // ------------------------------------------------------------
 model Institution {
-  id          String  @id @default(cuid())
-  name        String
-  contactInfo String?
-  credentials String? // معرف/كلمة مرور خاصة بالجهة
+  id              String  @id @default(cuid())
+  name            String
+  managerName     String // اسم مدير الجهة
+  supervisorName  String // اسم مشرف الجهة
+  managerPhone    String // رقم هاتف مدير الجهة
+  supervisorPhone String // رقم هاتف مشرف الجهة
+  licenseNumber   String  @unique // رقم التصريح (فريد — يُستخدم أيضاً كبديل مؤقت لكلمة المرور)
+  district        String // الحي
+  contactInfo     String?
+  credentials     String? // معرف/كلمة مرور خاصة بالجهة
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -125,6 +132,7 @@ model Institution {
   students   Student[]
   examModels ExamModel[]
 
+  @@index([licenseNumber])
   @@map("institutions")
 }
 
@@ -167,7 +175,7 @@ model Student {
 // ------------------------------------------------------------
 model ExamSeason {
   id        String   @id @default(cuid())
-  name      String   // مثال: "1446-الفصل الأول"
+  name      String // مثال: "1446-الفصل الأول"
   startDate DateTime
   endDate   DateTime
   isActive  Boolean  @default(false)
@@ -186,17 +194,17 @@ model ExamSeason {
 // ------------------------------------------------------------
 model Committee {
   id         String   @id @default(cuid())
-  name       String   // اسم اللجنة (مثال: "لجنة 1 — فرع 5 أجزاء")
-  branch     String   // الفرع: 5/10/15/20/25/30 جزءاً
+  name       String // اسم اللجنة (مثال: "لجنة 1 — فرع 5 أجزاء")
+  branch     String // الفرع: 5/10/15/20/25/30 جزءاً
   seasonId   String
-  teacher1Id String   // المعلم الأول (الأكبر سناً)
-  teacher2Id String   // المعلم الثاني (الأصغر سناً)
+  teacher1Id String // المعلم الأول (الأكبر سناً)
+  teacher2Id String // المعلم الثاني (الأصغر سناً)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  season      ExamSeason                @relation(fields: [seasonId], references: [id])
-  teacher1    User                      @relation("CommitteeTeacher1", fields: [teacher1Id], references: [id])
-  teacher2    User                      @relation("CommitteeTeacher2", fields: [teacher2Id], references: [id])
+  season      ExamSeason                 @relation(fields: [seasonId], references: [id])
+  teacher1    User                       @relation("CommitteeTeacher1", fields: [teacher1Id], references: [id])
+  teacher2    User                       @relation("CommitteeTeacher2", fields: [teacher2Id], references: [id])
   students    Student[]
   allocations CommitteeModelAllocation[]
 
@@ -211,20 +219,20 @@ model Committee {
 // وفق لائحة اختيار فرع كامل القرآن
 // ------------------------------------------------------------
 model ExamModel {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   modelNumber   Int // 1-100 لكل فرع
   branch        String // الفرع: 5/10/15/20/25/30 جزءاً
   detailsJSON   Json // المقاطع — حتى 30 مقطعاً
-  segmentsCount Int    @default(10) // عدد مقاطع النموذج (1-30)
-  institutionId String? // اختياري — لا تُسند لجهة أثناء الإنشاء
+  segmentsCount Int     @default(10) // عدد مقاطع النموذج (1-30)
+  institutionId String? // احتفاظ لتوافق البيانات — لم تعد تُسند أثناء الإنشاء (المرحلة 8)
   seasonId      String // الموسم الذي يتبع له النموذج
 
-  institution Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  season      ExamSeason  @relation(fields: [seasonId], references: [id])
+  institution Institution?  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  season      ExamSeason    @relation(fields: [seasonId], references: [id])
   assessments Assessment[]
   sessions    ExamSession[]
 
-  @@unique([institutionId, modelNumber, seasonId, branch])
+  @@unique([modelNumber, seasonId, branch])
   @@index([institutionId])
   @@index([branch])
   @@map("exam_models")
@@ -256,10 +264,10 @@ model ExamSession {
   assessments   Assessment[]
   notifications Notification[]
 
+  @@unique([seasonId, modelId])
   @@index([studentId])
   @@index([teacher1Id])
   @@index([teacher2Id])
-  @@unique([seasonId, modelId])
   @@map("exam_sessions")
 }
 
@@ -268,10 +276,10 @@ model ExamSession {
 // ------------------------------------------------------------
 model CommitteeModelAllocation {
   id               String   @id @default(cuid())
-  committeeId      String   // معرف اللجنة (Committee)
-  branch           String   // الفرع: 5/10/15/20/25/30 جزءاً
-  startModelNumber Int      // رقم النموذج الأول
-  endModelNumber   Int      // رقم النموذج الأخير
+  committeeId      String // معرف اللجنة (Committee)
+  branch           String // الفرع: 5/10/15/20/25/30 جزءاً
+  startModelNumber Int // رقم النموذج الأول
+  endModelNumber   Int // رقم النموذج الأخير
   seasonId         String
   createdAt        DateTime @default(now())
 
@@ -288,10 +296,10 @@ model CommitteeModelAllocation {
 // يضبطها الأخصائي — تحكم خصومات الأخطاء والشك والتجويد
 // ------------------------------------------------------------
 model AssessmentSettings {
-  id               String  @id @default("singleton")
-  errorDeduction   Float   @default(2.0) // خصم لكل خطأ
-  doubtDeduction   Float   @default(1.0) // خصم لكل شك
-  tajweedDeduction Float   @default(0.5) // خصم لكل تجويد
+  id               String   @id @default("singleton")
+  errorDeduction   Float    @default(2.0) // خصم لكل خطأ
+  doubtDeduction   Float    @default(1.0) // خصم لكل شك
+  tajweedDeduction Float    @default(0.5) // خصم لكل تجويد
   updatedAt        DateTime @updatedAt
 
   @@map("assessment_settings")
@@ -302,41 +310,41 @@ model AssessmentSettings {
 // الحفظ (70) + التنبيه + الشك + التلاوة (20) + التجويد (10)
 // ------------------------------------------------------------
 model Assessment {
-  id              String           @id @default(cuid())
-  examSessionId   String
-  evaluatorId     String // المقيّم الحالي
-  modelId         String // النموذج المختار
+  id            String @id @default(cuid())
+  examSessionId String
+  evaluatorId   String // المقيّم الحالي
+  modelId       String // النموذج المختار
 
   // الحفظ (70 درجة) — خصم من الدرجة القصوى
-  wordErrors      Int              @default(0) // أخطاء الكلمات — خصم 1 لكل خطأ
-  letterErrors    Int              @default(0) // أخطاء الحروف — خصم 1 لكل خطأ
-  diacriticErrors Int              @default(0) // أخطاء الضبط — خصم 1 لكل خطأ
-  seriousErrors   Int              @default(0) // اللحن الجلي — خصم 2 لكل خطأ
-  subtleErrors    Int              @default(0) // اللحن الخفي — خصم 0.5 لكل خطأ
+  wordErrors      Int @default(0) // أخطاء الكلمات — خصم 1 لكل خطأ
+  letterErrors    Int @default(0) // أخطاء الحروف — خصم 1 لكل خطأ
+  diacriticErrors Int @default(0) // أخطاء الضبط — خصم 1 لكل خطأ
+  seriousErrors   Int @default(0) // اللحن الجلي — خصم 2 لكل خطأ
+  subtleErrors    Int @default(0) // اللحن الخفي — خصم 0.5 لكل خطأ
 
   // التنبيه (يُخصم عند الحاجة)
-  promptingCount  Int              @default(0) // عدد مرات التنبيه — خصم 1 لكل تنبيه
+  promptingCount Int @default(0) // عدد مرات التنبيه — خصم 1 لكل تنبيه
 
   // الشك (التردد)
-  doubtCount      Int              @default(0) // عدد مرات الشك — خصم 0.5 لكل شك
+  doubtCount Int @default(0) // عدد مرات الشك — خصم 0.5 لكل شك
 
   // أخطاء التجويد (المهمة 6 — بدلاً من الاعتماد على tajweedScore فقط)
-  tajweedErrors   Int              @default(0) // عدد أخطاء التجويد — خصم tajweedDeduction لكل خطأ
+  tajweedErrors Int @default(0) // عدد أخطاء التجويد — خصم tajweedDeduction لكل خطأ
 
   // التلاوة وحسن الأداء (20 درجة) — تُقيّم من المعلم مباشرة
-  recitationScore Float            @default(0) // من 0 إلى 20
+  recitationScore Float @default(0) // من 0 إلى 20
 
   // التجويد التطبيقي (10 درجات) — تُقيّم من المعلم مباشرة
-  tajweedScore    Float            @default(0) // من 0 إلى 10
+  tajweedScore Float @default(0) // من 0 إلى 10
 
   // الدرجات المحسوبة
-  memorizationDeduction Float     @default(0) // إجمالي خصم الحفظ
-  totalDeduction  Float            @default(0) // إجمالي جميع الخصومات
-  finalScore      Float            @default(0) // الدرجة النهائية من 100
-  isFinalApproved Boolean          @default(false)
-  status          AssessmentStatus @default(DRAFT)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  memorizationDeduction Float            @default(0) // إجمالي خصم الحفظ
+  totalDeduction        Float            @default(0) // إجمالي جميع الخصومات
+  finalScore            Float            @default(0) // الدرجة النهائية من 100
+  isFinalApproved       Boolean          @default(false)
+  status                AssessmentStatus @default(DRAFT)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   examSession ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
   evaluator   User        @relation(fields: [evaluatorId], references: [id])
@@ -353,21 +361,21 @@ model Assessment {
 // الشهادات
 // ------------------------------------------------------------
 model Certificate {
-  id           String            @id @default(cuid())
-  serialNumber String            @unique // رقم تسلسلي فريد للشهادة
-  studentId    String
-  finalScore   Float
-  fileUrl      String? // رابط Google Drive
-  fileId       String? // معرف ملف الشهادة في Google Drive
+  id              String            @id @default(cuid())
+  serialNumber    String            @unique // رقم تسلسلي فريد للشهادة
+  studentId       String
+  finalScore      Float
+  fileUrl         String? // رابط Google Drive
+  fileId          String? // معرف ملف الشهادة في Google Drive
   signatureFileId String? // معرف ملف التوقيع في Google Drive
-  issuedDate   DateTime? // تاريخ الإصدار
-  status       CertificateStatus @default(PENDING)
-  issuedById   String?
-  signatureUrl String? // رابط صورة التوقيع الرقمي
-  signedById   String? // معرف الموقّع
-  signedAt     DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  issuedDate      DateTime? // تاريخ الإصدار
+  status          CertificateStatus @default(PENDING)
+  issuedById      String?
+  signatureUrl    String? // رابط صورة التوقيع الرقمي
+  signedById      String? // معرف الموقّع
+  signedAt        DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   issuedBy User?   @relation("CertificateIssuer", fields: [issuedById], references: [id])
@@ -400,18 +408,18 @@ model Notification {
 // إعدادات المنصة (Singleton)
 // ------------------------------------------------------------
 model AppSettings {
-  id              String   @id @default("singleton")
-  platformName    String   @default("تطبيق الاختبارات")
-  logoFileId      String?  // معرف ملف الشعار في Google Drive
-  logoUrl         String?  // رابط الشعار العام
-  useTemplateMode Boolean  @default(false) // تفعيل القالب الذكي للشهادات
-  templateFileId  String?  // معرف ملف قالب الشهادة في Drive
-  primaryColor    String   @default("#015e63") // اللون الأساسي للمنصة
-  secondaryColor  String   @default("#d3bb8b") // اللون الثانوي للمنصة
-  whatsappNumber  String?  // رقم الدعم الفني (ديناميكي)
-  darkModeEnabled Boolean  @default(false) // تفعيل الوضع المظلم
-  requireStudentApplicationFile Boolean @default(false) // إلزام الجهات برفع ملف PDF
-  updatedAt       DateTime @updatedAt
+  id                            String   @id @default("singleton")
+  platformName                  String   @default("تطبيق الاختبارات")
+  logoFileId                    String? // معرف ملف الشعار في Google Drive
+  logoUrl                       String? // رابط الشعار العام
+  useTemplateMode               Boolean  @default(false) // تفعيل القالب الذكي للشهادات
+  templateFileId                String? // معرف ملف قالب الشهادة في Drive
+  primaryColor                  String   @default("#015e63") // اللون الأساسي للمنصة
+  secondaryColor                String   @default("#d3bb8b") // اللون الثانوي للمنصة
+  whatsappNumber                String? // رقم الدعم الفني (ديناميكي)
+  darkModeEnabled               Boolean  @default(false) // تفعيل الوضع المظلم
+  requireStudentApplicationFile Boolean  @default(false) // إلزام الجهات برفع ملف PDF
+  updatedAt                     DateTime @updatedAt
 
   @@map("app_settings")
 }

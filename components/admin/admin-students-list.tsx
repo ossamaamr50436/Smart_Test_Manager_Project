@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState, useEffect, useCallback, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -137,7 +138,7 @@ export function AdminStudentsList() {
                       <div className="space-y-1">
                         <p className="font-medium">{s.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {s.age} سنة — {s.branch} أجزاء — {s.institution?.name ?? "—"}
+                          {s.age} سنة — {getBranchLabel(s.branch)} — {s.institution?.name ?? "—"}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           المعلم: {s.teacherName} — ولي الأمر: {s.parentPhone}

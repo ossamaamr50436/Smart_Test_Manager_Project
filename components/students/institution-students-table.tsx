@@ -1,3 +1,4 @@
+import { getBranchLabel } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -71,7 +72,7 @@ export function InstitutionStudentsTable({
                   <td className="py-3 font-medium">{student.name}</td>
                   <td className="py-3">{student.age}</td>
                   <td className="py-3">{student.nationality || "—"}</td>
-                  <td className="py-3">{student.branch} أجزاء</td>
+                  <td className="py-3">{getBranchLabel(student.branch)}</td>
                   <td className="py-3">{student.teacherName}</td>
                   <td className="py-3" dir="ltr">
                     {student.parentPhone || "—"}

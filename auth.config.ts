@@ -71,6 +71,15 @@ export const authConfig = {
       const role = auth.user?.role as string | undefined;
       const home = (role && ROLE_DASHBOARD_PATHS[role]) as string | undefined;
 
+      // إجبار تغيير كلمة المرور (المرحلة 4):
+      // أي مستخدم يملك mustChangePassword لا يمكنه تصفح أي صفحة قبل تغييرها
+      if ((auth.user as { mustChangePassword?: boolean } | undefined)?.mustChangePassword) {
+        if (path !== "/change-password") {
+          return Response.redirect(new URL("/change-password", nextUrl));
+        }
+        return true;
+      }
+
       // مسجل الدخول ويسعى لصفحة عامة → وجّهه لصفحته حسب دوره
       if (isPublic) {
         if (home) {
@@ -117,10 +126,19 @@ export const authConfig = {
 
       return true;
     },
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
+        const extended = user as { role?: string; mustChangePassword?: boolean };
         token.id = user.id;
-        token.role = (user as { role?: string }).role;
+        token.role = extended.role;
+        token.mustChangePassword = extended.mustChangePassword ?? false;
+      }
+      // بعد تغيير كلمة المرور، يُحدَّث التوكن فوراً (المرحلة 4)
+      if (trigger === "update") {
+        const updateData = session as { mustChangePassword?: boolean } | undefined;
+        if (updateData && typeof updateData.mustChangePassword === "boolean") {
+          token.mustChangePassword = updateData.mustChangePassword;
+        }
       }
       return token;
     },
@@ -128,6 +146,8 @@ export const authConfig = {
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+        (session.user as { mustChangePassword?: boolean }).mustChangePassword =
+          (token.mustChangePassword as boolean | undefined) ?? false;
       }
       return session;
     },

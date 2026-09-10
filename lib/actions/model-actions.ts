@@ -8,11 +8,15 @@ import {
   examModelSchema,
   type ExamModelInput,
 } from "@/lib/validations/assessment";
+import {
+  isUniqueConstraintError,
+  friendlyUniqueMessage,
+} from "@/lib/actions/unique-guard";
 
 /**
  * إنشاء نموذج اختباري جديد — خاص بأخصائي الاختبارات
  * وفق لائحة اختيار فرع كامل القرآن (حتى 100 نموذج لكل فرع)
- * لا تُسند الجهة أثناء الإنشاء إن لم تُحدد (تُربط فقط بالموسم)
+ * النماذج عامة للفرع والموسم (المرحلة 8) — لا تُسند لجهة أثناء الإنشاء
  */
 export async function createExamModel(input: ExamModelInput) {
   const user = await requireUser();
@@ -26,25 +30,16 @@ export async function createExamModel(input: ExamModelInput) {
   }
   const data = parsed.data;
 
-  // التحقق من وجود الموسم (الجهة اختيارية أثناء الإنشاء)
+  // التحقق من وجود الموسم
   const season = await prisma.examSeason.findUnique({
     where: { id: data.seasonId },
     select: { id: true },
   });
   if (!season) throw new Error("الموسم غير موجود");
 
-  if (data.institutionId) {
-    const institution = await prisma.institution.findUnique({
-      where: { id: data.institutionId },
-      select: { id: true },
-    });
-    if (!institution) throw new Error("الجهة التعليمية غير موجودة");
-  }
-
-  // منع تكرار (الجهة، رقم النموذج، الموسم، الفرع)
+  // منع تكرار (رقم النموذج، الموسم، الفرع)
   const existing = await prisma.examModel.findFirst({
     where: {
-      institutionId: data.institutionId ?? null,
       modelNumber: data.modelNumber,
       seasonId: data.seasonId,
       branch: data.branch,
@@ -53,7 +48,7 @@ export async function createExamModel(input: ExamModelInput) {
   });
   if (existing) {
     throw new Error(
-      `يوجد نموذج برقم ${data.modelNumber} لفرع ${data.branch} أجزاء لهذه الجهة في هذا الموسم`
+      `يوجد نموذج برقم ${data.modelNumber} لفرع ${data.branch} أجزاء في هذا الموسم`
     );
   }
 
@@ -73,16 +68,22 @@ export async function createExamModel(input: ExamModelInput) {
   });
 
   const model = await prisma.$transaction(async (tx) => {
-    const created = await tx.examModel.create({
-      data: {
-        modelNumber: data.modelNumber,
-        branch: data.branch,
-        detailsJSON: { segments },
-        segmentsCount,
-        institutionId: data.institutionId ?? null,
-        seasonId: data.seasonId,
-      },
-    });
+    let created;
+    try {
+      created = await tx.examModel.create({
+        data: {
+          modelNumber: data.modelNumber,
+          branch: data.branch,
+          detailsJSON: { segments },
+          segmentsCount,
+          institutionId: null,
+          seasonId: data.seasonId,
+        },
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+      throw error;
+    }
     await tx.auditLog.create({
       data: {
         userId: user.id,
@@ -92,7 +93,6 @@ export async function createExamModel(input: ExamModelInput) {
           modelId: created.id,
           modelNumber: data.modelNumber,
           branch: data.branch,
-          institutionId: data.institutionId ?? null,
           segmentsCount,
         }),
       },
@@ -130,14 +130,6 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
   });
   if (!existing) throw new Error("النموذج غير موجود");
 
-  if (data.institutionId) {
-    const institution = await prisma.institution.findUnique({
-      where: { id: data.institutionId },
-      select: { id: true },
-    });
-    if (!institution) throw new Error("الجهة التعليمية غير موجودة");
-  }
-
   const segments = [...data.segments].sort((a, b) => a.number - b.number);
   const segmentsCount = data.segmentsCount ?? segments.length;
   if (segments.length !== segmentsCount) {
@@ -159,7 +151,6 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
         branch: data.branch,
         detailsJSON: { segments },
         segmentsCount,
-        institutionId: data.institutionId ?? null,
         seasonId: data.seasonId,
       },
     });

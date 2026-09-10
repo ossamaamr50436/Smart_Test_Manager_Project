@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -26,7 +27,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type InstitutionOption = { id: string; name: string };
 type SeasonOption = { id: string; name: string };
 
 type Segment = {
@@ -43,7 +43,6 @@ type ModelRow = {
   id: string;
   modelNumber: number;
   branch: string;
-  institution: { id: string; name: string } | null;
   season: { id: string; name: string };
   detailsJSON: unknown;
   segmentsCount?: number;
@@ -87,11 +86,9 @@ function segmentsCountFor(m: ModelRow): number {
 }
 
 export function ExamModelsManager({
-  institutions,
   seasons,
   models,
 }: {
-  institutions: InstitutionOption[];
   seasons: SeasonOption[];
   models: ModelRow[];
 }) {
@@ -103,7 +100,6 @@ export function ExamModelsManager({
 
   const [modelNumber, setModelNumber] = useState("1");
   const [branch, setBranch] = useState<Branch>("5");
-  const [institutionId, setInstitutionId] = useState("");
   const [seasonId, setSeasonId] = useState("");
   const [segmentsCount, setSegmentsCount] = useState(10);
   const [segments, setSegments] = useState<Segment[]>(emptySegments(10));
@@ -125,7 +121,6 @@ export function ExamModelsManager({
     setEditingId(null);
     setModelNumber("1");
     setBranch("5");
-    setInstitutionId("");
     setSeasonId("");
     setSegmentsCount(10);
     setSegments(emptySegments(10));
@@ -158,7 +153,6 @@ export function ExamModelsManager({
         };
       });
     });
-    setInstitutionId(m.institution?.id ?? "");
     setSeasonId(m.season.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -190,7 +184,6 @@ export function ExamModelsManager({
     return {
       modelNumber: Number(modelNumber),
       branch: branch as Branch,
-      institutionId: institutionId && institutionId !== "__none__" ? institutionId : null,
       seasonId,
       segmentsCount: segments.length,
       segments: segments.map((s) => ({
@@ -253,7 +246,7 @@ export function ExamModelsManager({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <Label>رقم النموذج (1-100) *</Label>
               <Input
@@ -273,23 +266,7 @@ export function ExamModelsManager({
                 <SelectContent>
                   {BRANCHES.map((b) => (
                     <SelectItem key={b} value={b}>
-                      فرع {b} أجزاء
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>الجهة التعليمية (اختياري)</Label>
-              <Select value={institutionId} onValueChange={setInstitutionId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="بدون جهة" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">بدون جهة</SelectItem>
-                  {institutions.map((inst) => (
-                    <SelectItem key={inst.id} value={inst.id}>
-                      {inst.name}
+                      {getBranchLabel(b)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -446,7 +423,6 @@ export function ExamModelsManager({
                 <tr className="border-b">
                   <th className="p-2 text-right font-medium">رقم النموذج</th>
                   <th className="p-2 text-right font-medium">الفرع</th>
-                  <th className="p-2 text-right font-medium">الجهة</th>
                   <th className="p-2 text-right font-medium">الموسم</th>
                   <th className="p-2 text-right font-medium">المقاطع</th>
                   <th className="p-2 text-center font-medium">إجراءات</th>
@@ -458,8 +434,7 @@ export function ExamModelsManager({
                   return (
                     <tr key={m.id} className="border-b">
                       <td className="p-2 font-medium">{m.modelNumber}</td>
-                      <td className="p-2">فرع {m.branch} أجزاء</td>
-                      <td className="p-2">{m.institution?.name ?? "—"}</td>
+                      <td className="p-2">{getBranchLabel(m.branch)}</td>
                       <td className="p-2">{m.season.name}</td>
                       <td className="p-2">{segCount}</td>
                       <td className="p-2">

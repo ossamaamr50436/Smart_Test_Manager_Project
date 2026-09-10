@@ -21,19 +21,23 @@ export const birthDateSchema = z
   );
 
 /**
+ * قواعد كلمة المرور (المرحلة 3): 5 أحرف كحد أدنى مع حرف كبير وصغير ورقم
+ */
+export const passwordSchema = z
+  .string()
+  .min(5, "كلمة المرور لا تقل عن 5 أحرف")
+  .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير واحد على الأقل")
+  .regex(/[a-z]/, "كلمة المرور يجب أن تحتوي على حرف صغير واحد على الأقل")
+  .regex(/[0-9]/, "كلمة المرور يجب أن تحتوي على رقم واحد على الأقل");
+
+/**
  * مثال على مخطط مستخدم كامل يُستخدم في أي عملية إنشاء مستخدم
  * (خاصة المعلمين EXAMINER حيث يلزم birthDate للاعتماد المتسلسل)
  */
 export const createUserSchema = z.object({
   name: z.string().min(2, "اسم المستخدم لا يقل عن حرفين"),
   email: z.string().email("بريد إلكتروني غير صحيح"),
-  password: z
-    .string()
-    .min(6, "كلمة المرور لا تقل عن 6 أحرف")
-    .max(8, "كلمة المرور لا تتجاوز 8 أحرف")
-    .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير واحد على الأقل")
-    .regex(/[a-z]/, "كلمة المرور يجب أن تحتوي على حرف صغير واحد على الأقل")
-    .regex(/[0-9]/, "كلمة المرور يجب أن تحتوي على رقم واحد على الأقل"),
+  password: passwordSchema,
   role: z.enum(
     ["ADMIN", "HEAD_OF_AFFAIRS", "CERTIFICATE_SOURCE", "TEST_SPECIALIST", "EXAMINER", "INSTITUTION"],
     { message: "دور غير صحيح" }

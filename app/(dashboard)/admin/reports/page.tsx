@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser, requireRole } from "@/lib/security";
+import { getBranchLabel } from "@/lib/utils";
 import { Role } from "@prisma/client";
 import { getPerformanceOverview, SCORE_BANDS } from "@/lib/db.reports";
 import { ReportsDashboard, type StatCard } from "@/components/reports/reports-dashboard";
@@ -43,7 +44,7 @@ export default async function AdminReportsPage() {
       subtitle="نظرة شاملة على أداء الجمعية: التوزيع حسب الحالة والفرع ودرجات اللائحة (100)."
       statCards={statCards}
       bars={[
-        ...overview.byBranch.map((b) => ({ label: `${b.branch} أجزاء`, count: b.count })),
+        ...overview.byBranch.map((b) => ({ label: getBranchLabel(b.branch), count: b.count })),
         ...overview.scoreBands.filter((s) => s.count > 0).map((s) => ({ label: s.label, count: s.count, color: s.color })),
       ]}
       columns={[{ key: "الحالة", label: "الحالة" }, { key: "العدد", label: "العدد" }]}

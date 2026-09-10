@@ -13,6 +13,7 @@ import {
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { isUniqueConstraintError, friendlyUniqueMessage } from "@/lib/actions/unique-guard";
 
 // ============================================================
 // لوحة تحكم المسؤول — Server Actions (عزل صلاحيات: ADMIN فقط)
@@ -180,8 +181,11 @@ export async function createAdminUser(input: {
     throw new Error("البريد الإلكتروني غير صالح");
   }
   if (input.email.length > 254) throw new Error("البريد الإلكتروني طويل جداً");
-  if (!input.password || input.password.length < 4 || input.password.length > 8) {
-    throw new Error("كلمة المرور يجب أن تكون بين 4 و 8 أحرف");
+  if (!input.password || input.password.length < 5) {
+    throw new Error("كلمة المرور يجب ألا تقل عن 5 أحرف");
+  }
+  if (!/[A-Z]/.test(input.password) || !/[a-z]/.test(input.password) || !/[0-9]/.test(input.password)) {
+    throw new Error("كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم");
   }
   const validRoles = Object.values(Role);
   if (!validRoles.includes(input.role as Role)) {
@@ -207,16 +211,22 @@ export async function createAdminUser(input: {
 
   const hashedPassword = await bcrypt.hash(input.password, 12);
 
-  const created = await prisma.user.create({
-    data: {
-      name: input.name.trim(),
-      email: input.email.trim().toLowerCase(),
-      password: hashedPassword,
-      role: input.role as Role,
-      birthDate,
-      institutionId,
-    },
-  });
+  let created;
+  try {
+    created = await prisma.user.create({
+      data: {
+        name: input.name.trim(),
+        email: input.email.trim().toLowerCase(),
+        password: hashedPassword,
+        role: input.role as Role,
+        birthDate,
+        institutionId,
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+    throw error;
+  }
 
   await recordAudit(user.id, AuditAction.CREATE, {
     entity: "User",
@@ -283,7 +293,12 @@ export async function updateAdminUser(userId: string, input: {
     }
   }
 
-  await prisma.user.update({ where: { id: userId }, data });
+  try {
+    await prisma.user.update({ where: { id: userId }, data });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+    throw error;
+  }
 
   await recordAudit(user.id, AuditAction.UPDATE, {
     entity: "User",
@@ -304,8 +319,11 @@ export async function resetAdminUserPassword(userId: string, newPassword: string
   if (!userId || typeof userId !== "string" || userId.length < 1 || userId.length > 64) {
     throw new Error("معرّف المستخدم غير صالح");
   }
-  if (!newPassword || newPassword.length < 4 || newPassword.length > 8) {
-    throw new Error("كلمة المرور الجديدة يجب أن تكون بين 4 و 8 أحرف");
+  if (!newPassword || newPassword.length < 5) {
+    throw new Error("كلمة المرور الجديدة يجب ألا تقل عن 5 أحرف");
+  }
+  if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    throw new Error("كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم");
   }
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
@@ -324,7 +342,7 @@ export async function resetAdminUserPassword(userId: string, newPassword: string
 }
 
 // ------------------------------------------------------------
-// 3) إدارة المؤسسات
+// 3) إدارة الجهات (تُدار من الأخصائي — الأدمن للإشراف فقط، المرحلة 14)
 // ------------------------------------------------------------
 export async function getAdminInstitutions(params: {
   page?: number;
@@ -342,7 +360,11 @@ export async function getAdminInstitutions(params: {
   const where: Prisma.InstitutionWhereInput = {};
   if (params.search && params.search.length > 0) {
     if (params.search.length > 100) throw new Error("نص البحث طويل جداً");
-    where.name = { contains: params.search, mode: "insensitive" };
+    where.OR = [
+      { name: { contains: params.search, mode: "insensitive" } },
+      { licenseNumber: { contains: params.search, mode: "insensitive" } },
+      { district: { contains: params.search, mode: "insensitive" } },
+    ];
   }
 
   const skip = (page - 1) * pageSize;
@@ -352,7 +374,12 @@ export async function getAdminInstitutions(params: {
       select: {
         id: true,
         name: true,
-        contactInfo: true,
+        managerName: true,
+        supervisorName: true,
+        managerPhone: true,
+        supervisorPhone: true,
+        licenseNumber: true,
+        district: true,
         createdAt: true,
         _count: { select: { students: true, users: true, examModels: true } },
       },
@@ -368,60 +395,147 @@ export async function getAdminInstitutions(params: {
 
 export async function createAdminInstitution(input: {
   name: string;
-  contactInfo?: string;
+  managerName: string;
+  supervisorName: string;
+  managerPhone: string;
+  supervisorPhone: string;
+  licenseNumber: string;
+  district: string;
+  email: string;
 }) {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN]);
 
   await checkRateLimit(`admin-create-inst:${user.id}`, 20);
 
-  if (!input.name || input.name.trim().length < 2) throw new Error("اسم المؤسسة مطلوب");
-  if (input.name.length > 200) throw new Error("اسم المؤسسة طويل جداً");
+  const name = (input.name ?? "").trim();
+  const managerName = (input.managerName ?? "").trim();
+  const supervisorName = (input.supervisorName ?? "").trim();
+  const managerPhone = (input.managerPhone ?? "").trim();
+  const supervisorPhone = (input.supervisorPhone ?? "").trim();
+  const licenseNumber = (input.licenseNumber ?? "").trim();
+  const district = (input.district ?? "").trim();
+  const email = (input.email ?? "").trim().toLowerCase();
 
-  const existing = await prisma.institution.findFirst({
-    where: { name: { equals: input.name.trim(), mode: "insensitive" } },
-  });
-  if (existing) throw new Error("توجد مؤسسة بنفس الاسم");
+  if (name.length < 2) throw new Error("اسم الجهة مطلوب (حرفان على الأقل)");
+  if (name.length > 200) throw new Error("اسم الجهة طويل جداً");
+  if (managerName.length < 2) throw new Error("اسم مدير الجهة مطلوب");
+  if (supervisorName.length < 2) throw new Error("اسم مشرف الجهة مطلوب");
+  if (district.length < 2) throw new Error("الحي مطلوب");
+  if (licenseNumber.length < 3) throw new Error("رقم التصريح مطلوب (3 أحرف على الأقل)");
+  if (!/^\+?\d+$/.test(managerPhone.replace(/\s/g, "")) || managerPhone.length < 7) {
+    throw new Error("رقم هاتف المدير غير صالح");
+  }
+  if (!/^\+?\d+$/.test(supervisorPhone.replace(/\s/g, "")) || supervisorPhone.length < 7) {
+    throw new Error("رقم هاتف المشرف غير صالح");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("البريد الإلكتروني غير صالح");
 
-  const institution = await prisma.institution.create({
-    data: {
-      name: input.name.trim(),
-      contactInfo: input.contactInfo?.trim() ?? null,
-    },
+  const dupName = await prisma.institution.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
   });
+  if (dupName) throw new Error("توجد جهة بنفس الاسم");
+  const dupLicense = await prisma.institution.findUnique({ where: { licenseNumber } });
+  if (dupLicense) throw new Error("رقم التصريح مستخدم مسبقاً");
 
-  await recordAudit(user.id, AuditAction.CREATE, {
-    entity: "Institution",
-    institutionId: institution.id,
-    name: institution.name,
-  });
+  const plainPassword = licenseNumber;
+  const hashedPassword = await bcrypt.hash(plainPassword, 12);
+
+  let institutionId: string;
+  try {
+    institutionId = await prisma.$transaction(async (tx) => {
+      const institution = await tx.institution.create({
+        data: {
+          name,
+          managerName,
+          supervisorName,
+          managerPhone,
+          supervisorPhone,
+          licenseNumber,
+          district,
+        },
+      });
+
+      const createdUser = await tx.user.create({
+        data: {
+          name: `حساب ${name}`,
+          email,
+          password: hashedPassword,
+          role: Role.INSTITUTION,
+          birthDate: new Date("1990-01-01"),
+          institutionId: institution.id,
+          mustChangePassword: true,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: AuditAction.CREATE,
+          details: JSON.stringify({
+            entity: "Institution",
+            institutionId: institution.id,
+            name,
+            licenseNumber,
+            userId: createdUser.id,
+          }),
+        },
+      });
+
+      return institution.id;
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+    throw error;
+  }
 
   revalidatePath("/admin/institutions");
-  return { success: true, institutionId: institution.id };
+  return { success: true, institutionId, password: plainPassword, email };
 }
 
 export async function updateAdminInstitution(
   institutionId: string,
-  input: { name?: string; contactInfo?: string }
+  input: {
+    name?: string;
+    managerName?: string;
+    supervisorName?: string;
+    managerPhone?: string;
+    supervisorPhone?: string;
+    licenseNumber?: string;
+    district?: string;
+  }
 ) {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN]);
 
   if (!institutionId || typeof institutionId !== "string" || institutionId.length < 1 || institutionId.length > 64) {
-    throw new Error("معرّف المؤسسة غير صالح");
+    throw new Error("معرّف الجهة غير صالح");
   }
   const existing = await prisma.institution.findUnique({ where: { id: institutionId } });
-  if (!existing) throw new Error("المؤسسة غير موجودة");
+  if (!existing) throw new Error("الجهة غير موجودة");
 
   const data: Prisma.InstitutionUpdateInput = {};
   if (input.name !== undefined) {
-    if (input.name.trim().length < 2) throw new Error("اسم المؤسسة مطلوب");
-    if (input.name.length > 200) throw new Error("اسم المؤسسة طويل جداً");
+    if (input.name.trim().length < 2) throw new Error("اسم الجهة مطلوب");
+    if (input.name.length > 200) throw new Error("اسم الجهة طويل جداً");
     data.name = input.name.trim();
   }
-  if (input.contactInfo !== undefined) data.contactInfo = input.contactInfo?.trim() ?? null;
+  if (input.managerName !== undefined) data.managerName = input.managerName.trim();
+  if (input.supervisorName !== undefined) data.supervisorName = input.supervisorName.trim();
+  if (input.managerPhone !== undefined) data.managerPhone = input.managerPhone.trim();
+  if (input.supervisorPhone !== undefined) data.supervisorPhone = input.supervisorPhone.trim();
+  if (input.licenseNumber !== undefined) {
+    data.licenseNumber = input.licenseNumber.trim();
+    // لا نعدّل كلمة المرور تلقائياً هنا — تُدار من إعادة التعيين في صفحة الجهات
+  }
+  if (input.district !== undefined) data.district = input.district.trim();
 
-  await prisma.institution.update({ where: { id: institutionId }, data });
+  try {
+    await prisma.institution.update({ where: { id: institutionId }, data });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+    throw error;
+  }
 
   await recordAudit(user.id, AuditAction.UPDATE, {
     entity: "Institution",

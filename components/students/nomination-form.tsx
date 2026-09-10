@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
@@ -150,7 +151,7 @@ export function NominationForm({
             </div>
 
             <div className="space-y-2">
-              <Label>الفرع (عدد الأجزاء المحفوظة) *</Label>
+              <Label>الفرع *</Label>
               <Controller
                 name="branch"
                 control={control}
@@ -162,7 +163,7 @@ export function NominationForm({
                     <SelectContent>
                       {BRANCHES.map((branch) => (
                         <SelectItem key={branch} value={branch}>
-                          {branch} أجزاء
+                          {getBranchLabel(branch)}
                         </SelectItem>
                       ))}
                     </SelectContent>

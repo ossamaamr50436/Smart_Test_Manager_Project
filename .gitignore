@@ -1,26 +1,47 @@
-﻿node_modules/
+﻿# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
 .next/
-dist/
-build/
 out/
-.vercel/
-*.log
+build/
+dist/
+
+# Environment
 .env
 .env.local
-.env*.local
 .env.production
-.env.test
-tsconfig.tsbuildinfo
+.env*.local
+
+# Secrets & sensitive files
+ACCOUNTS_REPORT.md
+HANDOVER_REPORT.md
+
+# Prisma
+prisma/migrations/dev.db*
+*.db
+*.db-journal
+
+# Data files (Excel with sensitive content)
+scripts/data/*.xlsx
+scripts/data/*.xls
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
 .DS_Store
+Thumbs.db
 
-osr
-
-# ملفات تقارير التدقيق القديمة التي قد تحتوي أسراراً
-*.report*
-
-# ملف التعليمات المؤقت (يحتوي أسراراً سابقة في التاريخ)
-o.txt
-O.txt
-
-# تقارير الفحص الجنائي المصدرة محلياً (لا تُرفع)
-*.md.txt
+# Temporary
+.cache/
+tmp/
+temp/

@@ -17,14 +17,14 @@ type NavLink = {
 };
 
 // روابط التنقل لكل دور (عزل الصلاحيات — كل دور يرى مساراته فقط)
+// الترتيب وفق المادة 12 (متسلسلة منطقياً)، والجهات للأخصائي فقط (المادة 14)
 const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
   ADMIN: [
-    { href: "/admin", label: "لوحة المسؤول" },
-    { href: "/admin/users", label: "إدارة المستخدمين" },
-    { href: "/admin/institutions", label: "إدارة المؤسسات" },
-    { href: "/admin/seasons", label: "إدارة المواسم" },
-    { href: "/admin/models", label: "النماذج" },
+    { href: "/admin", label: "لوحة التحكم" },
+    { href: "/admin/users", label: "المستخدمون" },
     { href: "/admin/students", label: "الطلاب" },
+    { href: "/admin/seasons", label: "المواسم" },
+    { href: "/admin/models", label: "النماذج" },
     { href: "/admin/sessions", label: "الجلسات" },
     { href: "/admin/certificates", label: "الشهادات" },
     { href: "/admin/reports", label: "التقارير والتحليلات" },
@@ -39,19 +39,22 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/certificate-source", label: "إصدار الشهادات" },
   ],
   TEST_SPECIALIST: [
+    { href: "/test-specialist", label: "لوحة التحكم" },
     { href: "/test-specialist/requests", label: "طلبات الترشيح" },
     { href: "/test-specialist/committees", label: "تشكيل اللجان" },
+    { href: "/test-specialist/teachers", label: "المعلمون" },
     { href: "/test-specialist/models", label: "إدارة النماذج" },
+    { href: "/specialist/entities", label: "إدارة الجهات" },
+    { href: "/specialist/entities/create", label: "إنشاء جهة تعليمية" },
     { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
     {
       href: "/test-specialist/final-review",
       label: "مراجعة التقييمات النهائية",
     },
-    { href: "/specialist/entities/create", label: "إنشاء جهة تعليمية" },
     { href: "/admin/reports", label: "التقارير والتحليلات" },
   ],
   EXAMINER: [
-    { href: "/examiner", label: "طلاب لجانك" },
+    { href: "/examiner", label: "لوحة التحكم" },
     { href: "/examiner/reports", label: "تقاريري" },
   ],
   INSTITUTION: [

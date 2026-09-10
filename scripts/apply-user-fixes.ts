@@ -104,6 +104,12 @@ async function main() {
     const created = await prisma.institution.create({
       data: {
         name: "جمعية تعليم القرآن وعلومه — فرع المدينة المنورة",
+        managerName: "مدير الجهة",
+        supervisorName: "مشرف الجهة",
+        managerPhone: "+966500000000",
+        supervisorPhone: "+966500000001",
+        licenseNumber: "LIC-0001",
+        district: "الحي العام",
         contactInfo: "0590000000",
       },
     });

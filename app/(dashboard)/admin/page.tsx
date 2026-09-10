@@ -11,7 +11,7 @@ import {
 import { getAdminDashboardStats } from "@/lib/actions/admin-panel-actions";
 import Link from "next/link";
 
-export const metadata: Metadata = { title: "لوحة المسؤول" };
+export const metadata: Metadata = { title: "لوحة التحكم" };
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,6 @@ const ACTION_LABELS: Record<string, string> = {
 
 const QUICK_LINKS = [
   { href: "/admin/users", label: "إدارة المستخدمين" },
-  { href: "/admin/institutions", label: "إدارة المؤسسات" },
   { href: "/admin/seasons", label: "إدارة المواسم" },
   { href: "/admin/models", label: "النماذج" },
   { href: "/admin/students", label: "الطلاب" },
@@ -51,7 +50,7 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">لوحة المسؤول</h1>
+        <h1 className="text-2xl font-bold">لوحة التحكم</h1>
         <p className="mt-1 text-muted-foreground">
           تحكم كامل بالمنصة والمستخدمين والبيانات، مع تسجيل أي تدخل في سجل
           التدقيق.

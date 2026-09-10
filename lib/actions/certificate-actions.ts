@@ -13,6 +13,10 @@ import {
 import { revalidatePath } from "next/cache";
 import { generateCertificatePdfBuffer } from "@/lib/certificate-pdf";
 import { uploadFileToDrive } from "@/lib/google-drive";
+import {
+  isUniqueConstraintError,
+  friendlyUniqueMessage,
+} from "@/lib/actions/unique-guard";
 import { getPlatformSettings } from "@/lib/actions/settings-actions";
 import {
   downloadTemplateFromDrive,
@@ -193,17 +197,23 @@ export async function generateCertificate(studentId: string) {
   }
 
   // 3) حفظ سجل الشهادة
-  const certificate = await prisma.certificate.create({
-    data: {
-      serialNumber,
-      studentId: student.id,
-      finalScore,
-      fileUrl,
-      issuedDate: new Date(),
-      status: CertificateStatus.PENDING,
-      issuedById: user.id,
-    },
-  });
+  let certificate;
+  try {
+    certificate = await prisma.certificate.create({
+      data: {
+        serialNumber,
+        studentId: student.id,
+        finalScore,
+        fileUrl,
+        issuedDate: new Date(),
+        status: CertificateStatus.PENDING,
+        issuedById: user.id,
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+    throw error;
+  }
 
   // 4) تحديث حالة الطالب
   await prisma.student.update({

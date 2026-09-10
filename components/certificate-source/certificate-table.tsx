@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -114,7 +115,7 @@ export function CertificateTable({
                   <div>
                     <p className="font-medium">{student.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {student.branch} أجزاء — {student.institutionName}
+                      {getBranchLabel(student.branch)} — {student.institutionName}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -165,7 +166,7 @@ export function CertificateTable({
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {cert.branch} أجزاء — {cert.finalScore} / 20 —
+                      {getBranchLabel(cert.branch)} — {cert.finalScore} / 20 —
                       {cert.issuedDate
                         ? new Date(cert.issuedDate).toLocaleDateString("ar-SA")
                         : "—"}

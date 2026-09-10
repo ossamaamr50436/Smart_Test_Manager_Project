@@ -359,6 +359,7 @@ async function main() {
   console.log("✅ الموسم النشط:", season.name);
 
   // ===== 2) الجهات التعليمية (87 جهة) =====
+  let instSeq = 1;
   const createdInstitutions: string[] = [];
   for (const name of INSTITUTIONS) {
     const existing = await prisma.institution.findFirst({ where: { name } });
@@ -369,6 +370,12 @@ async function main() {
     const inst = await prisma.institution.create({
       data: {
         name,
+        managerName: "مدير الجهة",
+        supervisorName: "مشرف الجهة",
+        managerPhone: randomPhone(),
+        supervisorPhone: randomPhone(),
+        licenseNumber: `LIC-${instSeq++}`,
+        district: "الحي العام",
         contactInfo: randomPhone(),
         createdAt: new Date(Date.now() - Math.floor(Math.random() * 180) * 86400000),
       },

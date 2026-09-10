@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser, requireRole } from "@/lib/security";
+import { getBranchLabel } from "@/lib/utils";
 import { Role } from "@prisma/client";
 import { getInstitutionStats } from "@/lib/db.reports";
 import { ReportsDashboard, type StatCard } from "@/components/reports/reports-dashboard";
@@ -30,7 +31,7 @@ export default async function InstitutionReportsPage() {
       title="تقارير الجهة التعليمية"
       subtitle="إحصاءات طلاب جهتك فقط — لا تظهر بيانات أي جهة أخرى."
       statCards={statCards}
-      bars={stats.byBranch.map((b) => ({ label: `${b.branch} أجزاء`, count: b.count }))}
+      bars={stats.byBranch.map((b) => ({ label: getBranchLabel(b.branch), count: b.count }))}
       columns={[]}
       rows={[]}
       csvFileName="report-institution"

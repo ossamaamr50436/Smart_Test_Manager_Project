@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { subscribeToSession } from "@/lib/realtime-client";
@@ -322,7 +323,7 @@ export function AssessmentBoard({
               <h1 className="text-2xl font-bold">التقييم التفاعلي</h1>
               <p className="mt-1 text-muted-foreground">
                 الطالب: <span className="font-medium">{student.name}</span> —{" "}
-                {student.branch} أجزاء
+                {getBranchLabel(student.branch)}
               </p>
             </div>
             <div className="flex items-center gap-4">

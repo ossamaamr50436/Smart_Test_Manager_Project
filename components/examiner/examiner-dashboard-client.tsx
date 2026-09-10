@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -121,7 +122,7 @@ export function ExaminerDashboardClient({ students, committee }: Props) {
                   <div>
                     <p className="font-medium">{s.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {s.branch} أجزاء — الحالة: {s.status}
+                      {getBranchLabel(s.branch)} — الحالة: {s.status}
                     </p>
                   </div>
                   <Button size="sm" onClick={() => openModal(s.id)}>

@@ -1,5 +1,6 @@
 "use client";
 
+import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { reviewStudentApplication } from "@/lib/actions/student-actions";
@@ -76,7 +77,7 @@ export function RequestsTable({ students }: { students: PendingStudent[] }) {
                   <td className="py-3">
                     {student.createdAt.toLocaleDateString("ar-SA")}
                   </td>
-                  <td className="py-3">{student.branch} أجزاء</td>
+                  <td className="py-3">{getBranchLabel(student.branch)}</td>
                   <td className="py-3">
                     <div className="flex gap-2">
                       <Button
