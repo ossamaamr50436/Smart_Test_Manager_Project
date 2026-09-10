@@ -19,6 +19,7 @@ function sample(seed: number): ScoreInput {
     subtleErrors: rnd(6),
     promptingCount: rnd(5),
     doubtCount: rnd(6),
+    tajweedErrors: rnd(4),
     recitationScore: rnd(20),
     tajweedScore: rnd(10),
   };

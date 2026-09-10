@@ -8,13 +8,6 @@ import {
   approveAssessment,
 } from "@/lib/actions/assessment-actions";
 import {
-  WORD_ERROR_PENALTY,
-  LETTER_ERROR_PENALTY,
-  DIACRITIC_ERROR_PENALTY,
-  SERIOUS_ERROR_PENALTY,
-  SUBTLE_ERROR_PENALTY,
-  PROMPTING_PENALTY,
-  DOUBT_PENALTY,
   MEMORIZATION_SCORE,
   RECITATION_SCORE_MAX,
   TAJWEED_SCORE_MAX,
@@ -47,26 +40,25 @@ type Segment = {
   toVerse: number;
 };
 
+type Settings = {
+  errorDeduction: number;
+  doubtDeduction: number;
+  tajweedDeduction: number;
+};
+
 type Props = {
   student: StudentForAssess;
   sessionId: string;
   seniorIsUser: boolean;
   evaluatorId: string;
   segments: Segment[];
+  modelNumber: number;
+  settings: Settings;
 };
 
-type EvaluationKeys =
-  | "wordErrors"
-  | "letterErrors"
-  | "diacriticErrors"
-  | "seriousErrors"
-  | "subtleErrors"
-  | "promptingCount"
-  | "doubtCount";
+type EvaluationKeys = "errorCount" | "doubtCount" | "tajweedErrors";
 
-// حالة كل مقطع: عدّادات التقييم السبعة
 type SegmentState = Record<EvaluationKeys, number>;
-
 type Counts = Record<string, SegmentState>;
 
 type Incoming = {
@@ -75,27 +67,8 @@ type Incoming = {
   assessmentStatus?: string;
 };
 
-// الأعمدة السبعة للتقييم (وفق اللائحة)
-const COLUMNS: { key: EvaluationKeys; label: string; penalty: number }[] = [
-  { key: "wordErrors", label: "أخطاء الكلمات", penalty: WORD_ERROR_PENALTY },
-  { key: "letterErrors", label: "أخطاء الحروف", penalty: LETTER_ERROR_PENALTY },
-  { key: "diacriticErrors", label: "أخطاء الضبط", penalty: DIACRITIC_ERROR_PENALTY },
-  { key: "seriousErrors", label: "اللحن الجلي", penalty: SERIOUS_ERROR_PENALTY },
-  { key: "subtleErrors", label: "اللحن الخفي", penalty: SUBTLE_ERROR_PENALTY },
-  { key: "promptingCount", label: "التنبيه", penalty: PROMPTING_PENALTY },
-  { key: "doubtCount", label: "الشك (التردد)", penalty: DOUBT_PENALTY },
-];
-
 function emptySegment(): SegmentState {
-  return {
-    wordErrors: 0,
-    letterErrors: 0,
-    diacriticErrors: 0,
-    seriousErrors: 0,
-    subtleErrors: 0,
-    promptingCount: 0,
-    doubtCount: 0,
-  };
+  return { errorCount: 0, doubtCount: 0, tajweedErrors: 0 };
 }
 
 function emptyCounts(segments: Segment[]): Counts {
@@ -112,6 +85,8 @@ export function AssessmentBoard({
   seniorIsUser,
   evaluatorId,
   segments,
+  modelNumber,
+  settings,
 }: Props) {
   const router = useRouter();
   const [counts, setCounts] = useState<Counts>(() => emptyCounts(segments));
@@ -123,7 +98,7 @@ export function AssessmentBoard({
   const [locked, setLocked] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // المزامنة الحية (Pusher)
+  // المزامنة الحية
   useEffect(() => {
     if (locked) return;
     const unsubscribe = subscribeToSession(sessionId, (incoming: Incoming) => {
@@ -138,7 +113,9 @@ export function AssessmentBoard({
             const key = String(seg.number);
             const current = prev[key] ?? emptySegment();
             const incomingSeg = incoming.counts?.[key];
-            merged[key] = incomingSeg ? { ...emptySegment(), ...incomingSeg } : current;
+            merged[key] = incomingSeg
+              ? { ...emptySegment(), ...incomingSeg }
+              : current;
           }
           return merged;
         });
@@ -147,7 +124,7 @@ export function AssessmentBoard({
     return unsubscribe;
   }, [sessionId, segments, locked]);
 
-  // استرجاع التقييم المحفوظ عند فتح الصفحة وما تبقى من حالة المقيّمين
+  // استرجاع التقييم المحفوظ
   useEffect(() => {
     (async () => {
       try {
@@ -157,18 +134,35 @@ export function AssessmentBoard({
         const states = await getAssessmentState(sessionId);
         const mine = states.find((s) => s.evaluatorId === evaluatorId);
         if (mine) {
+          // تحويل الحقول القديمة (إن وُجدت) إلى التنسيق الجديد
           const merged: Counts = emptyCounts(segments);
           for (const seg of segments) {
             const key = String(seg.number);
-            merged[key] = {
-              wordErrors: mine.wordErrors,
-              letterErrors: mine.letterErrors,
-              diacriticErrors: mine.diacriticErrors,
-              seriousErrors: mine.seriousErrors,
-              subtleErrors: mine.subtleErrors,
-              promptingCount: mine.promptingCount,
-              doubtCount: mine.doubtCount,
-            };
+            // إذا كان الحفظ القديم موجوداً (7 أعمدة)، ندمجه في errorCount
+            const oldErrors =
+              (mine as Record<string, unknown>).wordErrors ??
+              0;
+            const hasOldFormat = typeof oldErrors === "number" && oldErrors > 0;
+            if (hasOldFormat) {
+              const r = mine as unknown as Record<string, number>;
+              merged[key] = {
+                errorCount:
+                  (r.wordErrors ?? 0) +
+                  (r.letterErrors ?? 0) +
+                  (r.diacriticErrors ?? 0) +
+                  (r.seriousErrors ?? 0) +
+                  (r.subtleErrors ?? 0) +
+                  (r.promptingCount ?? 0),
+                doubtCount: r.doubtCount ?? 0,
+                tajweedErrors: r.tajweedErrors ?? 0,
+              };
+            } else {
+              merged[key] = {
+                errorCount: (mine as unknown as Record<string, number>).errorCount ?? 0,
+                doubtCount: mine.doubtCount,
+                tajweedErrors: (mine as unknown as Record<string, number>).tajweedErrors ?? 0,
+              };
+            }
           }
           setCounts(merged);
           setRecitationScore(mine.recitationScore);
@@ -176,7 +170,7 @@ export function AssessmentBoard({
           if (mine.status !== "DRAFT") setLocked(true);
         }
       } catch {
-        // تجاهل — بدون حفظ أولي
+        // تجاهل
       } finally {
         setLoaded(true);
       }
@@ -199,32 +193,46 @@ export function AssessmentBoard({
     });
   }
 
-  // إجمالي العدّ للعرض والحساب (عبر جميع المقاطع)
-  const totals = useMemo(() => {
-    const sums: Record<EvaluationKeys, number> = {
-      wordErrors: 0,
-      letterErrors: 0,
-      diacriticErrors: 0,
-      seriousErrors: 0,
-      subtleErrors: 0,
-      promptingCount: 0,
-      doubtCount: 0,
-    };
+  function decrement(segment: number, field: EvaluationKeys) {
+    if (locked) return;
+    setCounts((prev) => {
+      const key = String(segment);
+      const current = prev[key] ?? emptySegment();
+      if (current[field] <= 0) return prev;
+      const next: Counts = { ...prev };
+      next[key] = { ...current, [field]: current[field] - 1 };
+      return next;
+    });
+  }
+
+  // حساب نسبة التقدم
+  const progressPercent = useMemo(() => {
+    let filled = 0;
     for (const seg of segments) {
-      const c = counts[String(seg.number)] ?? emptySegment();
-      for (const key of Object.keys(sums) as EvaluationKeys[]) {
-        sums[key] += c[key];
+      const c = counts[String(seg.number)];
+      if (c) {
+        const hasData = Object.values(c).some((v) => v > 0);
+        if (hasData) filled++;
       }
     }
-    const memorizationDeduction =
-      sums.wordErrors * WORD_ERROR_PENALTY +
-      sums.letterErrors * LETTER_ERROR_PENALTY +
-      sums.diacriticErrors * DIACRITIC_ERROR_PENALTY +
-      sums.seriousErrors * SERIOUS_ERROR_PENALTY +
-      sums.subtleErrors * SUBTLE_ERROR_PENALTY;
-    const promptingDeduction = sums.promptingCount * PROMPTING_PENALTY;
-    const doubtDeduction = sums.doubtCount * DOUBT_PENALTY;
-    const totalDeduction = memorizationDeduction + promptingDeduction + doubtDeduction;
+    return segments.length > 0 ? Math.round((filled / segments.length) * 100) : 0;
+  }, [counts, segments]);
+
+  // الإجماليات
+  const totals = useMemo(() => {
+    let totalErrors = 0;
+    let totalDoubts = 0;
+    let totalTajweedErrors = 0;
+    for (const seg of segments) {
+      const c = counts[String(seg.number)] ?? emptySegment();
+      totalErrors += c.errorCount;
+      totalDoubts += c.doubtCount;
+      totalTajweedErrors += c.tajweedErrors;
+    }
+    const errorDeduction = totalErrors * settings.errorDeduction;
+    const doubtDeduction = totalDoubts * settings.doubtDeduction;
+    const tajweedDeduction = totalTajweedErrors * settings.tajweedDeduction;
+    const totalDeduction = errorDeduction + doubtDeduction + tajweedDeduction;
     const memorizationScore = Math.max(0, MEMORIZATION_SCORE - totalDeduction);
     const finalScore = Math.max(
       0,
@@ -233,27 +241,39 @@ export function AssessmentBoard({
         memorizationScore + recitationScore + tajweedScore
       )
     );
-    return { sums, memorizationDeduction, totalDeduction, memorizationScore, finalScore };
-  }, [counts, segments, recitationScore, tajweedScore]);
+    return {
+      totalErrors,
+      totalDoubts,
+      totalTajweedErrors,
+      errorDeduction,
+      doubtDeduction,
+      tajweedDeduction,
+      totalDeduction,
+      memorizationScore,
+      finalScore,
+    };
+  }, [counts, segments, recitationScore, tajweedScore, settings]);
 
-  async function handleSave() {
+  async function handleSaveDraft() {
     setSaving(true);
     setError("");
     setMessage("");
     try {
+      // تحويل إلى التنسيق القديم للتوافق مع القاعدة
       const res = await saveAssessment({
         examSessionId: sessionId,
-        wordErrors: totals.sums.wordErrors,
-        letterErrors: totals.sums.letterErrors,
-        diacriticErrors: totals.sums.diacriticErrors,
-        seriousErrors: totals.sums.seriousErrors,
-        subtleErrors: totals.sums.subtleErrors,
-        promptingCount: totals.sums.promptingCount,
-        doubtCount: totals.sums.doubtCount,
+        wordErrors: totals.totalErrors,
+        letterErrors: 0,
+        diacriticErrors: 0,
+        seriousErrors: 0,
+        subtleErrors: 0,
+        promptingCount: 0,
+        doubtCount: totals.totalDoubts,
+        tajweedErrors: totals.totalTajweedErrors,
         recitationScore,
         tajweedScore,
       });
-      setMessage(`تم الحفظ — الدرجة النهائية: ${res.finalScore} من ${SCORE_FULL}`);
+      setMessage(`تم الحفظ كمسودة — الدرجة الحالية: ${res.finalScore} من ${SCORE_FULL}`);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
@@ -268,13 +288,14 @@ export function AssessmentBoard({
     try {
       await saveAssessment({
         examSessionId: sessionId,
-        wordErrors: totals.sums.wordErrors,
-        letterErrors: totals.sums.letterErrors,
-        diacriticErrors: totals.sums.diacriticErrors,
-        seriousErrors: totals.sums.seriousErrors,
-        subtleErrors: totals.sums.subtleErrors,
-        promptingCount: totals.sums.promptingCount,
-        doubtCount: totals.sums.doubtCount,
+        wordErrors: totals.totalErrors,
+        letterErrors: 0,
+        diacriticErrors: 0,
+        seriousErrors: 0,
+        subtleErrors: 0,
+        promptingCount: 0,
+        doubtCount: totals.totalDoubts,
+        tajweedErrors: totals.totalTajweedErrors,
         recitationScore,
         tajweedScore,
       });
@@ -293,19 +314,65 @@ export function AssessmentBoard({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">التقييم الحي</h1>
-        <p className="mt-1 text-muted-foreground">
-          بيانات الطالب: <span className="font-medium">{student.name}</span> —{" "}
-          {student.branch} أجزاء
-        </p>
-      </div>
+      {/* الرأس + معلومات النموذج */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">التقييم التفاعلي</h1>
+              <p className="mt-1 text-muted-foreground">
+                الطالب: <span className="font-medium">{student.name}</span> —{" "}
+                {student.branch} أجزاء
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">رقم النموذج</p>
+                <p className="text-2xl font-bold text-primary">{modelNumber}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">نسبة التقدم</p>
+                <div className="relative h-16 w-16">
+                  <svg className="h-16 w-16 -rotate-90" viewBox="0 0 36 36">
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="15.915"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="text-muted/30"
+                    />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="15.915"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeDasharray={`${progressPercent} 100`}
+                      className="text-primary transition-all duration-300"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
+                    {progressPercent}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* جدول التقييم — 3 أزرار فقط */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">جدول التقييم ({segments.length} مقاطع)</CardTitle>
+          <CardTitle className="text-base">
+            جدول التقييم ({segments.length} مقاطع)
+          </CardTitle>
           <CardDescription>
-            وفق لائحة اختيار فرع كامل القرآن — سجّل الأخطاء لكل مقطع
+            3 أزرار لكل مقطع: خطأ (خصم {settings.errorDeduction}) — شك (خصم{" "}
+            {settings.doubtDeduction}) — تجويد (خصم {settings.tajweedDeduction})
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -314,11 +381,15 @@ export function AssessmentBoard({
               <thead>
                 <tr className="border-b">
                   <th className="p-2 text-right font-medium">المقطع</th>
-                  {COLUMNS.map((col) => (
-                    <th key={col.key} className="p-2 text-center font-medium">
-                      {col.label} ({col.penalty})
-                    </th>
-                  ))}
+                  <th className="p-2 text-center font-medium">
+                    خطأ ({settings.errorDeduction})
+                  </th>
+                  <th className="p-2 text-center font-medium">
+                    شك ({settings.doubtDeduction})
+                  </th>
+                  <th className="p-2 text-center font-medium">
+                    تجويد ({settings.tajweedDeduction})
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -332,12 +403,39 @@ export function AssessmentBoard({
                           {seg.fromText.slice(0, 40)}...
                         </p>
                       </td>
-                      {COLUMNS.map((col) => (
+                      {(
+                        [
+                          { key: "errorCount" as const, label: "خطأ" },
+                          { key: "doubtCount" as const, label: "شك" },
+                          { key: "tajweedErrors" as const, label: "تجويد" },
+                        ] as const
+                      ).map((col) => (
                         <td key={col.key} className="p-2 text-center">
-                          <CellCount
-                            value={c[col.key]}
-                            onAdd={() => increment(seg.number, col.key)}
-                          />
+                          <div className="inline-flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => decrement(seg.number, col.key)}
+                              disabled={locked || c[col.key] <= 0}
+                            >
+                              −
+                            </Button>
+                            <span className="inline-block min-w-6 text-center font-semibold">
+                              {c[col.key]}
+                            </span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              onClick={() => increment(seg.number, col.key)}
+                              disabled={locked}
+                            >
+                              +
+                            </Button>
+                          </div>
                         </td>
                       ))}
                     </tr>
@@ -347,10 +445,11 @@ export function AssessmentBoard({
             </table>
           </div>
 
+          {/* التلاوة والتجويد التطبيقي */}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 rounded-lg border p-4">
               <Label htmlFor="recitationScore">
-                التلاوة وحسن الأداء (من {RECITATION_SCORE_MAX}) — تُقيّم من المعلم مباشرة
+                التلاوة وحسن الأداء (من {RECITATION_SCORE_MAX}) — تُقيّم مباشرة
               </Label>
               <Input
                 id="recitationScore"
@@ -360,12 +459,14 @@ export function AssessmentBoard({
                 step={0.5}
                 value={recitationScore}
                 disabled={locked}
-                onChange={(e) => setRecitationScore(Number(e.target.value) || 0)}
+                onChange={(e) =>
+                  setRecitationScore(Number(e.target.value) || 0)
+                }
               />
             </div>
             <div className="space-y-2 rounded-lg border p-4">
               <Label htmlFor="tajweedScore">
-                التجويد التطبيقي (من {TAJWEED_SCORE_MAX}) — يُقيّم من المعلم مباشرة
+                التجويد التطبيقي (من {TAJWEED_SCORE_MAX}) — يُقيّم مباشرة
               </Label>
               <Input
                 id="tajweedScore"
@@ -375,42 +476,59 @@ export function AssessmentBoard({
                 step={0.5}
                 value={tajweedScore}
                 disabled={locked}
-                onChange={(e) => setTajweedScore(Number(e.target.value) || 0)}
+                onChange={(e) =>
+                  setTajweedScore(Number(e.target.value) || 0)
+                }
               />
             </div>
           </div>
 
-          {/* ملخص الخصم والدرجة النهائية */}
+          {/* ملخص الدرجة */}
           <div className="mt-4 rounded-lg border p-4 text-sm">
-            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {COLUMNS.map((col) => (
-                <div key={col.key}>
-                  <p className="text-muted-foreground">{col.label}</p>
-                  <p className="text-lg font-bold">{totals.sums[col.key]}</p>
-                </div>
-              ))}
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div>
+                <p className="text-muted-foreground">إجمالي الأخطاء</p>
+                <p className="text-lg font-bold">{totals.totalErrors}</p>
+                <p className="text-xs text-muted-foreground">
+                  خصم: {totals.errorDeduction.toFixed(1)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">إجمالي الشك</p>
+                <p className="text-lg font-bold">{totals.totalDoubts}</p>
+                <p className="text-xs text-muted-foreground">
+                  خصم: {totals.doubtDeduction.toFixed(1)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">أخطاء التجويد</p>
+                <p className="text-lg font-bold">{totals.totalTajweedErrors}</p>
+                <p className="text-xs text-muted-foreground">
+                  خصم: {totals.tajweedDeduction.toFixed(1)}
+                </p>
+              </div>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               <div>
-                <p className="text-muted-foreground">خصم الحفظ</p>
+                <p className="text-muted-foreground">إجمالي الخصم</p>
                 <p className="text-lg font-bold">
-                  {totals.memorizationDeduction.toFixed(2)}
+                  {totals.totalDeduction.toFixed(1)}
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">درجة الحفظ النهائية</p>
+                <p className="text-muted-foreground">درجة الحفظ</p>
                 <p className="text-lg font-bold">
-                  {totals.memorizationScore.toFixed(2)}/{MEMORIZATION_SCORE}
+                  {totals.memorizationScore.toFixed(1)}/{MEMORIZATION_SCORE}
                 </p>
               </div>
-              <div>
-                <p className="text-muted-foreground">إجمالي الخصم (تنبيه + شك + أخطاء)</p>
-                <p className="text-lg font-bold">{totals.totalDeduction.toFixed(2)}</p>
+              <div className="flex items-center justify-between rounded-md bg-muted p-3">
+                <span className="font-medium">
+                  الدرجة النهائية (من {SCORE_FULL})
+                </span>
+                <span className="text-2xl font-bold">
+                  {totals.finalScore.toFixed(1)}
+                </span>
               </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between rounded-md bg-muted p-3">
-              <span className="font-medium">الدرجة النهائية (من {SCORE_FULL})</span>
-              <span className="text-2xl font-bold">{totals.finalScore.toFixed(2)}</span>
             </div>
           </div>
 
@@ -427,7 +545,7 @@ export function AssessmentBoard({
         </CardContent>
       </Card>
 
-      {/* أزرار الحفظ والاعتماد حسب العمر (المادة 5) */}
+      {/* أزرار الحفظ والاعتماد */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-3 pt-6">
           {locked ? (
@@ -436,16 +554,22 @@ export function AssessmentBoard({
             </p>
           ) : (
             <>
-              <Button onClick={handleSave} disabled={saving || !loaded}>
-                {saving ? "جارٍ الحفظ..." : "حفظ التقييم"}
+              <Button onClick={handleSaveDraft} disabled={saving || !loaded}>
+                {saving ? "جارٍ الحفظ..." : "حفظ كمسودة"}
               </Button>
 
               {seniorIsUser ? (
-                <Button onClick={() => handleApprove("approve")} variant="secondary">
+                <Button
+                  onClick={() => handleApprove("approve")}
+                  variant="secondary"
+                >
                   اعتماد (المعلم الأكبر)
                 </Button>
               ) : (
-                <Button onClick={() => handleApprove("finalize")} variant="default">
+                <Button
+                  onClick={() => handleApprove("finalize")}
+                  variant="default"
+                >
                   اعتماد نهائي (المعلم الأصغر)
                 </Button>
               )}
@@ -453,17 +577,6 @@ export function AssessmentBoard({
           )}
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function CellCount({ value, onAdd }: { value: number; onAdd: () => void }) {
-  return (
-    <div className="inline-flex items-center gap-2">
-      <span className="inline-block min-w-6 text-center font-semibold">{value}</span>
-      <Button type="button" size="icon" variant="outline" onClick={onAdd}>
-        +
-      </Button>
     </div>
   );
 }

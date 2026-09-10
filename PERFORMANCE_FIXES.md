@@ -52,4 +52,52 @@
 
 - `pnpm fix:users` ✅ — 6 مستخدمين فقط، لا حذف إضافي مطلوب.
 - `pnpm typecheck` ✅ بدون أخطاء.
-- `pnpm build` ✅ بدون أخطاء (36 صفحة، 87.3kB أول حمولة مشتركة).
+- `pnpm build` ✅ بدون أخطاء (37 صفحة، 87.3kB أول حمولة مشتركة).
+
+---
+
+## 7) التصحيحات النهائية (o.txt)
+
+### المهمة 1: Migration redesign_committees
+- تم تطبيق migration `redesign_committees` بنجاح على Neon.
+- الجداول الجديدة: `committees`، `committee_model_allocations` (معدّلة)، `assessment_settings`.
+- الحقول الجديدة في `students`: `nationality`، `committeeId`.
+
+### المهمة 2: التحقق من تكرار password
+- تحققنا من `lib/validations/user.ts` و `auth.ts` — لا يوجد تكرار، كلاهما يحتوي تعريفاً واحداً فقط.
+
+### المهمة 3: Modal "ابدأ الاختبار" يطلب رقم النموذج
+- **الملف:** `components/examiner/examiner-dashboard-client.tsx`
+- أُضيف `Input` لرقم النموذج مع تحقق من النطاق (`startModelNumber` → `endModelNumber`).
+- زر "تأكيد" معطّل حتى يُدخل رقم صحيح.
+- عند التأكيد ينتقل إلى `/examiner/assess/${id}?model=${number}`.
+
+### المهمة 4: صفحة التقييم تقرأ searchParams.model
+- **الملف:** `app/(dashboard)/examiner/assess/[studentId]/page.tsx`
+- الصفحة الآن تقرأ `searchParams.model` من URL.
+- إذا الرقم خارج نطاق اللجنة → رسالة خطأ واضحة.
+- إذا لم يوجد النموذج → رسالة خطأ واضحة.
+- لا يُحمَّل النموذج الأول تلقائياً بعد الآن.
+
+### المهمة 5: AssessmentBoard يستخدم AssessmentSettings من DB
+- **الملف:** `components/examiner/assessment-board.tsx`
+- يقبل `prop: settings` من `AssessmentSettings`.
+- صفحة التقييم تستدعي `getAssessmentSettings()` وتمررها كـ prop.
+- جميع الخصومات теперь ديناميكية من قاعدة البيانات.
+
+### المهمة 6: تبسيط واجهة التقييم إلى 3 أزرار
+- **الملف:** `components/examiner/assessment-board.tsx`
+- بدلاً من 7 أعمدة → 3 أعمدة فقط: **خطأ**، **شك**، **تجويد**.
+- حقل جديد `tajweedErrors` في `Assessment` schema + migration.
+- خصومات ديناميكية: `errorDeduction` × errorCount، `doubtDeduction` × doubtCount، `tajweedDeduction` × tajweedErrors.
+- الدرجة النهائية تُحدَّث فورياً عند كل ضغطة.
+- الحقول القديمة (wordErrors, letterErrors, إلخ) محفوظة في DB للتوافق.
+
+### المهمة 7: عرض الجنسية في صفحة الأخصائي
+- **الملف:** `components/specialist/requests-table.tsx`
+- أُضيف عمود "الجنسية" في جدول طلبات الترشيح.
+
+### إصلاحات إضافية:
+- `assertExaminerInSession` في `lib/security.ts` الآن يدعم اللجنة الجديدة (Committee) بالإضافة إلى الجلسات القديمة.
+- `resolveModelId` في `assessment-actions.ts` بُسّط ليعمل مع أي تدفق (قديم/جديد).
+- `AssessmentUpdatePayload` في `realtime-client.ts` محدّث ليتوافق مع التنسيق الجديد (3 أعمدة).

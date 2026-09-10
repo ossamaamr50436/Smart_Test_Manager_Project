@@ -51,7 +51,7 @@ const credentialsSchema = z.object({
     .string()
     .email()
     .max(254, "البريد الإلكتروني طويل جداً"),
-  password: z.string().min(4).max(8, "كلمة المرور طويلة جداً"),
+  password: z.string().min(6, "كلمة المرور قصيرة جداً").max(8, "كلمة المرور طويلة جداً"),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({

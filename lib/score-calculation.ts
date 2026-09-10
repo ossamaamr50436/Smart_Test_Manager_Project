@@ -24,6 +24,7 @@ export type ScoreInput = {
   subtleErrors: number;
   promptingCount: number;
   doubtCount: number;
+  tajweedErrors: number;
   recitationScore: number;
   tajweedScore: number;
 };
@@ -52,8 +53,9 @@ export function computeTotals(input: ScoreInput): ScoreResult {
 
   const promptingDeduction = input.promptingCount * PROMPTING_PENALTY;
   const doubtDeduction = input.doubtCount * DOUBT_PENALTY;
+  const tajweedDeduction = input.tajweedErrors * 0.5; // خصم 0.5 لكل خطأ تجويد (القيمة الافتراضية)
 
-  const totalDeduction = memorizationDeduction + promptingDeduction + doubtDeduction;
+  const totalDeduction = memorizationDeduction + promptingDeduction + doubtDeduction + tajweedDeduction;
 
   // درجة الحفظ النهائية: 70 ناقص الخصومات (لا تقل عن الصفر)
   const memorizationScore = Math.max(0, MEMORIZATION_SCORE - totalDeduction);

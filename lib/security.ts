@@ -56,6 +56,7 @@ export async function assertInstitutionOwnsStudent(user: SessionUser, studentId:
  * يرجع الجلسة إن وُجدت وإلا يرمي خطأ صلاحيات.
  */
 export async function assertExaminerInSession(user: SessionUser, examSessionId: string) {
+  // أولاً: نبحث في الجلسات القديمة (ExamSession)
   const session = await prisma.examSession.findFirst({
     where: {
       id: examSessionId,
@@ -69,10 +70,36 @@ export async function assertExaminerInSession(user: SessionUser, examSessionId: 
       student: { select: { id: true, name: true, institutionId: true, branch: true } },
     },
   });
-  if (!session) {
-    throw new Error("غير مصرح: هذا الطالب ليس ضمن لجنتك");
+  if (session) return session;
+
+  // ثانياً: نبحث في اللجان الجديدة (Committee) — sessionId قد يكون committeeId
+  const committee = await prisma.committee.findFirst({
+    where: {
+      id: examSessionId,
+      OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
+    },
+    select: {
+      id: true,
+      teacher1Id: true,
+      teacher2Id: true,
+      students: {
+        select: { id: true, name: true, institutionId: true, branch: true },
+        take: 1,
+      },
+    },
+  });
+  if (committee && committee.students.length > 0) {
+    const student = committee.students[0]!;
+    return {
+      id: committee.id,
+      teacher1Id: committee.teacher1Id,
+      teacher2Id: committee.teacher2Id,
+      status: "SCHEDULED" as const,
+      student,
+    };
   }
-  return session;
+
+  throw new Error("غير مصرح: هذا الطالب ليس ضمن لجنتك");
 }
 
 /**

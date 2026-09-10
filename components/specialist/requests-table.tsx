@@ -16,6 +16,7 @@ type PendingStudent = {
   name: string;
   branch: string;
   age: number;
+  nationality: string;
   createdAt: Date;
   institution: { name: string };
 };
@@ -59,6 +60,7 @@ export function RequestsTable({ students }: { students: PendingStudent[] }) {
             <thead>
               <tr className="border-b text-right text-muted-foreground">
                 <th className="pb-2 font-medium">اسم الطالب</th>
+                <th className="pb-2 font-medium">الجنسية</th>
                 <th className="pb-2 font-medium">الجهة المرشحة</th>
                 <th className="pb-2 font-medium">تاريخ الترشيح</th>
                 <th className="pb-2 font-medium">الفرع</th>
@@ -69,6 +71,7 @@ export function RequestsTable({ students }: { students: PendingStudent[] }) {
               {students.map((student) => (
                 <tr key={student.id} className="border-b last:border-0">
                   <td className="py-3 font-medium">{student.name}</td>
+                  <td className="py-3">{student.nationality}</td>
                   <td className="py-3">{student.institution.name}</td>
                   <td className="py-3">
                     {student.createdAt.toLocaleDateString("ar-SA")}

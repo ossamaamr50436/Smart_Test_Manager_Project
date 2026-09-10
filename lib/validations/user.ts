@@ -27,7 +27,13 @@ export const birthDateSchema = z
 export const createUserSchema = z.object({
   name: z.string().min(2, "اسم المستخدم لا يقل عن حرفين"),
   email: z.string().email("بريد إلكتروني غير صحيح"),
-  password: z.string().min(4, "كلمة المرور لا تقل عن 4 أحرف").max(8, "كلمة المرور لا تتجاوز 8 أحرف"),
+  password: z
+    .string()
+    .min(6, "كلمة المرور لا تقل عن 6 أحرف")
+    .max(8, "كلمة المرور لا تتجاوز 8 أحرف")
+    .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير واحد على الأقل")
+    .regex(/[a-z]/, "كلمة المرور يجب أن تحتوي على حرف صغير واحد على الأقل")
+    .regex(/[0-9]/, "كلمة المرور يجب أن تحتوي على رقم واحد على الأقل"),
   role: z.enum(
     ["ADMIN", "HEAD_OF_AFFAIRS", "CERTIFICATE_SOURCE", "TEST_SPECIALIST", "EXAMINER", "INSTITUTION"],
     { message: "دور غير صحيح" }

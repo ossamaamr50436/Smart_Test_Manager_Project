@@ -117,6 +117,7 @@ export async function createStudentApplication(
       name: data.name,
       age: data.age,
       branch: data.branch,
+      nationality: data.nationality,
       teacherName: data.teacherName,
       parentPhone: data.parentPhone,
       address: data.address ?? null,

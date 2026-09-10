@@ -18,6 +18,7 @@ function validInput(overrides: Partial<AssessmentInput> = {}): AssessmentInput {
     subtleErrors: 0,
     promptingCount: 0,
     doubtCount: 0,
+    tajweedErrors: 0,
     recitationScore: 20,
     tajweedScore: 10,
     ...overrides,

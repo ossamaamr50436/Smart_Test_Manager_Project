@@ -1,7 +1,7 @@
 // ============================================================
 // تطبيق الاختبارات
 // Prisma Schema — PostgreSQL (Neon)
-// المرحلة 1: إعداد المخطط الأساسي
+// إعادة تصميم اللجان + إعدادات التقييم
 // ============================================================
 
 generator client {
@@ -31,7 +31,7 @@ enum StudentStatus {
   REJECTED // مرفوض
   ASSIGNED // تم توزيعه على لجنة
   COMPLETED // اكتمل تقييمه واعتماده المتسلسل
-  NOTIFIED // اعتمده الأخصائي (بانتظار اعتماد رئيس الشؤون)
+  NOTIFIED // اعتمد الأخصائي (بانتظار اعتماد رئيس الشؤون)
   READY_FOR_CERTIFICATE // جاهز لإصدار الشهادة
   CERTIFICATE_ISSUED // صدرت شهادته
 }
@@ -95,13 +95,15 @@ model User {
   updatedAt     DateTime     @updatedAt
   institutionId String? // للمستخدمين من نوع Institution فقط (عزل الصلاحيات)
 
-  institution        Institution?  @relation(fields: [institutionId], references: [id])
-  auditLogs          AuditLog[]    @relation("UserAuditLogs")
-  notifications      Notification[]
-  sessionsAsTeacher1 ExamSession[] @relation("Teacher1")
-  sessionsAsTeacher2 ExamSession[] @relation("Teacher2")
-  assessments        Assessment[]
-  certificatesIssued Certificate[] @relation("CertificateIssuer")
+  institution              Institution?  @relation(fields: [institutionId], references: [id])
+  auditLogs                AuditLog[]    @relation("UserAuditLogs")
+  notifications            Notification[]
+  sessionsAsTeacher1       ExamSession[] @relation("Teacher1")
+  sessionsAsTeacher2       ExamSession[] @relation("Teacher2")
+  committeesAsTeacher1     Committee[]   @relation("CommitteeTeacher1")
+  committeesAsTeacher2     Committee[]   @relation("CommitteeTeacher2")
+  assessments              Assessment[]
+  certificatesIssued       Certificate[] @relation("CertificateIssuer")
 
   @@index([institutionId])
   @@map("users")
@@ -134,24 +136,28 @@ model Student {
   name          String
   age           Int
   branch        String // الفرع: 5/10/15/20/25/30 جزء
+  nationality   String        @default("السعودية") // الجنسية (المهمة 3)
   teacherName   String
   parentPhone   String
   address       String?
   phone         String?
   status        StudentStatus @default(PENDING)
   institutionId String
+  committeeId   String? // اللجنة المرتبطة بالطالب (المهمة 1)
   createdAt     DateTime      @default(now()) // تاريخ الترشيح
   updatedAt     DateTime      @updatedAt
 
   institution  Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  committee    Committee?    @relation(fields: [committeeId], references: [id])
   examSessions ExamSession[]
   certificates Certificate[]
 
-  // ملف ترشيح الطالب (PDF) — يُرفع إلى Google Drive (المهمة 7)
+  // ملف ترشيح الطالب (PDF) — يُرفع إلى Google Drive
   applicationFileId  String? // معرف الملف في Google Drive
   applicationFileUrl String? // رابط العرض للملف
 
   @@index([institutionId])
+  @@index([committeeId])
   @@index([status])
   @@map("students")
 }
@@ -167,11 +173,37 @@ model ExamSeason {
   isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  sessions ExamSession[]
-  models   ExamModel[]
+  sessions         ExamSession[]
+  models           ExamModel[]
   modelAllocations CommitteeModelAllocation[]
+  committees       Committee[]
 
   @@map("exam_seasons")
+}
+
+// ------------------------------------------------------------
+// اللجان (Committee) — المهمة 1
+// ------------------------------------------------------------
+model Committee {
+  id         String   @id @default(cuid())
+  name       String   // اسم اللجنة (مثال: "لجنة 1 — فرع 5 أجزاء")
+  branch     String   // الفرع: 5/10/15/20/25/30 جزءاً
+  seasonId   String
+  teacher1Id String   // المعلم الأول (الأكبر سناً)
+  teacher2Id String   // المعلم الثاني (الأصغر سناً)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  season      ExamSeason                @relation(fields: [seasonId], references: [id])
+  teacher1    User                      @relation("CommitteeTeacher1", fields: [teacher1Id], references: [id])
+  teacher2    User                      @relation("CommitteeTeacher2", fields: [teacher2Id], references: [id])
+  students    Student[]
+  allocations CommitteeModelAllocation[]
+
+  @@unique([name, seasonId])
+  @@index([seasonId])
+  @@index([branch])
+  @@map("committees")
 }
 
 // ------------------------------------------------------------
@@ -182,10 +214,10 @@ model ExamModel {
   id            String @id @default(cuid())
   modelNumber   Int // 1-100 لكل فرع
   branch        String // الفرع: 5/10/15/20/25/30 جزءاً
-  detailsJSON   Json // المقاطع — حتى 30 مقطعاً: {number, fromText, fromSurah, fromVerse, toText, toSurah, toVerse}
+  detailsJSON   Json // المقاطع — حتى 30 مقطعاً
   segmentsCount Int    @default(10) // عدد مقاطع النموذج (1-30)
-  institutionId String? // اختياري — لا تُسند لجهة أثناء الإنشاء إن لم يُحدد (تُربط فقط بالموسم)
-  seasonId      String // الموسم الذي يتبع له النموذج (المادة 6)
+  institutionId String? // اختياري — لا تُسند لجهة أثناء الإنشاء
+  seasonId      String // الموسم الذي يتبع له النموذج
 
   institution Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   season      ExamSeason  @relation(fields: [seasonId], references: [id])
@@ -199,7 +231,7 @@ model ExamModel {
 }
 
 // ------------------------------------------------------------
-// جلسات الاختبار (اللجان)
+// جلسات الاختبار
 // اللجنة = معلمان: teacher1 (الأكبر سناً) و teacher2 (الأصغر سناً)
 // ------------------------------------------------------------
 model ExamSession {
@@ -223,7 +255,6 @@ model ExamSession {
 
   assessments   Assessment[]
   notifications Notification[]
-  modelAllocations CommitteeModelAllocation[]
 
   @@index([studentId])
   @@index([teacher1Id])
@@ -234,23 +265,36 @@ model ExamSession {
 
 // ------------------------------------------------------------
 // توزيع النماذج على اللجان (نطاق محدد لكل لجنة)
-// اللجنة = جلسة اختبار (ExamSession) — تُحدد نطاق أرقام النماذج للفرع
 // ------------------------------------------------------------
 model CommitteeModelAllocation {
   id               String   @id @default(cuid())
-  committeeId      String // معرف الجلسة (اللجنة)
-  branch           String // الفرع: 5/10/15/20/25/30 جزءاً
-  startModelNumber Int // رقم النموذج الأول
-  endModelNumber   Int // رقم النموذج الأخير
+  committeeId      String   // معرف اللجنة (Committee)
+  branch           String   // الفرع: 5/10/15/20/25/30 جزءاً
+  startModelNumber Int      // رقم النموذج الأول
+  endModelNumber   Int      // رقم النموذج الأخير
   seasonId         String
   createdAt        DateTime @default(now())
 
-  committee ExamSession @relation(fields: [committeeId], references: [id], onDelete: Cascade)
-  season    ExamSeason  @relation(fields: [seasonId], references: [id])
+  committee Committee  @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  season    ExamSeason @relation(fields: [seasonId], references: [id])
 
   @@unique([committeeId, branch])
   @@index([seasonId])
   @@map("committee_model_allocations")
+}
+
+// ------------------------------------------------------------
+// إعدادات التقييم (Singleton) — المهمة 6
+// يضبطها الأخصائي — تحكم خصومات الأخطاء والشك والتجويد
+// ------------------------------------------------------------
+model AssessmentSettings {
+  id               String  @id @default("singleton")
+  errorDeduction   Float   @default(2.0) // خصم لكل خطأ
+  doubtDeduction   Float   @default(1.0) // خصم لكل شك
+  tajweedDeduction Float   @default(0.5) // خصم لكل تجويد
+  updatedAt        DateTime @updatedAt
+
+  @@map("assessment_settings")
 }
 
 // ------------------------------------------------------------
@@ -275,6 +319,9 @@ model Assessment {
 
   // الشك (التردد)
   doubtCount      Int              @default(0) // عدد مرات الشك — خصم 0.5 لكل شك
+
+  // أخطاء التجويد (المهمة 6 — بدلاً من الاعتماد على tajweedScore فقط)
+  tajweedErrors   Int              @default(0) // عدد أخطاء التجويد — خصم tajweedDeduction لكل خطأ
 
   // التلاوة وحسن الأداء (20 درجة) — تُقيّم من المعلم مباشرة
   recitationScore Float            @default(0) // من 0 إلى 20
@@ -307,7 +354,7 @@ model Assessment {
 // ------------------------------------------------------------
 model Certificate {
   id           String            @id @default(cuid())
-  serialNumber String            @unique // رقم تسلسلي فريد للشهادة (مثل CERT-2026-0001)
+  serialNumber String            @unique // رقم تسلسلي فريد للشهادة
   studentId    String
   finalScore   Float
   fileUrl      String? // رابط Google Drive
@@ -363,7 +410,7 @@ model AppSettings {
   secondaryColor  String   @default("#d3bb8b") // اللون الثانوي للمنصة
   whatsappNumber  String?  // رقم الدعم الفني (ديناميكي)
   darkModeEnabled Boolean  @default(false) // تفعيل الوضع المظلم
-  requireStudentApplicationFile Boolean @default(false) // إلزام الجهات برفع ملف PDF عند ترشيح الطالب
+  requireStudentApplicationFile Boolean @default(false) // إلزام الجهات برفع ملف PDF
   updatedAt       DateTime @updatedAt
 
   @@map("app_settings")
@@ -390,7 +437,7 @@ model AuditLog {
 // Rate Limiting (منع إساءة الاستخدام — يعمل على Serverless)
 // ------------------------------------------------------------
 model RateLimit {
-  key     String   @id // مفتاح فريد للنقطة (مثل "userId:login" أو "ip:api")
+  key     String   @id // مفتاح فريد للنقطة
   count   Int      @default(0)
   resetAt DateTime
 

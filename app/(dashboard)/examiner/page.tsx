@@ -1,17 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { ExaminerDashboardClient } from "@/components/examiner/examiner-dashboard-client";
 
 export const metadata: Metadata = { title: "لوحة المختبر" };
 
@@ -22,15 +14,18 @@ export default async function ExaminerDashboardPage() {
     redirect("/");
   }
 
-  // عزل الصلاحيات: المختبر يرى فقط الطلاب الموزعين على لجنه
-  const sessions = await prisma.examSession.findMany({
+  // البحث عن اللجنة التي ينتمي إليها المختبر (معلم1 أو معلم2)
+  const committee = await prisma.committee.findFirst({
     where: {
       OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
     },
     include: {
-      student: true,
+      allocations: { select: { startModelNumber: true, endModelNumber: true } },
+      students: {
+        select: { id: true, name: true, branch: true, status: true },
+        orderBy: { name: "asc" },
+      },
     },
-    orderBy: { examDate: "desc" },
   });
 
   return (
@@ -38,45 +33,20 @@ export default async function ExaminerDashboardPage() {
       <div>
         <h1 className="text-2xl font-bold">لوحة المختبر (المعلم)</h1>
         <p className="mt-1 text-muted-foreground">
-          طلابك الموزعون على لجانك فقط — اضغط «تقييم» لبدء التقييم الحي
+          طلابك الموزعون على لجنتك — اضغط «ابدأ الاختبار» لبدء التقييم التفاعلي
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">طلاب لجانك</CardTitle>
-          <CardDescription>{sessions.length} طالب موزع على لجانك</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {sessions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              لم يتم توزيع أي طالب على لجنك بعد
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between rounded-lg border px-4 py-3"
-                >
-                  <div>
-                    <p className="font-medium">{session.student.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {session.student.branch} أجزاء — الحالة:{" "}
-                      {session.student.status}
-                    </p>
-                  </div>
-                  <Button asChild size="sm">
-                    <Link href={`/examiner/assess/${session.student.id}`}>
-                      تقييم
-                    </Link>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ExaminerDashboardClient
+        students={committee?.students ?? []}
+        committee={committee
+          ? {
+              name: committee.name,
+              allocations: committee.allocations,
+            }
+          : null
+        }
+      />
     </div>
   );
 }

@@ -29,6 +29,7 @@ describe("assessmentInputSchema", () => {
     subtleErrors: 0,
     promptingCount: 0,
     doubtCount: 0,
+    tajweedErrors: 0,
     recitationScore: 20,
     tajweedScore: 10,
   };
@@ -86,9 +87,9 @@ describe("examSegmentSchema", () => {
     expect(examSegmentSchema.safeParse(segment(1)).success).toBe(true);
   });
 
-  it("يرفض رقم مقطع خارج 1-10", () => {
+  it("يرفض رقم مقطع خارج 1-30", () => {
     expect(examSegmentSchema.safeParse(segment(0)).success).toBe(false);
-    expect(examSegmentSchema.safeParse(segment(11)).success).toBe(false);
+    expect(examSegmentSchema.safeParse(segment(31)).success).toBe(false);
   });
 
   it("يرفض نصوصاً فارغة أو أرقام آيات صفرية", () => {
@@ -107,6 +108,7 @@ describe("examModelSchema + BRANCHES", () => {
     branch: "5",
     institutionId: "inst-1",
     seasonId: "season-1",
+    segmentsCount: 10,
     segments: Array.from({ length: 10 }, (_, i) => segment(i + 1)),
   };
 
@@ -120,9 +122,12 @@ describe("examModelSchema + BRANCHES", () => {
     ).toBe(false);
   });
 
-  it("يرفض رقم نموذج خارج 1-20", () => {
+  it("يرفض رقم نموذج خارج 1-100", () => {
     expect(
-      examModelSchema.safeParse({ ...model, modelNumber: 21 }).success
+      examModelSchema.safeParse({ ...model, modelNumber: 0 }).success
+    ).toBe(false);
+    expect(
+      examModelSchema.safeParse({ ...model, modelNumber: 101 }).success
     ).toBe(false);
   });
 

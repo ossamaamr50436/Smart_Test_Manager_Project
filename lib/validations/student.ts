@@ -6,6 +6,29 @@ export const BRANCHES = ["5", "10", "15", "20", "25", "30"] as const;
 // فترات الاختبار
 export const PERIODS = ["صباحي", "مسائي"] as const;
 
+// الدول (المهمة 3 — الجنسية)
+export const NATIONALITIES = [
+  "السعودية",
+  "مصر",
+  "الإمارات",
+  "الكويت",
+  "قطر",
+  "البحرين",
+  "عمان",
+  "الأردن",
+  "فلسطين",
+  "سوريا",
+  "لبنان",
+  "العراق",
+  "اليمن",
+  "السودان",
+  "المغرب",
+  "الجزائر",
+  "تونس",
+  "ليبيا",
+  "موريتانيا",
+] as const;
+
 // مخطط ترشيح طالب جديد — خاص بالجهة التعليمية
 export const studentApplicationSchema = z.object({
   name: z
@@ -18,13 +41,14 @@ export const studentApplicationSchema = z.object({
     .min(4, "العمر يجب أن يكون 4 سنوات فأكثر")
     .max(18, "العمر يجب أن يكون 18 سنة فأقل"),
   branch: z.enum(BRANCHES, { message: "اختر عدد الأجزاء المحفوظة" }),
+  nationality: z.enum(NATIONALITIES, { message: "اختر الجنسية" }),
   teacherName: z
     .string()
     .min(2, "اسم المعلم لا يقل عن حرفين")
     .max(100, "اسم المعلم طويل جداً (الحد الأقصى 100 حرف)"),
   parentPhone: z
     .string()
-    .min(9, "رقم ولي الأمر غير صحيح")
+    .min(10, "رقم ولي الأمر غير صحيح (الحد الأدنى 10 أرقام)")
     .max(15, "رقم ولي الأمر طويل جداً"),
   address: z.string().max(200, "العنوان طويل جداً").optional(),
   phone: z.string().max(15, "رقم الهاتف طويل جداً").optional(),

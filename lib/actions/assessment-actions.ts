@@ -25,62 +25,48 @@ import { dispatchNotificationChannels } from "@/lib/notifications";
 /** تسجيل حدث في Audit Log — تتم داخل prisma.$transaction عبر client المتداول */
 
 /**
- * إيجاد نموذج اختباري لجهة الطالب في الموسم النشط
+ * إيجاد نموذج اختباري للطالب في الموسم النشط
  * (المادة 6 — النماذج مرتبطة بالموسم والفرع)
+ * يعمل مع الجلسات القديمة (ExamSession) واللجان الجديدة (Committee)
  */
 async function resolveModelId(
   sessionId: string,
   branch: string
 ): Promise<string | null> {
-  const session = await prisma.examSession.findFirst({
-    where: { id: sessionId },
-    select: { student: { select: { institutionId: true } } },
-  });
-  if (!session) return null;
-
   const season = await getCurrentSeason();
 
-  const usedModels = await prisma.assessment.findMany({
-    where: { examSession: { student: { institutionId: session.student.institutionId } } },
-    select: { modelId: true },
-    distinct: ["modelId"],
-  });
-  const usedModelIds = usedModels.map((m) => m.modelId);
-
+  // محاولة العثور على نموذج للفرع في الموسم الحالي
   const model = await prisma.examModel.findFirst({
     where: {
-      institutionId: session.student.institutionId,
       branch,
       ...(season ? { seasonId: season.id } : {}),
-      NOT: usedModelIds.length > 0 ? { id: { in: usedModelIds } } : undefined,
     },
     select: { id: true, modelNumber: true },
     orderBy: { modelNumber: "asc" },
   });
 
-  if (!model) {
-    try {
-      const models = await getExamModelsFromDrive();
-      const driveModel = models[0];
-      if (driveModel) {
-        if (!season) return null;
-        const created = await prisma.examModel.create({
-          data: {
-            modelNumber: 1,
-            branch,
-            detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
-            institutionId: session.student.institutionId,
-            seasonId: season.id,
-          },
-        });
-        return created.id;
-      }
-    } catch {
-      return null;
+  if (model) return model.id;
+
+  // محاولة إنشاء من Google Drive
+  try {
+    const models = await getExamModelsFromDrive();
+    const driveModel = models[0];
+    if (driveModel && season) {
+      const created = await prisma.examModel.create({
+        data: {
+          modelNumber: 1,
+          branch,
+          detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
+          seasonId: season.id,
+        },
+      });
+      return created.id;
     }
+  } catch {
+    // تجاهل
   }
 
-  return model?.id ?? null;
+  return null;
 }
 
 /**
@@ -111,23 +97,6 @@ export async function saveAssessment(input: AssessmentInput) {
     throw new Error("لا يوجد نموذج اختباري مرتبط بهذه الجهة في الموسم الحالي");
   }
 
-  // منع تكرار النموذج على طالبين في نفس الموسم (المادة 6)
-  const duplicateModel = await prisma.assessment.findFirst({
-    where: {
-      modelId,
-      examSession: {
-        student: { institutionId: session.student.institutionId },
-        NOT: { id: session.id },
-      },
-    },
-    include: { examSession: { include: { student: { select: { name: true } } } } },
-  });
-  if (duplicateModel) {
-    throw new Error(
-      `النموذج مستخدم بالفعل مع الطالب ${duplicateModel.examSession.student.name} في هذا الموسم`
-    );
-  }
-
   const existing = await prisma.assessment.findFirst({
     where: { examSessionId: session.id, evaluatorId: user.id },
     select: { id: true, status: true },
@@ -152,6 +121,7 @@ export async function saveAssessment(input: AssessmentInput) {
         subtleErrors: data.subtleErrors,
         promptingCount: data.promptingCount,
         doubtCount: data.doubtCount,
+        tajweedErrors: data.tajweedErrors,
         recitationScore: data.recitationScore,
         tajweedScore: data.tajweedScore,
         memorizationDeduction: totals.memorizationDeduction,
@@ -167,6 +137,7 @@ export async function saveAssessment(input: AssessmentInput) {
         subtleErrors: data.subtleErrors,
         promptingCount: data.promptingCount,
         doubtCount: data.doubtCount,
+        tajweedErrors: data.tajweedErrors,
         recitationScore: data.recitationScore,
         tajweedScore: data.tajweedScore,
         memorizationDeduction: totals.memorizationDeduction,
@@ -189,6 +160,7 @@ export async function saveAssessment(input: AssessmentInput) {
           subtleErrors: data.subtleErrors,
           promptingCount: data.promptingCount,
           doubtCount: data.doubtCount,
+          tajweedErrors: data.tajweedErrors,
           recitationScore: data.recitationScore,
           tajweedScore: data.tajweedScore,
           memorizationDeduction: totals.memorizationDeduction,
@@ -412,6 +384,7 @@ export async function getAssessmentState(examSessionId: string) {
       subtleErrors: true,
       promptingCount: true,
       doubtCount: true,
+      tajweedErrors: true,
       recitationScore: true,
       tajweedScore: true,
       memorizationDeduction: true,

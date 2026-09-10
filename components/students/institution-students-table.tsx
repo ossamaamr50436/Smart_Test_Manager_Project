@@ -21,6 +21,7 @@ type InstitutionStudent = {
   name: string;
   age: number;
   branch: string;
+  nationality?: string;
   status: string;
   teacherName: string;
   parentPhone: string | null;
@@ -56,6 +57,7 @@ export function InstitutionStudentsTable({
               <tr className="border-b text-right text-muted-foreground">
                 <th className="pb-2 font-medium">اسم الطالب</th>
                 <th className="pb-2 font-medium">العمر</th>
+                <th className="pb-2 font-medium">الجنسية</th>
                 <th className="pb-2 font-medium">الفرع</th>
                 <th className="pb-2 font-medium">اسم المعلم</th>
                 <th className="pb-2 font-medium">رقم ولي الأمر</th>
@@ -68,6 +70,7 @@ export function InstitutionStudentsTable({
                 <tr key={student.id} className="border-b last:border-0">
                   <td className="py-3 font-medium">{student.name}</td>
                   <td className="py-3">{student.age}</td>
+                  <td className="py-3">{student.nationality || "—"}</td>
                   <td className="py-3">{student.branch} أجزاء</td>
                   <td className="py-3">{student.teacherName}</td>
                   <td className="py-3" dir="ltr">

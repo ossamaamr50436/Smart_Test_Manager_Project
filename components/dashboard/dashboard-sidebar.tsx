@@ -42,6 +42,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/test-specialist/requests", label: "طلبات الترشيح" },
     { href: "/test-specialist/committees", label: "تشكيل اللجان" },
     { href: "/test-specialist/models", label: "إدارة النماذج" },
+    { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
     {
       href: "/test-specialist/final-review",
       label: "مراجعة التقييمات النهائية",

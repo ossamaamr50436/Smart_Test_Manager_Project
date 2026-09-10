@@ -36,13 +36,9 @@ export type AssessmentUpdatePayload = {
   counts?: Record<
     string,
     {
-      wordErrors: number;
-      letterErrors: number;
-      diacriticErrors: number;
-      seriousErrors: number;
-      subtleErrors: number;
-      promptingCount: number;
+      errorCount: number;
       doubtCount: number;
+      tajweedErrors: number;
     }
   >;
   assessmentStatus?: string;

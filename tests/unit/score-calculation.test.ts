@@ -21,6 +21,7 @@ function base(overrides: Partial<ScoreInput> = {}): ScoreInput {
     subtleErrors: 0,
     promptingCount: 0,
     doubtCount: 0,
+    tajweedErrors: 0,
     recitationScore: RECITATION_SCORE_MAX,
     tajweedScore: TAJWEED_SCORE_MAX,
     ...overrides,

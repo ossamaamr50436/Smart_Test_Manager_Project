@@ -237,7 +237,7 @@ export async function deleteExamModel(modelId: string) {
 
 // ============================================================
 // المهمة 3: توزيع النماذج على اللجان (نطاق محدد لكل لجنة)
-// اللجنة = جلسة اختبار (ExamSession)
+// اللجنة = لجنة اختبار (Committee)
 // ============================================================
 
 export async function allocateCommitteeModelRange(input: {
@@ -269,8 +269,8 @@ export async function allocateCommitteeModelRange(input: {
     throw new Error("نطاق النماذج يجب أن يكون بين 1 و 100 مع بداية أصغر من النهاية");
   }
 
-  // التحقق من وجود اللجنة (الجلسة) وجلب موسمها
-  const committee = await prisma.examSession.findUnique({
+  // التحقق من وجود اللجنة وجلب موسمها
+  const committee = await prisma.committee.findUnique({
     where: { id: input.committeeId },
     select: { id: true, seasonId: true },
   });
@@ -344,9 +344,11 @@ export async function getCommitteeModelAllocations(seasonId?: string) {
       committee: {
         select: {
           id: true,
-          examDate: true,
-          period: true,
-          student: { select: { name: true } },
+          name: true,
+          branch: true,
+          teacher1: { select: { id: true, name: true } },
+          teacher2: { select: { id: true, name: true } },
+          season: { select: { id: true, name: true } },
         },
       },
     },

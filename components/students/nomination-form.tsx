@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createStudentApplication } from "@/lib/actions/student-actions";
 import {
   BRANCHES,
+  NATIONALITIES,
   studentApplicationSchema,
   type StudentApplicationInput,
 } from "@/lib/validations/student";
@@ -28,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
@@ -48,7 +50,7 @@ export function NominationForm({
     formState: { errors },
   } = useForm<StudentApplicationInput>({
     resolver: zodResolver(studentApplicationSchema),
-    defaultValues: { branch: undefined, age: undefined },
+    defaultValues: { branch: undefined, age: undefined, nationality: undefined },
   });
 
   async function onSubmit(data: StudentApplicationInput) {
@@ -123,6 +125,31 @@ export function NominationForm({
             </div>
 
             <div className="space-y-2">
+              <Label>الجنسية *</Label>
+              <Controller
+                name="nationality"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر الجنسية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {NATIONALITIES.map((nat) => (
+                        <SelectItem key={nat} value={nat}>
+                          {nat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.nationality && (
+                <p className="text-xs text-destructive">{errors.nationality.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <Label>الفرع (عدد الأجزاء المحفوظة) *</Label>
               <Controller
                 name="branch"
@@ -156,19 +183,36 @@ export function NominationForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="parentPhone">رقم ولي الأمر *</Label>
-              <Input id="parentPhone" dir="ltr" placeholder="05xxxxxxxx" {...register("parentPhone")} />
-              {errors.parentPhone && (
-                <p className="text-xs text-destructive">{errors.parentPhone.message}</p>
-              )}
+              <Controller
+                name="parentPhone"
+                control={control}
+                render={({ field }) => (
+                  <PhoneInput
+                    id="parentPhone"
+                    label="رقم ولي الأمر"
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    required
+                    error={errors.parentPhone?.message}
+                  />
+                )}
+              />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">رقم الهاتف</Label>
-              <Input id="phone" dir="ltr" placeholder="05xxxxxxxx" {...register("phone")} />
-              {errors.phone && (
-                <p className="text-xs text-destructive">{errors.phone.message}</p>
-              )}
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <PhoneInput
+                    id="phone"
+                    label="رقم الهاتف (اختياري)"
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    error={errors.phone?.message}
+                  />
+                )}
+              />
             </div>
 
             <div className="space-y-2 sm:col-span-2">
@@ -180,7 +224,7 @@ export function NominationForm({
             </div>
           </div>
 
-          {/* نموذج اختبار الطالب الممسوح (PDF) — المهمة 7 */}
+          {/* نموذج اختبار الطالب الممسوح (PDF) */}
           <div
             className={`space-y-2 rounded-lg border p-4 ${
               requireApplicationFile ? "border-primary/40 bg-primary/5" : ""
