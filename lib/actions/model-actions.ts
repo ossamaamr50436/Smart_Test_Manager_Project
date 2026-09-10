@@ -10,8 +10,9 @@ import {
 } from "@/lib/validations/assessment";
 
 /**
- * إنشاء نموذج اختباري جديد (10 مقاطع) — خاص بأخصائي الاختبارات
- * وفق لائحة اختيار فرع كامل القرآن
+ * إنشاء نموذج اختباري جديد — خاص بأخصائي الاختبارات
+ * وفق لائحة اختيار فرع كامل القرآن (حتى 100 نموذج لكل فرع)
+ * لا تُسند الجهة أثناء الإنشاء إن لم تُحدد (تُربط فقط بالموسم)
  */
 export async function createExamModel(input: ExamModelInput) {
   const user = await requireUser();
@@ -25,25 +26,25 @@ export async function createExamModel(input: ExamModelInput) {
   }
   const data = parsed.data;
 
-  // التحقق من وجود الجهة والموسم
-  const [institution, season] = await Promise.all([
-    prisma.institution.findUnique({
+  // التحقق من وجود الموسم (الجهة اختيارية أثناء الإنشاء)
+  const season = await prisma.examSeason.findUnique({
+    where: { id: data.seasonId },
+    select: { id: true },
+  });
+  if (!season) throw new Error("الموسم غير موجود");
+
+  if (data.institutionId) {
+    const institution = await prisma.institution.findUnique({
       where: { id: data.institutionId },
       select: { id: true },
-    }),
-    prisma.examSeason.findUnique({
-      where: { id: data.seasonId },
-      select: { id: true },
-    }),
-  ]);
-
-  if (!institution) throw new Error("الجهة التعليمية غير موجودة");
-  if (!season) throw new Error("الموسم غير موجود");
+    });
+    if (!institution) throw new Error("الجهة التعليمية غير موجودة");
+  }
 
   // منع تكرار (الجهة، رقم النموذج، الموسم، الفرع)
   const existing = await prisma.examModel.findFirst({
     where: {
-      institutionId: data.institutionId,
+      institutionId: data.institutionId ?? null,
       modelNumber: data.modelNumber,
       seasonId: data.seasonId,
       branch: data.branch,
@@ -58,10 +59,16 @@ export async function createExamModel(input: ExamModelInput) {
 
   const segments = [...data.segments].sort((a, b) => a.number - b.number);
 
-  // التحقق من ترقيم المقاطع المتسلسل 1-10
+  // التحقق من ترقيم المقاطع المتسلسل حتى عدد المقاطع المختار
+  const segmentsCount = data.segmentsCount ?? segments.length;
+  if (segments.length !== segmentsCount) {
+    throw new Error(
+      `عدد المقاطع المحدد (${segmentsCount}) لا يطابق المقاطع المُدخلة (${segments.length})`
+    );
+  }
   segments.forEach((seg, idx) => {
     if (seg.number !== idx + 1) {
-      throw new Error("يجب ترقيم المقاطع تسلسلياً من 1 إلى 10");
+      throw new Error(`يجب ترقيم المقاطع تسلسلياً من 1 إلى ${segmentsCount}`);
     }
   });
 
@@ -71,7 +78,8 @@ export async function createExamModel(input: ExamModelInput) {
         modelNumber: data.modelNumber,
         branch: data.branch,
         detailsJSON: { segments },
-        institutionId: data.institutionId,
+        segmentsCount,
+        institutionId: data.institutionId ?? null,
         seasonId: data.seasonId,
       },
     });
@@ -84,8 +92,8 @@ export async function createExamModel(input: ExamModelInput) {
           modelId: created.id,
           modelNumber: data.modelNumber,
           branch: data.branch,
-          institutionId: data.institutionId,
-          segmentsCount: segments.length,
+          institutionId: data.institutionId ?? null,
+          segmentsCount,
         }),
       },
     });
@@ -122,10 +130,24 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
   });
   if (!existing) throw new Error("النموذج غير موجود");
 
+  if (data.institutionId) {
+    const institution = await prisma.institution.findUnique({
+      where: { id: data.institutionId },
+      select: { id: true },
+    });
+    if (!institution) throw new Error("الجهة التعليمية غير موجودة");
+  }
+
   const segments = [...data.segments].sort((a, b) => a.number - b.number);
+  const segmentsCount = data.segmentsCount ?? segments.length;
+  if (segments.length !== segmentsCount) {
+    throw new Error(
+      `عدد المقاطع المحدد (${segmentsCount}) لا يطابق المقاطع المُدخلة (${segments.length})`
+    );
+  }
   segments.forEach((seg, idx) => {
     if (seg.number !== idx + 1) {
-      throw new Error("يجب ترقيم المقاطع تسلسلياً من 1 إلى 10");
+      throw new Error(`يجب ترقيم المقاطع تسلسلياً من 1 إلى ${segmentsCount}`);
     }
   });
 
@@ -136,7 +158,8 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
         modelNumber: data.modelNumber,
         branch: data.branch,
         detailsJSON: { segments },
-        institutionId: data.institutionId,
+        segmentsCount,
+        institutionId: data.institutionId ?? null,
         seasonId: data.seasonId,
       },
     });
@@ -149,6 +172,7 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
           modelId,
           modelNumber: data.modelNumber,
           branch: data.branch,
+          segmentsCount,
         }),
       },
     });
@@ -209,4 +233,123 @@ export async function deleteExamModel(modelId: string) {
   revalidatePath("/test-specialist/models");
 
   return { success: true };
+}
+
+// ============================================================
+// المهمة 3: توزيع النماذج على اللجان (نطاق محدد لكل لجنة)
+// اللجنة = جلسة اختبار (ExamSession)
+// ============================================================
+
+export async function allocateCommitteeModelRange(input: {
+  committeeId: string;
+  branch: string;
+  startModelNumber: number;
+  endModelNumber: number;
+}) {
+  const user = await requireUser();
+
+  // عزل الصلاحيات: الأخصائي فقط
+  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+
+  if (!input.committeeId || typeof input.committeeId !== "string" || input.committeeId.length > 64) {
+    throw new Error("معرّف اللجنة غير صالح");
+  }
+
+  const validBranches = ["5", "10", "15", "20", "25", "30"];
+  if (!validBranches.includes(input.branch)) {
+    throw new Error("الفرع غير صالح");
+  }
+
+  const start = Number(input.startModelNumber);
+  const end = Number(input.endModelNumber);
+  if (!Number.isInteger(start) || !Number.isInteger(end)) {
+    throw new Error("أرقام النماذج يجب أن تكون أعداداً صحيحة");
+  }
+  if (start < 1 || end > 100 || start > end) {
+    throw new Error("نطاق النماذج يجب أن يكون بين 1 و 100 مع بداية أصغر من النهاية");
+  }
+
+  // التحقق من وجود اللجنة (الجلسة) وجلب موسمها
+  const committee = await prisma.examSession.findUnique({
+    where: { id: input.committeeId },
+    select: { id: true, seasonId: true },
+  });
+  if (!committee) throw new Error("اللجنة غير موجودة");
+
+  // التحقق من عدم تكرار نطاق متداخل لنفس الفرع على لجان أخرى
+  const overlapping = await prisma.committeeModelAllocation.findFirst({
+    where: {
+      branch: input.branch,
+      seasonId: committee.seasonId,
+      committeeId: { not: input.committeeId },
+      startModelNumber: { lte: end },
+      endModelNumber: { gte: start },
+    },
+    select: { id: true },
+  });
+  if (overlapping) {
+    throw new Error("يوجد توزيع سابق يتداخل مع هذا النطاق على لجنة أخرى لنفس الفرع");
+  }
+
+  const allocation = await prisma.$transaction(async (tx) => {
+    const result = await tx.committeeModelAllocation.upsert({
+      where: {
+        committeeId_branch: {
+          committeeId: input.committeeId,
+          branch: input.branch,
+        },
+      },
+      update: { startModelNumber: start, endModelNumber: end },
+      create: {
+        committeeId: input.committeeId,
+        branch: input.branch,
+        startModelNumber: start,
+        endModelNumber: end,
+        seasonId: committee.seasonId,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.UPDATE,
+        details: JSON.stringify({
+          entity: "CommitteeModelAllocation",
+          committeeId: input.committeeId,
+          branch: input.branch,
+          startModelNumber: start,
+          endModelNumber: end,
+          seasonId: committee.seasonId,
+        }),
+      },
+    });
+    return result;
+  });
+
+  revalidatePath("/test-specialist/committees");
+  revalidatePath("/test-specialist/models");
+
+  return { success: true, allocationId: allocation.id };
+}
+
+/**
+ * جلب توزيعات النماذج على اللجان
+ */
+export async function getCommitteeModelAllocations(seasonId?: string) {
+  const user = await requireUser();
+  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+
+  return prisma.committeeModelAllocation.findMany({
+    where: seasonId ? { seasonId } : undefined,
+    include: {
+      committee: {
+        select: {
+          id: true,
+          examDate: true,
+          period: true,
+          student: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 }

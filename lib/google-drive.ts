@@ -68,6 +68,18 @@ export async function uploadFileToDrive(
   fileName: string,
   mimeType = "application/pdf"
 ): Promise<{ fileId: string; webViewLink: string }> {
+  return uploadFileToDriveFolder(fileBuffer, fileName, mimeType);
+}
+
+/**
+ * رفع ملف داخل مجلد محدد على Drive (مثل مجلد خاص بجهة تعليمية)
+ */
+export async function uploadFileToDriveFolder(
+  fileBuffer: Buffer,
+  fileName: string,
+  mimeType = "application/pdf",
+  parentFolderId?: string
+): Promise<{ fileId: string; webViewLink: string }> {
   // حد أقصى للحجم لمنع DoS
   if (fileBuffer.byteLength > MAX_UPLOAD_SIZE) {
     throw new Error(`حجم الملف (${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB) يتجاوز الحد الأقصى (20MB)`);
@@ -75,12 +87,14 @@ export async function uploadFileToDrive(
 
   const auth = getAuthClient();
   const drive = google.drive({ version: "v3", auth });
-  const folderId = getDriveFolderId();
+  const parents = parentFolderId
+    ? [parentFolderId]
+    : [getDriveFolderId()];
 
   const response = await drive.files.create({
     requestBody: {
       name: sanitizeFileName(fileName, "file"),
-      parents: [folderId],
+      parents,
       mimeType,
     },
     media: {
@@ -98,6 +112,38 @@ export async function uploadFileToDrive(
     fileId: response.data.id,
     webViewLink: response.data.webViewLink ?? "",
   };
+}
+
+/**
+ * البحث عن مجلد فرعي داخل مجلد الجذر، وإن لم يوجد يُنشأ (مجلد خاص بجهة)
+ */
+export async function ensureDriveFolder(folderName: string): Promise<string> {
+  const drive = google.drive({ version: "v3", auth: getAuthClient() });
+  const parentId = getDriveFolderId();
+  const safeName = sanitizeFileName(folderName, "entity");
+
+  const list = await drive.files.list({
+    q: `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and name='${safeName.replace(/'/g, "\\'")}' and trashed=false`,
+    fields: "files(id, name)",
+    pageSize: 1,
+  });
+
+  const existing = list.data.files?.[0];
+  if (existing?.id) return existing.id;
+
+  const created = await drive.files.create({
+    requestBody: {
+      name: safeName,
+      parents: [parentId],
+      mimeType: "application/vnd.google-apps.folder",
+    },
+    fields: "id",
+  });
+
+  if (!created.data.id) {
+    throw new Error("فشل إنشاء المجلد على Google Drive");
+  }
+  return created.data.id;
 }
 
 /**

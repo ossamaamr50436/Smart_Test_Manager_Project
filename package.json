@@ -13,6 +13,7 @@
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "fix:users": "tsx scripts/apply-user-fixes.ts",
     "server": "node server/index.js",
     "dev:all": "concurrently -n next,express -c blue,yellow \"next dev\" \"node server/index.js\"",
     "test:security": "tsx --test tests/security/*.test.ts",

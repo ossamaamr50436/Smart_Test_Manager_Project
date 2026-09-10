@@ -11,6 +11,7 @@ import {
   updatePlatformSettings,
   updateTemplateSettings,
   updateAppearanceSettings,
+  updateStudentApplicationFileSetting,
 } from "@/lib/actions/settings-actions";
 
 type Props = {
@@ -21,6 +22,7 @@ type Props = {
   initialSecondaryColor: string;
   initialWhatsappNumber: string | null;
   initialDarkModeEnabled: boolean;
+  initialRequireStudentApplicationFile: boolean;
 };
 
 export function AdminSettingsForm({
@@ -31,6 +33,7 @@ export function AdminSettingsForm({
   initialSecondaryColor,
   initialWhatsappNumber,
   initialDarkModeEnabled,
+  initialRequireStudentApplicationFile,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -43,6 +46,9 @@ export function AdminSettingsForm({
   const [secondaryColor, setSecondaryColor] = useState(initialSecondaryColor);
   const [whatsappNumber, setWhatsappNumber] = useState(initialWhatsappNumber ?? "");
   const [darkModeEnabled, setDarkModeEnabled] = useState(initialDarkModeEnabled);
+  const [requireStudentApplicationFile, setRequireStudentApplicationFile] = useState(
+    initialRequireStudentApplicationFile
+  );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +129,20 @@ export function AdminSettingsForm({
           darkModeEnabled,
         });
         setSuccess("تم حفظ إعدادات المظهر والحوكمة بنجاح");
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
+      }
+    });
+  }
+
+  async function handleSaveApplicationFileSetting() {
+    setError("");
+    setSuccess("");
+    startTransition(async () => {
+      try {
+        await updateStudentApplicationFileSetting(requireStudentApplicationFile);
+        setSuccess("تم حفظ إعداد نموذج اختبار الطالب بنجاح");
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
@@ -284,8 +304,27 @@ export function AdminSettingsForm({
             />
           </div>
 
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <Label htmlFor="requireAppFile">نموذج اختبار الطالب (PDF)</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                إلزام الجهة المُرشِّحة برفع نموذج الاختبار الممسوح ضوئياً عند
+                ترشيح الطالب
+              </p>
+            </div>
+            <Switch
+              id="requireAppFile"
+              checked={requireStudentApplicationFile}
+              onCheckedChange={setRequireStudentApplicationFile}
+            />
+          </div>
+
           <Button onClick={handleSaveAppearance} disabled={isPending}>
             {isPending ? "جارٍ الحفظ..." : "حفظ إعدادات المظهر والحوكمة"}
+          </Button>
+
+          <Button onClick={handleSaveApplicationFileSetting} disabled={isPending}>
+            {isPending ? "جارٍ الحفظ..." : "حفظ إعداد نموذج اختبار الطالب"}
           </Button>
         </CardContent>
       </Card>

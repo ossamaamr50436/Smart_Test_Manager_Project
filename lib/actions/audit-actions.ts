@@ -6,7 +6,7 @@ import { Role, AuditAction, Prisma } from "@prisma/client";
 
 // ============================================================
 // سجل التدقيق (المادة 8 — عزل الصلاحيات)
-// لا يظهر إلا للمستخدمين من نوع ADMIN أو TEST_SPECIALIST
+// لا يظهر إلا للمستخدمين من نوع ADMIN فقط
 // ============================================================
 
 export type AuditLogFilters = {
@@ -37,13 +37,13 @@ export type AuditLogResult = {
 
 /**
  * جلب سجلات التدقيق مع التصفية والبحث
- * عزل الصلاحيات: ADMIN و TEST_SPECIALIST فقط
+ * عزل الصلاحيات: ADMIN فقط
  */
 export async function getAuditLogs(
   filters: AuditLogFilters = {}
 ): Promise<AuditLogResult> {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+  requireRole(user, [Role.ADMIN]);
 
   // التحقق من قيم ترقيم الصفحات (منع DoS عبر قيم ضخمة)
   const rawPage = Number(filters.page ?? 1);
@@ -65,16 +65,6 @@ export async function getAuditLogs(
   }
 
   if (filters.userId) {
-    // منع TEST_SPECIALIST من تصفية سجلات ADMIN (تدرّج الصلاحيات)
-    if (user.role === Role.TEST_SPECIALIST) {
-      const targetUser = await prisma.user.findUnique({
-        where: { id: filters.userId },
-        select: { role: true },
-      });
-      if (targetUser?.role === Role.ADMIN) {
-        throw new Error("غير مصرح: لا يمكنك عرض سجلات المسؤول");
-      }
-    }
     where.userId = filters.userId;
   }
 
@@ -132,7 +122,7 @@ export async function getAuditLogs(
  */
 export async function getAuditLogStats() {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+  requireRole(user, [Role.ADMIN]);
 
   const stats = await prisma.auditLog.groupBy({
     by: ["action"],
@@ -150,7 +140,7 @@ export async function getAuditLogStats() {
  */
 export async function getAuditLogUsers() {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+  requireRole(user, [Role.ADMIN]);
 
   return prisma.user.findMany({
     select: { id: true, name: true, email: true },

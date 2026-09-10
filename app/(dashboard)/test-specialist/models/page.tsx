@@ -28,13 +28,14 @@ export default async function SpecialistModelsPage() {
     orderBy: { startDate: "desc" },
   });
 
-  // جميع النماذج (20 نموذج لكل فرع)
+  // جميع النماذج (حتى 100 نموذج لكل فرع)
   const models = await prisma.examModel.findMany({
     select: {
       id: true,
       modelNumber: true,
       branch: true,
       detailsJSON: true,
+      segmentsCount: true,
       institution: { select: { id: true, name: true } },
       season: { select: { id: true, name: true } },
     },
@@ -46,7 +47,7 @@ export default async function SpecialistModelsPage() {
       <div>
         <h1 className="text-2xl font-bold">إدارة النماذج الاختبارية</h1>
         <p className="mt-1 text-muted-foreground">
-          وفق لائحة اختيار فرع كامل القرآن — 20 نموذجاً لكل فرع، و10 مقاطع لكل نموذج
+          وفق لائحة اختيار فرع كامل القرآن — حتى 100 نموذج لكل فرع، مع عدد مقاطع من 1 إلى 30
         </p>
       </div>
 

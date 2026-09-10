@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
@@ -24,31 +25,38 @@ export type PlatformSettings = {
   secondaryColor: string;
   whatsappNumber: string | null;
   darkModeEnabled: boolean;
+  requireStudentApplicationFile: boolean;
 };
 
 /**
  * جلب إعدادات المنصة (دالة عامة)
  * استعلام/إنشاء ذري عبر upsert — يمنع سباق الإنشاء أثناء توليد الصفحات المسبق
+ *
+ * تحسين الأداء: React.cache يضمن تنفيذ استعلام واحد فقط لكل طلب
+ * (تُستدعى هذه الدالة من اللوحة، صفحة الدخول، وزر الإصدار في آن واحد)
  */
-export async function getPlatformSettings(): Promise<PlatformSettings> {
-  const settings = await prisma.appSettings.upsert({
-    where: { id: "singleton" },
-    update: {},
-    create: { id: "singleton" },
-  });
+export const getPlatformSettings = cache(
+  async (): Promise<PlatformSettings> => {
+    const settings = await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      update: {},
+      create: { id: "singleton" },
+    });
 
-  return {
-    platformName: settings.platformName,
-    logoUrl: settings.logoUrl,
-    logoFileId: settings.logoFileId,
-    useTemplateMode: settings.useTemplateMode,
-    templateFileId: settings.templateFileId,
-    primaryColor: settings.primaryColor,
-    secondaryColor: settings.secondaryColor,
-    whatsappNumber: settings.whatsappNumber,
-    darkModeEnabled: settings.darkModeEnabled,
-  };
-}
+    return {
+      platformName: settings.platformName,
+      logoUrl: settings.logoUrl,
+      logoFileId: settings.logoFileId,
+      useTemplateMode: settings.useTemplateMode,
+      templateFileId: settings.templateFileId,
+      primaryColor: settings.primaryColor,
+      secondaryColor: settings.secondaryColor,
+      whatsappNumber: settings.whatsappNumber,
+      darkModeEnabled: settings.darkModeEnabled,
+      requireStudentApplicationFile: settings.requireStudentApplicationFile,
+    };
+  }
+);
 
 /**
  * تحديث إعدادات المنصة (ADMIN فقط — المادة 8)
@@ -264,6 +272,41 @@ export async function updateAppearanceSettings(input: {
   revalidatePath("/");
   revalidatePath("/");
   revalidatePath("/login");
+
+  return { success: true };
+}
+
+/**
+ * تفعيل/تعطيل رفع نموذج اختبار الطالب (PDF) في طلب الترشيح
+ * - عند التفعيل يصبح رفع النموذج إجبارياً على الجهة المُرشِّحة
+ * - السجلات القديمة التي لم تُرفع تبقى دون ملف حتى يحدث تحديث
+ */
+export async function updateStudentApplicationFileSetting(
+  enabled: boolean
+): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+
+  await checkRateLimit(`settings-update:${user.id}`, 10);
+
+  await prisma.appSettings.update({
+    where: { id: "singleton" },
+    data: { requireStudentApplicationFile: enabled },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "AppSettings",
+        requireStudentApplicationFile: enabled,
+      }),
+    },
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/");
 
   return { success: true };
 }

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
 import { CommitteeForm } from "@/components/specialist/committee-form";
+import { CommitteeModelAllocation } from "@/components/specialist/committee-model-allocation";
 import { getCachedExaminers } from "@/lib/cache";
 import {
   Card,
@@ -36,12 +37,40 @@ export default async function CommitteesPage() {
   // جميع المعلمين (المختبرين) — مخزّن مؤقتاً (شبه ثابت)
   const examiners = await getCachedExaminers();
 
+  // اللجان (الجلسات) القائمة مع توزيعات النماذج الخاصة بها
+  const sessions = await prisma.examSession.findMany({
+    where: { status: "SCHEDULED" },
+    select: {
+      id: true,
+      examDate: true,
+      period: true,
+      student: { select: { name: true, branch: true } },
+      modelAllocations: {
+        select: {
+          id: true,
+          branch: true,
+          startModelNumber: true,
+          endModelNumber: true,
+        },
+      },
+    },
+    orderBy: { examDate: "asc" },
+  });
+
+  const committees = sessions.map((s) => ({
+    id: s.id,
+    label: `${s.student.name} — ${new Date(s.examDate).toLocaleDateString("ar-SA", { day: "numeric", month: "long", year: "numeric" })} — ${s.period}`,
+    branch: s.student.branch,
+    allocations: s.modelAllocations,
+  }));
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">تشكيل اللجان</h1>
         <p className="mt-1 text-muted-foreground">
-          وزّع الطلاب المقبولين على لجان مكوّنة من معلمين وتاريخ محدد
+          وزّع الطلاب المقبولين على لجان مكوّنة من معلمين وتاريخ محدد، وحدد نطاق
+          النماذج لكل لجنة
         </p>
       </div>
 
@@ -84,6 +113,9 @@ export default async function CommitteesPage() {
           examiners={examiners}
         />
       </div>
+
+      {/* توزيع النماذج على اللجان (المهمة 3) */}
+      <CommitteeModelAllocation committees={committees} />
     </div>
   );
 }

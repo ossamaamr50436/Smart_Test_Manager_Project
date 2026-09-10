@@ -14,6 +14,9 @@ import {
 } from "@/lib/validations/student";
 import { getCurrentSeason } from "./season-actions";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getPlatformSettings } from "./settings-actions";
+import { uploadFileToDriveFolder, ensureDriveFolder } from "@/lib/google-drive";
+import { validateFileUpload } from "@/lib/upload-security";
 
 /**
  * تسجيل حدث في Audit Log
@@ -33,8 +36,17 @@ async function recordAudit(userId: string, action: AuditAction, details: unknown
  * 1) ترشيح طالب جديد — خاص بالجهة التعليمية
  * - يقبل الطالب تلقائياً بربط institutionId بالجهة المرتبطة بحساب المستخدم
  * - الحالة PENDING + إشعار لأخصائي الاختبارات
+ * - يرفع نموذج الاختبار الممسوح (PDF) إلى مجلد الجهة على Google Drive
+ *   عند تفعيل الإعداد العام requireStudentApplicationFile
  */
-export async function createStudentApplication(input: StudentApplicationInput) {
+export async function createStudentApplication(
+  input: StudentApplicationInput,
+  applicationFile?: {
+    buffer: ArrayBuffer;
+    fileName: string;
+    mimeType: string;
+  }
+) {
   const user = await requireUser();
 
   // عزل الصلاحيات: الجهة التعليمية فقط
@@ -53,6 +65,53 @@ export async function createStudentApplication(input: StudentApplicationInput) {
   }
   const data = parsed.data;
 
+  // إعدادات المنصة: هل رفع نموذج اختبار الطالب إجباري؟
+  const settings = await getPlatformSettings();
+  const requireFile = settings.requireStudentApplicationFile;
+
+  let applicationFileId: string | null = null;
+  let applicationFileUrl: string | null = null;
+
+  if (requireFile || applicationFile) {
+    if (!applicationFile) {
+      throw new Error("يجب رفع نموذج اختبار الطالب (PDF) لإكمال الترشيح");
+    }
+
+    // التحقق من أن الملف PDF فعلياً وبحد أقصى للحجم (OWASP — منع DoS)
+    const buffer = Buffer.from(applicationFile.buffer);
+    try {
+      validateFileUpload(buffer, applicationFile.mimeType, applicationFile.fileName, {
+        maxBytes: 20 * 1024 * 1024,
+        allowedMimes: ["application/pdf"],
+      });
+    } catch {
+      throw new Error("نموذج الاختبار يجب أن يكون ملف PDF (الحد الأقصى 20MB)");
+    }
+
+    // مجلد خاص بالجهة داخل مجلد الجذر (يُنشأ عند الحاجة)
+    const institution = await prisma.institution.findUnique({
+      where: { id: user.institutionId },
+      select: { name: true },
+    });
+    if (!institution) {
+      throw new Error("الجهة التعليمية غير موجودة");
+    }
+
+    try {
+      const folderId = await ensureDriveFolder(institution.name);
+      const uploaded = await uploadFileToDriveFolder(
+        buffer,
+        `نموذج اختبار الطالب (${data.name}).pdf`,
+        "application/pdf",
+        folderId
+      );
+      applicationFileId = uploaded.fileId;
+      applicationFileUrl = uploaded.webViewLink;
+    } catch {
+      throw new Error("تعذر رفع نموذج الاختبار على Google Drive — تحقق من اتصال النظام ثم أعد المحاولة");
+    }
+  }
+
   const student = await prisma.student.create({
     data: {
       name: data.name,
@@ -64,6 +123,8 @@ export async function createStudentApplication(input: StudentApplicationInput) {
       phone: data.phone ?? null,
       status: StudentStatus.PENDING,
       institutionId: user.institutionId,
+      applicationFileId,
+      applicationFileUrl,
     },
   });
 

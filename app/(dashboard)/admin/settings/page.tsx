@@ -33,6 +33,7 @@ export default async function AdminSettingsPage() {
         initialSecondaryColor={settings.secondaryColor}
         initialWhatsappNumber={settings.whatsappNumber}
         initialDarkModeEnabled={settings.darkModeEnabled}
+        initialRequireStudentApplicationFile={settings.requireStudentApplicationFile}
       />
     </div>
   );

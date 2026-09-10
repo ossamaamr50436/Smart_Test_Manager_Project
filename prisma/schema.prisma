@@ -147,6 +147,10 @@ model Student {
   examSessions ExamSession[]
   certificates Certificate[]
 
+  // ملف ترشيح الطالب (PDF) — يُرفع إلى Google Drive (المهمة 7)
+  applicationFileId  String? // معرف الملف في Google Drive
+  applicationFileUrl String? // رابط العرض للملف
+
   @@index([institutionId])
   @@index([status])
   @@map("students")
@@ -165,23 +169,25 @@ model ExamSeason {
 
   sessions ExamSession[]
   models   ExamModel[]
+  modelAllocations CommitteeModelAllocation[]
 
   @@map("exam_seasons")
 }
 
 // ------------------------------------------------------------
-// النماذج الاختبارية (20 نموذج لكل فرع)
+// النماذج الاختبارية (100 نموذج لكل فرع)
 // وفق لائحة اختيار فرع كامل القرآن
 // ------------------------------------------------------------
 model ExamModel {
   id            String @id @default(cuid())
-  modelNumber   Int // 1-20 لكل فرع
+  modelNumber   Int // 1-100 لكل فرع
   branch        String // الفرع: 5/10/15/20/25/30 جزءاً
-  detailsJSON   Json // 10 مقاطع — كل مقطع: {number, fromText, fromSurah, fromVerse, toText, toSurah, toVerse}
-  institutionId String
+  detailsJSON   Json // المقاطع — حتى 30 مقطعاً: {number, fromText, fromSurah, fromVerse, toText, toSurah, toVerse}
+  segmentsCount Int    @default(10) // عدد مقاطع النموذج (1-30)
+  institutionId String? // اختياري — لا تُسند لجهة أثناء الإنشاء إن لم يُحدد (تُربط فقط بالموسم)
   seasonId      String // الموسم الذي يتبع له النموذج (المادة 6)
 
-  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  institution Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   season      ExamSeason  @relation(fields: [seasonId], references: [id])
   assessments Assessment[]
   sessions    ExamSession[]
@@ -217,12 +223,34 @@ model ExamSession {
 
   assessments   Assessment[]
   notifications Notification[]
+  modelAllocations CommitteeModelAllocation[]
 
   @@index([studentId])
   @@index([teacher1Id])
   @@index([teacher2Id])
   @@unique([seasonId, modelId])
   @@map("exam_sessions")
+}
+
+// ------------------------------------------------------------
+// توزيع النماذج على اللجان (نطاق محدد لكل لجنة)
+// اللجنة = جلسة اختبار (ExamSession) — تُحدد نطاق أرقام النماذج للفرع
+// ------------------------------------------------------------
+model CommitteeModelAllocation {
+  id               String   @id @default(cuid())
+  committeeId      String // معرف الجلسة (اللجنة)
+  branch           String // الفرع: 5/10/15/20/25/30 جزءاً
+  startModelNumber Int // رقم النموذج الأول
+  endModelNumber   Int // رقم النموذج الأخير
+  seasonId         String
+  createdAt        DateTime @default(now())
+
+  committee ExamSession @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  season    ExamSeason  @relation(fields: [seasonId], references: [id])
+
+  @@unique([committeeId, branch])
+  @@index([seasonId])
+  @@map("committee_model_allocations")
 }
 
 // ------------------------------------------------------------
@@ -335,6 +363,7 @@ model AppSettings {
   secondaryColor  String   @default("#d3bb8b") // اللون الثانوي للمنصة
   whatsappNumber  String?  // رقم الدعم الفني (ديناميكي)
   darkModeEnabled Boolean  @default(false) // تفعيل الوضع المظلم
+  requireStudentApplicationFile Boolean @default(false) // إلزام الجهات برفع ملف PDF عند ترشيح الطالب
   updatedAt       DateTime @updatedAt
 
   @@map("app_settings")

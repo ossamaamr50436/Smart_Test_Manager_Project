@@ -11,11 +11,8 @@ export const metadata: Metadata = {
 export default async function AuditLogPage() {
   const session = await auth();
 
-  // عزل الصلاحيات: ADMIN و TEST_SPECIALIST فقط (المادة 8)
-  if (
-    !session?.user ||
-    (session.user.role !== Role.ADMIN && session.user.role !== Role.TEST_SPECIALIST)
-  ) {
+  // عزل الصلاحيات: ADMIN فقط (المادة 8)
+  if (!session?.user || session.user.role !== Role.ADMIN) {
     redirect("/");
   }
 

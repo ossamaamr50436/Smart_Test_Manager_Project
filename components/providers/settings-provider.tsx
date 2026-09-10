@@ -44,6 +44,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         secondaryColor: "#d3bb8b",
         whatsappNumber: null,
         darkModeEnabled: false,
+        requireStudentApplicationFile: false,
       });
     }
   }

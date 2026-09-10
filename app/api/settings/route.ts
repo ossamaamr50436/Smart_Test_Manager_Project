@@ -19,6 +19,7 @@ export async function GET() {
         secondaryColor: "#d3bb8b",
         whatsappNumber: null,
         darkModeEnabled: false,
+        requireStudentApplicationFile: false,
       },
       { status: 200 }
     );

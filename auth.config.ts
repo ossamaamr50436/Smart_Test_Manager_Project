@@ -88,8 +88,23 @@ export const authConfig = {
       }
 
       // صفحات عامة لكل المستخدمين المسجلين
-      if (path === "/audit-log" || path === "/notifications") {
+      if (path === "/notifications") {
         return true;
+      }
+
+      // سجل التدقيق — للأدمن فقط (المادة 8 / عزل الصلاحيات)
+      if (path === "/audit-log") {
+        return role === "ADMIN";
+      }
+
+      // التقارير والتحليلات — مشتركة للأدمن ورئيس الشؤون والأخصائي
+      if (path === "/admin/reports") {
+        return role === "ADMIN" || role === "HEAD_OF_AFFAIRS" || role === "TEST_SPECIALIST";
+      }
+
+      // إدارة الجهات التعليمية — خاص بالأخصائي/الأدمن
+      if (path.startsWith("/specialist/")) {
+        return role === "TEST_SPECIALIST" || role === "ADMIN";
       }
 
       // مسار ليس ضمن منطقة دوره → وجّهه لصفحته

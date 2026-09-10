@@ -22,13 +22,16 @@ const CLUSTER = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "eu";
 
 let server: Pusher | null = null;
 
-/** عميل Pusher منفرد (Singleton) — جانب الخادم فقط */
-function getServer(): Pusher {
+/**
+ * عميل Pusher منفرد (Singleton) — جانب الخادم فقط
+ * إصلاح أمني/أداء: إذا كانت بيانات Pusher مفقودة (بيئة تطوير/إنتاج بلا إعدادات)
+ * يعيد null بدل إلقاء استثناء — فتتعطل الوظائف بهدوء بدل سلسلة 403 في وحدة
+ * تحكم المتصفح (المادة 10/2: لا فشل صاخب عند غياب خدمة اختيارية).
+ */
+function getServer(): Pusher | null {
   if (server) return server;
   if (!APP_ID || !KEY || !SECRET) {
-    throw new Error(
-      "إعدادات Pusher ناقصة: يجب ضبط PUSHER_APP_ID و NEXT_PUBLIC_PUSHER_KEY و PUSHER_SECRET"
-    );
+    return null;
   }
   server = new Pusher({
     appId: APP_ID,
@@ -63,8 +66,9 @@ export async function pushUserNotification(
   userId: string,
   payload: Record<string, unknown>
 ): Promise<void> {
-  if (!process.env.PUSHER_APP_ID) return; // بيئة بلا إعدادات — لا بث
-  await getServer().trigger(userChannelNameFor(userId), "notification:new", payload);
+  const s = getServer();
+  if (!s) return; // بيئة بلا إعدادات — لا بث (لا 403 ولا فشل صاخب)
+  await s.trigger(userChannelNameFor(userId), "notification:new", payload);
 }
 
 /**
@@ -75,8 +79,9 @@ export async function broadcastAssessmentUpdate(
   sessionId: string,
   payload: Record<string, unknown>
 ): Promise<void> {
-  if (!process.env.PUSHER_APP_ID) return; // بيئة بلا إعدادات — لا بث
-  await getServer().trigger(channelNameFor(sessionId), "assessment:update", payload);
+  const s = getServer();
+  if (!s) return; // بيئة بلا إعدادات — لا بث
+  await s.trigger(channelNameFor(sessionId), "assessment:update", payload);
 }
 
 /**
@@ -91,9 +96,12 @@ export async function authenticateChannel(
   requestChannel: string,
   userId: string
 ): Promise<{ auth: string }> {
+  const s = getServer();
+  if (!s) throw new Error("Pusher غير مفعّل في هذه البيئة");
+
   // 1) القناة الخاصة بإشعارات المستخدم: يُسمح للمستخدم بقناته فقط
   if (requestChannel === userChannelNameFor(userId)) {
-    return getServer().authorizeChannel(requestChannel, socketId);
+    return s.authorizeChannel(requestChannel, socketId);
   }
 
   // 2) قناة التقييم: فقط المقيّمون في لجنة هذه الجلسة (المادة 8/2)
@@ -114,7 +122,7 @@ export async function authenticateChannel(
       throw new Error("غير مصرح: لا يمكنك الاشتراك في جلسة ليست من لجنتك");
     }
 
-    return getServer().authorizeChannel(requestChannel, socketId);
+    return s.authorizeChannel(requestChannel, socketId);
   }
 
   // 3) أي قناة أخرى: مرفوض

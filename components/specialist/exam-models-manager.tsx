@@ -43,9 +43,10 @@ type ModelRow = {
   id: string;
   modelNumber: number;
   branch: string;
-  institution: { id: string; name: string };
+  institution: { id: string; name: string } | null;
   season: { id: string; name: string };
   detailsJSON: unknown;
+  segmentsCount?: number;
   _count?: { assessments?: number; sessions?: number };
 };
 
@@ -65,8 +66,10 @@ const SEGMENT_FIELDS: {
   { key: "toVerse", label: "الآية (النهاية)", placeholder: "مثال: 28", type: "number" },
 ];
 
-function emptySegments(): Segment[] {
-  return Array.from({ length: 10 }, (_, i) => ({
+const MAX_SEGMENTS = 30;
+
+function emptySegments(count: number): Segment[] {
+  return Array.from({ length: count }, (_, i) => ({
     number: i + 1,
     fromText: "",
     fromSurah: "",
@@ -75,6 +78,12 @@ function emptySegments(): Segment[] {
     toSurah: "",
     toVerse: "",
   }));
+}
+
+function segmentsCountFor(m: ModelRow): number {
+  if (m.segmentsCount) return m.segmentsCount;
+  const raw = m.detailsJSON as { segments?: unknown[] } | null;
+  return raw?.segments?.length ?? 10;
 }
 
 export function ExamModelsManager({
@@ -96,8 +105,21 @@ export function ExamModelsManager({
   const [branch, setBranch] = useState<Branch>("5");
   const [institutionId, setInstitutionId] = useState("");
   const [seasonId, setSeasonId] = useState("");
-  const [segments, setSegments] = useState<Segment[]>(emptySegments());
+  const [segmentsCount, setSegmentsCount] = useState(10);
+  const [segments, setSegments] = useState<Segment[]>(emptySegments(10));
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  function resizeSegments(count: number) {
+    setSegments((prev) => {
+      if (prev.length === count) return prev;
+      if (prev.length > count) return prev.slice(0, count);
+      const next = [...prev];
+      for (let i = prev.length; i < count; i++) {
+        next.push({ number: i + 1, fromText: "", fromSurah: "", fromVerse: "", toText: "", toSurah: "", toVerse: "" });
+      }
+      return next;
+    });
+  }
 
   function resetForm() {
     setEditingId(null);
@@ -105,7 +127,8 @@ export function ExamModelsManager({
     setBranch("5");
     setInstitutionId("");
     setSeasonId("");
-    setSegments(emptySegments());
+    setSegmentsCount(10);
+    setSegments(emptySegments(10));
     setError("");
     setSuccess("");
   }
@@ -116,10 +139,13 @@ export function ExamModelsManager({
     setEditingId(m.id);
     setModelNumber(String(m.modelNumber));
     setBranch((BRANCHES.includes(m.branch as Branch) ? m.branch : "5") as Branch);
+    const count = segmentsCountFor(m);
+    const maxCount = Math.min(Math.max(count, 1), MAX_SEGMENTS);
+    setSegmentsCount(maxCount);
     setSegments(() => {
       const raw = m.detailsJSON as { segments?: Segment[] } | null;
       const saved = raw?.segments ?? [];
-      return Array.from({ length: 10 }, (_, i) => {
+      return Array.from({ length: maxCount }, (_, i) => {
         const s = saved[i];
         return {
           number: i + 1,
@@ -132,8 +158,7 @@ export function ExamModelsManager({
         };
       });
     });
-    // إبقاء الجهة والموسم كما هما للنموذج (نعرضهما لكن نحتفظ بمعرفي النموذج)
-    setInstitutionId(m.institution.id);
+    setInstitutionId(m.institution?.id ?? "");
     setSeasonId(m.season.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -147,7 +172,6 @@ export function ExamModelsManager({
   }
 
   function buildInput() {
-    if (!institutionId) throw new Error("اختر الجهة التعليمية");
     if (!seasonId) throw new Error("اختر الموسم");
 
     for (const seg of segments) {
@@ -159,15 +183,16 @@ export function ExamModelsManager({
         !seg.toSurah.trim() ||
         !seg.toVerse
       ) {
-        throw new Error(`المقطع ${seg.number} غير مكتمل — املأ جميع الحقول السبعة`);
+        throw new Error(`المقطع ${seg.number} غير مكتمل — املأ جميع الحقول الستة`);
       }
     }
 
     return {
       modelNumber: Number(modelNumber),
       branch: branch as Branch,
-      institutionId,
+      institutionId: institutionId && institutionId !== "__none__" ? institutionId : null,
       seasonId,
+      segmentsCount: segments.length,
       segments: segments.map((s) => ({
         number: s.number,
         fromText: s.fromText.trim(),
@@ -221,20 +246,20 @@ export function ExamModelsManager({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {editingId ? "تعديل النموذج" : "إنشاء نموذج اختباري جديد (10 مقاطع)"}
+            {editingId ? "تعديل النموذج" : "إنشاء نموذج اختباري جديد"}
           </CardTitle>
           <CardDescription>
-            وفق لائحة اختيار فرع كامل القرآن — املأ حقول المقاطع العشرة
+            وفق لائحة اختيار فرع كامل القرآن — حتى 100 نموذج لكل فرع، وعدد مقاطع من 1 إلى 30
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-2">
-              <Label>رقم النموذج (1-20) *</Label>
+              <Label>رقم النموذج (1-100) *</Label>
               <Input
                 type="number"
                 min={1}
-                max={20}
+                max={100}
                 value={modelNumber}
                 onChange={(e) => setModelNumber(e.target.value)}
               />
@@ -255,12 +280,13 @@ export function ExamModelsManager({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>الجهة التعليمية *</Label>
+              <Label>الجهة التعليمية (اختياري)</Label>
               <Select value={institutionId} onValueChange={setInstitutionId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="اختر الجهة" />
+                  <SelectValue placeholder="بدون جهة" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">بدون جهة</SelectItem>
                   {institutions.map((inst) => (
                     <SelectItem key={inst.id} value={inst.id}>
                       {inst.name}
@@ -284,14 +310,36 @@ export function ExamModelsManager({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>عدد المقاطع (1-30) *</Label>
+              <Select
+                value={String(segmentsCount)}
+                onValueChange={(v) => {
+                  const n = Math.min(Math.max(Number(v), 1), MAX_SEGMENTS);
+                  setSegmentsCount(n);
+                  resizeSegments(n);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: MAX_SEGMENTS }, (_, i) => i + 1).map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n} مقاطع
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* المقاطع العشرة */}
+          {/* المقاطع */}
           <div className="space-y-3">
             {segments.map((seg, idx) => (
               <div key={seg.number} className="rounded-lg border p-3">
                 <p className="mb-2 text-sm font-semibold text-primary-700">
-                  المقطع {seg.number}
+                  المقطع {seg.number} من {segmentsCount}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="space-y-1">
@@ -388,7 +436,7 @@ export function ExamModelsManager({
           <CardDescription>
             {models.length === 0
               ? "لا توجد نماذج بعد — أنشئ أول نموذج أعلاه"
-              : "20 نموذجاً لكل فرع وفق اللائحة — عرض وتعديل وحذف"}
+              : "عرض وتعديل وحذف — حتى 100 نموذج لكل فرع"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -406,15 +454,14 @@ export function ExamModelsManager({
               </thead>
               <tbody>
                 {models.map((m) => {
-                  const raw = m.detailsJSON as { segments?: unknown[] } | null;
-                  const segCount = raw?.segments?.length ?? 0;
+                  const segCount = segmentsCountFor(m);
                   return (
                     <tr key={m.id} className="border-b">
                       <td className="p-2 font-medium">{m.modelNumber}</td>
                       <td className="p-2">فرع {m.branch} أجزاء</td>
-                      <td className="p-2">{m.institution.name}</td>
+                      <td className="p-2">{m.institution?.name ?? "—"}</td>
                       <td className="p-2">{m.season.name}</td>
-                      <td className="p-2">{segCount} / 10</td>
+                      <td className="p-2">{segCount}</td>
                       <td className="p-2">
                         <div className="flex items-center justify-center gap-2">
                           <Button

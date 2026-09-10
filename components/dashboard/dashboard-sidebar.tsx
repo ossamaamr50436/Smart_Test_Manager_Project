@@ -46,8 +46,8 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
       href: "/test-specialist/final-review",
       label: "مراجعة التقييمات النهائية",
     },
+    { href: "/specialist/entities/create", label: "إنشاء جهة تعليمية" },
     { href: "/admin/reports", label: "التقارير والتحليلات" },
-    { href: "/audit-log", label: "سجل التدقيق" },
   ],
   EXAMINER: [
     { href: "/examiner", label: "طلاب لجانك" },

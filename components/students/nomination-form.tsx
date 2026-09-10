@@ -29,10 +29,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function NominationForm() {
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+
+export function NominationForm({
+  requireApplicationFile = false,
+}: {
+  requireApplicationFile?: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [applicationFile, setApplicationFile] = useState<File | null>(null);
 
   const {
     register,
@@ -46,9 +53,33 @@ export function NominationForm() {
 
   async function onSubmit(data: StudentApplicationInput) {
     setError("");
+
+    // التحقق من رفع نموذج الاختبار عند تفعيل الإعداد
+    if (requireApplicationFile && !applicationFile) {
+      setError("يجب رفع نموذج اختبار الطالب (PDF) لإكمال الترشيح");
+      return;
+    }
+    if (applicationFile && applicationFile.type !== "application/pdf") {
+      setError("نموذج الاختبار يجب أن يكون ملف PDF");
+      return;
+    }
+    if (applicationFile && applicationFile.size > MAX_FILE_SIZE) {
+      setError("حجم ملف نموذج الاختبار يتجاوز الحد الأقصى (20MB)");
+      return;
+    }
+
     setLoading(true);
     try {
-      await createStudentApplication(data);
+      await createStudentApplication(
+        data,
+        applicationFile
+          ? {
+              buffer: await applicationFile.arrayBuffer(),
+              fileName: applicationFile.name,
+              mimeType: applicationFile.type,
+            }
+          : undefined
+      );
       router.push("/institution");
       router.refresh();
     } catch (e) {
@@ -147,6 +178,34 @@ export function NominationForm() {
                 <p className="text-xs text-destructive">{errors.address.message}</p>
               )}
             </div>
+          </div>
+
+          {/* نموذج اختبار الطالب الممسوح (PDF) — المهمة 7 */}
+          <div
+            className={`space-y-2 rounded-lg border p-4 ${
+              requireApplicationFile ? "border-primary/40 bg-primary/5" : ""
+            }`}
+          >
+            <Label htmlFor="applicationFile">
+              نموذج اختبار الطالب (PDF)
+              {requireApplicationFile ? " *" : ""}
+            </Label>
+            <Input
+              id="applicationFile"
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setApplicationFile(e.target.files?.[0] ?? null)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {requireApplicationFile
+                ? "هذا الحقل إجباري حالياً — امسح النموذج المطبوعة من الجهة"
+                : "اختياري — يُرفع إلى مجلد الجهة على Google Drive"}
+            </p>
+            {applicationFile && (
+              <p className="text-xs font-medium text-primary">
+                تم اختيار: {applicationFile.name}
+              </p>
+            )}
           </div>
 
           {error && (

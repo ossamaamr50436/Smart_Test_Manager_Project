@@ -52,6 +52,7 @@ export async function getAdminDashboardStats() {
     totalModels,
     readyCertificates,
     totalNotifications,
+    certificateIssuedStudents,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.institution.count(),
@@ -68,11 +69,8 @@ export async function getAdminDashboardStats() {
     prisma.examModel.count(),
     prisma.certificate.count({ where: { status: "PENDING" } }),
     prisma.notification.count(),
+    prisma.student.count({ where: { status: "CERTIFICATE_ISSUED" } }),
   ]);
-
-  const certificateIssuedStudents = await prisma.student.count({
-    where: { status: "CERTIFICATE_ISSUED" },
-  });
 
   // آخر الأنشطة
   const recentActivity = await prisma.auditLog.findMany({
@@ -182,8 +180,8 @@ export async function createAdminUser(input: {
     throw new Error("البريد الإلكتروني غير صالح");
   }
   if (input.email.length > 254) throw new Error("البريد الإلكتروني طويل جداً");
-  if (!input.password || input.password.length < 12 || input.password.length > 128) {
-    throw new Error("كلمة المرور يجب أن تكون بين 12 و 128 حرفاً");
+  if (!input.password || input.password.length < 4 || input.password.length > 8) {
+    throw new Error("كلمة المرور يجب أن تكون بين 4 و 8 أحرف");
   }
   const validRoles = Object.values(Role);
   if (!validRoles.includes(input.role as Role)) {
@@ -306,8 +304,8 @@ export async function resetAdminUserPassword(userId: string, newPassword: string
   if (!userId || typeof userId !== "string" || userId.length < 1 || userId.length > 64) {
     throw new Error("معرّف المستخدم غير صالح");
   }
-  if (!newPassword || newPassword.length < 12 || newPassword.length > 128) {
-    throw new Error("كلمة المرور الجديدة يجب أن تكون بين 12 و 128 حرفاً");
+  if (!newPassword || newPassword.length < 4 || newPassword.length > 8) {
+    throw new Error("كلمة المرور الجديدة يجب أن تكون بين 4 و 8 أحرف");
   }
 
   const target = await prisma.user.findUnique({ where: { id: userId } });

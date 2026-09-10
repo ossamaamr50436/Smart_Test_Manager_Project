@@ -17,6 +17,7 @@ export const getCachedExamModels = unstable_cache(
         id: true,
         modelNumber: true,
         branch: true,
+        segmentsCount: true,
         institution: { select: { name: true } },
         season: { select: { name: true } },
       },

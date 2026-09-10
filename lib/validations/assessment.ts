@@ -70,13 +70,13 @@ export const assessmentApprovalSchema = z.object({
 
 export type AssessmentApprovalInput = z.infer<typeof assessmentApprovalSchema>;
 
-// مخطط التحقق من بيانات المقطع (وفق اللائحة — 7 حقول لكل مقطع)
+// مخطط التحقق من بيانات المقطع (حتى 30 مقطعاً)
 export const examSegmentSchema = z.object({
   number: z.coerce
     .number()
     .int("رقم المقطع يجب أن يكون عدداً صحيحاً")
     .min(1, "رقم المقطع يبدأ من 1")
-    .max(10, "رقم المقطع لا يتجاوز 10"),
+    .max(30, "رقم المقطع لا يتجاوز 30"),
   fromText: z
     .string()
     .min(1, "نص «من قوله تعالى» مطلوب")
@@ -101,19 +101,30 @@ export const examSegmentSchema = z.object({
 
 export type ExamSegmentInput = z.infer<typeof examSegmentSchema>;
 
-// مخطط التحقق من إنشاء/تعديل نموذج اختباري كامل (10 مقاطع)
+// مخطط التحقق من إنشاء/تعديل نموذج اختباري كامل (مقاطع ديناميكية 1-30)
 export const examModelSchema = z.object({
   modelNumber: z.coerce
     .number()
     .int("رقم النموذج يجب أن يكون عدداً صحيحاً")
     .min(1, "رقم النموذج يبدأ من 1")
-    .max(20, "عدد النماذج لكل فرع هو 20"),
+    .max(100, "عدد النماذج لكل فرع هو 100"),
   branch: z.enum(["5", "10", "15", "20", "25", "30"], { message: "الفرع غير صالح" }),
-  institutionId: z.string().min(1, "الجهة مطلوبة").max(64),
+  institutionId: z
+    .string()
+    .min(1, "معرّف الجهة غير صالح")
+    .max(64, "معرّف الجهة غير صالح")
+    .nullable()
+    .optional(),
   seasonId: z.string().min(1, "الموسم مطلوب").max(64),
+  segmentsCount: z.coerce
+    .number({ invalid_type_error: "عدد المقاطع يجب أن يكون رقماً" })
+    .int("عدد المقاطع يجب أن يكون عدداً صحيحاً")
+    .min(1, "عدد المقاطع لا يقل عن 1")
+    .max(30, "عدد المقاطع لا يتجاوز 30"),
   segments: z
     .array(examSegmentSchema)
-    .length(10, "يجب أن يتضمن النموذج 10 مقاطع بالضبط"),
+    .min(1, "يجب أن يتضمن النموذج مقطعاً واحداً على الأقل")
+    .max(30, "عدد المقاطع لا يتجاوز 30"),
 });
 
 export type ExamModelInput = z.infer<typeof examModelSchema>;

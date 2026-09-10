@@ -321,8 +321,8 @@ async function main() {
     );
     process.exit(1);
   }
-  if (ADMIN_PASSWORD.length < 12) {
-    console.error("❌ كلمة مرور الأدمن يجب أن تكون 12 حرفاً على الأقل");
+  if (ADMIN_PASSWORD.length < 4) {
+    console.error("❌ كلمة مرور الأدمن يجب أن تكون 4 أحرف على الأقل");
     process.exit(1);
   }
   const adminHashed = await bcrypt.hash(ADMIN_PASSWORD, 12);
@@ -433,13 +433,12 @@ async function main() {
   }
   console.log("✅ الحسابات الإدارية جاهزة (رئيس شؤون + أخصائي + مصدر شهادات)");
 
-  // ===== 5) النماذج الاختبارية (100 نموذج — 20 لكل فرع من 5 أفرع) =====
-  // لكل فرع: 20 نموذجاً (رقم 1-20) وفق اللائحة
+  // ===== 5) النماذج الاختبارية (100 نموذج لكل فرع من 6 أفرع = 600 نموذج) =====
   const modelInstitutionId = createdInstitutions[0]!;
-  const modelBranches = ["5", "10", "15", "20", "25"];
+  const modelBranches = ["5", "10", "15", "20", "25", "30"];
   let modelCount = 0;
   for (const branch of modelBranches) {
-    for (let m = 1; m <= 20; m++) {
+    for (let m = 1; m <= 100; m++) {
       const existing = await prisma.examModel.findFirst({
         where: {
           institutionId: modelInstitutionId,
@@ -454,6 +453,7 @@ async function main() {
           modelNumber: m,
           branch,
           detailsJSON: { segments: buildModelSegments(branch, m) },
+          segmentsCount: 10,
           institutionId: modelInstitutionId,
           seasonId: season.id,
         },
@@ -461,7 +461,7 @@ async function main() {
       modelCount++;
     }
   }
-  console.log(`✅ النماذج الاختبارية: ${modelCount} نموذج جديد (20 لكل فرع)`);
+  console.log(`✅ النماذج الاختبارية: ${modelCount} نموذج جديد (100 لكل فرع، 6 أفرع)`);
 
   // ===== 6) الطلاب (200+ موزعون بتوازن على الجهات) =====
   const STUDENT_COUNT = 250;
