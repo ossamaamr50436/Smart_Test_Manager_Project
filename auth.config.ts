@@ -97,7 +97,7 @@ export const authConfig = {
       }
 
       // صفحات عامة لكل المستخدمين المسجلين
-      if (path === "/notifications") {
+      if (path === "/notifications" || path === "/profile" || path === "/settings") {
         return true;
       }
 

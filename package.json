@@ -96,7 +96,7 @@
                             "vitest":  "^2.1.9"
                         },
     "engines":  {
-                    "node":  "\u003e=18.17.0"
+                    "node":  "\u003e=20.0.0 \u003c21.0.0"
                 },
     "packageManager":  "pnpm@9.0.0"
 }

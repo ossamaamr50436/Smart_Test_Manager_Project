@@ -224,16 +224,29 @@ export async function createAdminUser(input: {
       },
     });
   } catch (error) {
-    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
-    throw error;
+    if (isUniqueConstraintError(error)) {
+      throw new Error(friendlyUniqueMessage(error));
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // P2021: الجدول غير موجود — P2022: العمود غير موجود (عدم مزامنة السكّيما)
+      if (error.code === "P2022" || error.code === "P2021") {
+        throw new Error("خطأ في مزامنة قاعدة البيانات — تواصل مع المسؤول");
+      }
+    }
+    throw new Error("حدث خطأ غير متوقع أثناء إنشاء الحساب");
   }
 
-  await recordAudit(user.id, AuditAction.CREATE, {
-    entity: "User",
-    userId: created.id,
-    name: created.name,
-    role: created.role,
-  });
+  // تسجيل التدقيق مع حماية من فشل التسجيل (لا يُفشل إنشاء الحساب)
+  try {
+    await recordAudit(user.id, AuditAction.CREATE, {
+      entity: "User",
+      userId: created.id,
+      name: created.name,
+      role: created.role,
+    });
+  } catch {
+    // فشل سجل التدقيق لا يمنع نجاح إنشاء المستخدم
+  }
 
   revalidatePath("/admin/users");
   return { success: true, userId: created.id };

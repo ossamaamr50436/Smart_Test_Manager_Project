@@ -3,8 +3,16 @@
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { MessageCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, LogOut, MessageCircle, Settings, UserRound } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
@@ -81,9 +89,11 @@ export function DashboardSidebar() {
   const links = role ? ROLE_LINKS[role] ?? [] : [];
   const platformName = settings?.platformName ?? "تطبيق الاختبارات";
   const whatsappNumber = settings?.whatsappNumber ?? null;
+  const displayName = user?.name?.trim() || "مستخدم";
+  const avatarChar = displayName.charAt(0);
 
   return (
-    <aside className="flex w-64 flex-col border-l bg-card">
+    <aside className="flex w-64 shrink-0 flex-col border-l bg-card">
       <div className="border-b bg-primary-dynamic p-4">
         <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -95,12 +105,9 @@ export function DashboardSidebar() {
           <p className="text-lg font-bold text-white">{platformName}</p>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="mb-4 rounded-lg border-l-4 border-secondary-300 bg-muted p-3">
-          <p className="font-medium text-foreground">{user?.name}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{roleLabel}</p>
-        </div>
 
+      {/* منطقة التنقل — قابلة للتمرير بينما يبقى قائمة المستخدم مثبتاً أسفلها */}
+      <div className="flex-1 overflow-y-auto p-4">
         {/* رابط الإشعارات لجميع المستخدمين */}
         <nav className="mb-4 space-y-1">
           <Link
@@ -152,14 +159,52 @@ export function DashboardSidebar() {
         )}
       </div>
 
-      <div className="border-t p-4">
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => signOut({ callbackUrl: "/login" })}
-        >
-          تسجيل الخروج
-        </Button>
+      {/* قائمة المستخدم — أسفل الشريط الجانبي (مثل Notion / Linear) */}
+      <div className="border-t p-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start transition-colors hover:bg-secondary-200/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Avatar className="h-9 w-9">
+                <AvatarFallback>{avatarChar}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+                <p className="truncate text-xs text-muted-foreground">{roleLabel}</p>
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 bg-popover">
+            <DropdownMenuLabel className="font-normal">
+              <p className="truncate font-medium text-foreground">{displayName}</p>
+              <p className="truncate text-xs font-normal text-muted-foreground">{roleLabel}</p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/profile">
+                <UserRound className="h-4 w-4" />
+                الملف الشخصي
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <Settings className="h-4 w-4" />
+                إعدادات المستخدم
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="h-4 w-4" />
+              تسجيل الخروج
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );

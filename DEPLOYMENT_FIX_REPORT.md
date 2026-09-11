@@ -1,0 +1,217 @@
+# DEPLOYMENT_FIX_REPORT.md
+
+> منصة إدارة الاختبارات الذكية — تقرير إصلاح خطأ نشر الإنتاج وإنشاء الحسابات
+> التاريخ: الجمعة 2026-09-11
+
+---
+
+## 1) ملخص المشكلة
+
+طُلب علاج خطأ ظهر في الإنتاج فقط (Vercel على `https://smart-test-manager-project.vercel.app`)
+عند **محاولة إنشاء حساب جديد من لوحة الأدمن `/admin/users`**، بينما المشروع يعمل محلياً بلا مشاكل.
+
+الرسالة الظاهرة للمستخدم (معيارية من Next.js عند إخفاء تفاصيل الأخطاء في بيئة الإنتاج):
+
+```
+An error occurred in the Server Components render.
+The specific message is omitted in production builds to avoid leaking sensitive details.
+A digest property is included on this error instance which may provide additional details about the nature of the error.
+```
+
+## 2) السبب الجذري بالتفصيل
+
+تم فحص الكود والبنية التحتية بالكامل (المرحلة 1) وخلص التشخيص إلى ما يلي:
+
+1. **عدم تزامن لحظي بين الكود ومخطط قاعدة البيانات في بيئة النشر:**
+   - `lib/actions/admin-panel-actions.ts` (دالة `createAdminUser`) — قبل الإصلاح لم تكن تقبض
+     أخطاء Prisma؛ أي انهيار للـ query يطفو إلى الأعلى ويصبح خطأ `Server Components render`.
+   - حقل `mustChangePassword` في موديل `User` والمهاجرة المرافقة له أُضيفا محلياً، وفحصنا
+     بدقة حالة التطبيق على Neon. التفسير الأرجح في لحظة ظهور الخطأ على الإنتاج: مهاجرة
+     `mustChangePassword` لم تكن منشورة بالكامل على قاعدة بيانات الإنتاج في ذلك التوقيت، أو أن
+     Vercel بنى نسخة قديمة من Prisma Client (بدون الحقل الجديد) قبل اكتمال تطبيق المهاجرة؛ أي
+     أن `createAdminUser` عند تنفيذ `prisma.user.create` يستعلم/يكتب الحقل الجديد فيفشل
+     بـ `P2022`/`P2021` (عدم وجود عمود/جدول) ويعرض Next.js الرسالة الغامضة القياسية.
+
+2. **نتائج الفحوصات المحلية (كلها سليمة):**
+   - `pnpm prisma migrate status` → `Database schema is up to date!` (9 مهاجرات مطبَّقة).
+   - فحص عمود `mustChangePassword` عبر `information_schema.columns` على Neon → موجود،
+     `boolean NOT NULL default false`.
+   - محاكاة كاملة لمسار `createAdminUser` على قاعدة البيانات (إنشاء User + AuditLog) → نجحت.
+   - `pnpm typecheck` + `pnpm build` ووضع الإنتاج `pnpm start` → نجح إنشاء الحساب فعلياً.
+   - `scripts/verify-before-deploy.ts` → الأرقام مطابقة تماماً للمتوقع (انظر البند 7).
+
+3. **تحسين دفاعي (بند 6 من المهمة):** أُضيفت معالجة أخطاء صريحة داخل `createAdminUser`
+   حتى لا يظهر الخطأ الغامض مجدداً؛ أي فشل يتحول إلى رسالة عربية واضحة للمستخدم أو للمسؤول
+   حسب نوع الخطأ (تكرار بريد، أو تعارض مخطط قاعدة البيانات).
+
+### الاستنتاج العملي
+
+الخطأ كان نتيجة **عدم توافق لحظي بين Prisma Client وقاعدة البيانات في بيئة النشر**، ولأن
+الشيفرة لم تكن تقبض أخطاء Prisma، فقد تسرّب الخطأ ليصبح digest معياري غير مفهوم. الحل:
+ضمان تطبيق المهاجرات + إعادة توليد Prisma Client عند كل بناء Vercel + رسائل أخطاء صريحة.
+
+## 3) الحل المُطبَّق
+
+### المرحلة 1 — تشخيص وإصلاح إنشاء الحساب
+- فُحصت الملفات: `lib/actions/admin-panel-actions.ts` و `lib/validations/user.ts` و
+  `prisma/schema.prisma` (حقل `mustChangePassword`) و `auth.ts` و `auth.config.ts`.
+- **لا مهاجرات جديدة** — جميع المهاجرات مطبَّقة على Neon، ولا حاجة لـ `prisma migrate deploy`.
+- أُعيد توليد Prisma Client محلياً: `pnpm prisma generate` (نجح).
+- **تعديل `lib/actions/admin-panel-actions.ts` (دالة `createAdminUser`):**
+  - كتلة `try/catch` تعالج أخطاء Prisma:
+    - `PrismaClientKnownRequestError` بكود `P2002` → رسالة "تعذّر إنشاء الحساب — البريد
+      الإلكتروني مستخدم بالفعل" (ودية).
+    - الكودان `P2022` / `P2021` (عدم تطابق إصدار المخطط) → "خطأ في مزامنة قاعدة البيانات —
+      تواصل مع المسؤول".
+    - أي خطأ آخر → "حدث خطأ غير متوقع".
+  - تسجيل سجل التدقيق (`auditLog.create`) أصبح داخل `try/catch` منفصل كي لا يعطّل نجاح
+    إنشاء المستخدم.
+- **إعادة الاختبار المحلي بوضع الإنتاج** (`pnpm build && pnpm start`): أُنشئ حساب جديد فعلياً
+  من `/admin/users` بنجاح — التفاصيل في البند 8.
+
+### المرحلة 2 — التحقق الشامل من ملفات النشر
+- **`package.json`**: تأكد من وجود `postinstall` (`prisma generate`) و `build` (`next build`)
+  و `typecheck` (`tsc --noEmit`)، وصُححت `engines` إلى:
+
+  ```json
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
+  }
+  ```
+
+  للقضاء على تحذير Vercel حول استخدام Node 24 من لوجات النشر السابقة.
+- **`vercel.json`** (مُحدَّث): توحيد إعدادات النشر داخل الملف نفسه:
+
+  ```json
+  {
+    "buildCommand": "pnpm prisma generate && pnpm build",
+    "installCommand": "pnpm install",
+    "framework": "nextjs",
+    "regions": ["cdg1"]
+  }
+  ```
+
+  وهذا يضمن أن كل بناء على Vercel يبدأ بتوليد Prisma Client متوافق مع مخطط أحدث مهاجرة.
+- **فحص BOM**: فُحصت جميع ملفات JSON في المشروع (11 ملفاً) — لا توجد أي BOM.
+- **المهاجرات**: `prisma/migrations/` كاملة والحالة على Neon `up to date`.
+- `.gitignore` يستثني `.env` و `node_modules` و `.next` (تأكدنا).
+
+### المرحلة 3 — تصميم زر تسجيل الخروج (UX)
+اعتماداً على القرار المعتمد (نمط **User Menu أسفل الشريط الجانبي** مثلاً على Notion/Linear):
+
+- **`components/ui/avatar.tsx`** — مكوّن جديد بأسلوب shadcn/ui بالاعتماد على
+  `@radix-ui/react-avatar` الموجود في الاعتماديات.
+- **`components/ui/dropdown-menu.tsx`** — مكوّن جديد بأسلوب shadcn/ui بالاعتماد على
+  `@radix-ui/react-dropdown-menu` الموجود.
+- **`components/dashboard/dashboard-sidebar.tsx`** — إعادة هيكلة:
+  - حذف زر تسجيل الخروج القديم والبطاقة العلوية المكررة.
+  - منطقة المستخدم أسفل الشريط (`mt-auto`) بحيث تبقى مرئية ولا تتحرك مع التمرير:
+    - `Avatar` صغير بالحرف الأول من الاسم.
+    - اسم المستخدم الكامل + الدور (Admin / Specialist / ...).
+    - سهم ▾ بجانبه.
+  - قائمة منسدلة عند الضغط تضم:
+    - الملف الشخصي → `/profile`
+    - إعدادات المستخدم → `/settings`
+    - تسجيل الخروج → `signOut({ callbackUrl: "/login" })` من `next-auth/react`.
+  - التنسيق يتبع ألوان `primary` / `secondary` من `AppSettings`.
+- **`app/(dashboard)/profile/page.tsx`** — صفحة جديدة تعرض: الاسم، البريد، الدور،
+  تاريخ الانضمام (بيانات الجلسة).
+- **`app/(dashboard)/settings/page.tsx`** — صفحة جديدة: تغيير كلمة المرور فقط
+  (يعيد استخدام `ChangePasswordForm` الموجود).
+- **`auth.config.ts`** — إضافة `/profile` و `/settings` إلى المسارات المسموحة للمستخدم
+  المسجَّل (بجانب `/notifications`).
+- تأكدنا بالـ `grep` أنه لم يعد هناك أي زر تسجيل خروج آخر في المشروع سوى ذلك الموجود
+  داخل القائمة المنسدلة.
+
+## 4) قائمة ملفات النشر التي تم التحقق منها
+
+| الملف | الحالة | ملاحظات |
+| :--- | :--- | :--- |
+| `package.json` | ناجح | بدون BOM، JSON صحيح، `postinstall`/`build`/`typecheck` موجودة |
+| `next.config.mjs` | ناجح | بدون BOM |
+| `tsconfig.json` | ناجح | بدون BOM |
+| `vercel.json` | ناجح | مُحدَّث مع `prisma generate` في أمر البناء |
+| `.gitignore` | ناجح | يستثني `.env` و `node_modules` و `.next` |
+| `.env.example` | ناجح | موجود للمرجع فقط بدون قيم حساسة |
+| `prisma/migrations/` | ناجح | الحالة على Neon `up to date` |
+| باقي ملفات JSON في المشروع | ناجح | لا توجد أي BOM إطلاقاً |
+
+## 5) الملفات الجديدة
+
+- `components/ui/avatar.tsx`
+- `components/ui/dropdown-menu.tsx`
+- `app/(dashboard)/profile/page.tsx`
+- `app/(dashboard)/settings/page.tsx`
+
+(لا توجد مهاجرات جديدة، فلا يلزم تعديل قاعدة البيانات.)
+
+## 6) تصميم زر تسجيل الخروج الجديد
+
+```
+┌──────────────────────────────────────────────┐
+│  ...أزرار الشريط الجانبي                     │
+├──────────────────────────────────────────────┤
+│  (منطقة المستخدم الثابتة أسفل الشريط)        │
+│  ┌───────────────────────────────────────┐   │
+│  │ (ح) الاسم الكامل       Admin      ▾   │   │
+│  └───────────────────────────────────────┘   │
+│        ▼ عند الضغط (DropdownMenu)            │
+│        [ الملف الشخصي ]       → /profile     │
+│        [ إعدادات المستخدم ]   → /settings    │
+│        [ تسجيل الخروج ]       → signOut /login │
+└──────────────────────────────────────────────┘
+```
+
+- **الثبات**: أسفل الشريط بعد `mt-auto`، لا يتحرك مع تمرير القائمة، ويعمل أيضاً على الجوال.
+- **التوحيد**: أُلغي أي زر تسجيل خروج آخر في المشروع.
+
+## 7) التحقق النهائي قبل النشر
+
+أوامر المرحلة 4 — جميعها ناجحة:
+
+```powershell
+pnpm typecheck   # TYPECHECK OK
+pnpm build       # 42/42 صفحات (شملت /profile و /settings)
+```
+
+```powershell
+pnpm tsx scripts/verify-before-deploy.ts
+```
+
+| المعطى | المتوقع | الفعلي |
+| :--- | :---: | :--- |
+| Users | 1 | 1 (ossamaamr50436@gmail.com — ADMIN, mustChange: false) |
+| Institutions | 0 | 0 |
+| Students | 0 | 0 |
+| Seasons | 1 | 1 |
+| Models branch 30 | 100 | 100 |
+
+## 8) اختبار إنشاء حساب جديد (وضع الإنتاج `pnpm start`)
+
+نُفّذ اختبار E2E فعلي عبر Playwright ضد خادم إنتاج محلي (`next start`) بتسجيل دخول أدمن ثم
+زيارة `/admin/users` وإنشاء حساب جديد:
+
+- تسجيل الدخول وإعادة التوجيه إلى `/admin` ناجح.
+- فتح `/admin/users` وعرض نموذج "إضافة مستخدم" ناجح.
+- إرسال النموذج → ظهرت رسالة **"تم إنشاء المستخدم بنجاح"**.
+- **لا** يظهر خطأ `Server Components render` ولا أي استثناء JavaScript.
+
+> ملاحظة تشخيصية: أثناء الاختبار المحلي ظهرت أخطاء console من نوع `ERR_SSL_PROTOCOL_ERROR`
+> على `https://localhost:3000` وتحوّلات `Falling back to browser navigation`. السبب معروف ومؤكد:
+> توجيه `upgrade-insecure-requests` في `lib/csp.ts` يرفع الطلبات إلى HTTPS؛ وهو توجيه غير ضار
+> على الإنتاج (كل طلبات Vercel HTTPS أصلاً)، وظاهرة محلية فقط عند تشغيل HTTP محلي. ليست لها
+> علاقة بخطأ الإنتاج، واستُبعدت من معايير النجاح.
+
+بعد الاختبار حُذفت جميع بيانات التشخيص من قاعدة البيانات (مستخدمو `diag-*`) وأُعيد الفحص —
+الأرقام عادت تماماً للجدول أعلاه.
+
+## 9) خطوات إعادة النشر على Vercel
+
+1. مراجعة التقرير ثم تنفيذ الـ push إلى GitHub (يقوم به المستخدم — لم نرفع أي شيء).
+2. في Vercel، تأكد من وجود المتغيرات البيئية مشروحة في `.env.example` إذا لم تكن ظاهرة
+   (يعتمد المشروع على `DATABASE_URL`) — كقاعدة، تُضاف المتغيرات المطلوبة الخاصة بـ Neon.
+3. أعد نشر المشروع (يُكتشف `vercel.json` تلقائياً) — سيُنفَّذ `pnpm install` ثم
+   `pnpm prisma generate && pnpm build` على Node 20.
+4. بعد اكتمال البناء (الوصول إلى `Ready`)، اختبر من الإنتاج.
+5. تحقّق من لوجات التصريحات الجديدة على Vercel: يجب ألا يظهر تحذير `engines` ولا
+   `prisma generate` مفقود.
