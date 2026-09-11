@@ -45,9 +45,13 @@ export function EntityCreateForm() {
     setLoading(true);
     try {
       const result = await createInstitutionBySpecialist(form);
-      setCreated({ password: result.password, email: result.email });
-      setForm(EMPTY_FORM);
-      router.refresh();
+      if (result.success) {
+        setCreated({ password: result.password, email: result.email });
+        setForm(EMPTY_FORM);
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
     } finally {

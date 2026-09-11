@@ -73,7 +73,7 @@ export function NominationForm({
 
     setLoading(true);
     try {
-      await createStudentApplication(
+      const result = await createStudentApplication(
         data,
         applicationFile
           ? {
@@ -83,8 +83,13 @@ export function NominationForm({
             }
           : undefined
       );
-      router.push("/institution");
-      router.refresh();
+      if (result.success) {
+        router.push("/institution");
+        router.refresh();
+      } else {
+        setError(result.error);
+        setLoading(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
       setLoading(false);

@@ -324,4 +324,106 @@ pnpm typecheck   # OK — لا أخطاء
 pnpm build       # OK — 42/42 صفحة
 ```
 
-ملاحظة: لم يتم الرفع إلى GitHub — سيُراجع المستخدم ثم يرفع بنفسه.
+---
+
+# الجزء الثالث — تحويل Server Actions من `throw` إلى إرجاع النتائج (o.txt الجديد)
+
+> تاريخ التنفيذ: نفس اليوم — القائمة الجديدة من `o.txt` (6 مهام) + قيود `OO.txt` للاختبار.
+
+## 16) المشكلة
+
+عدة Server Actions كانت ترمي أخطاء عبر `throw new Error(...)`. في بيئة الإنتاج
+يعرض Next.js رسالة عامة ("An error occurred in the Server Components render")
+بدل رسالة الخطأ الحقيقية، فيتبع ذلك ارتفاع سجل الإنتاج بأخطاء مخفية.
+
+## 17) الحل المعتمد (المهام 1-6)
+
+تحويل كل إجراء إلى نوع Union يسمح للعميل بعرض رسالة حقيقية:
+
+```ts
+type Result = { success: true } | { success: false; error: string };
+```
+
+- كل تحققّات الدور يتم لفّها (`requireUser`/`requireRole`) في `try/catch` والعودة بإرجاع
+  `{ success: false, error }` بدل الرمي.
+- أخطاء `checkRateLimit` تتحول لرسالة واضحة.
+- `P2002/P2022/P2021` (تكرار / عدم مزامنة السكّيما) تعالج خصيصاً برسائل ودّية.
+- كل مكوّن استدعائي يقرأ `result.success`/`result.error` بدل `catch` — بدون `any` أو
+  `as unknown as` (بانتظام `OO.txt`).
+
+### المهمة 1 — `createAdminUser`
+`lib/actions/admin-panel-actions.ts`:
+- يعيد `CreateUserResult = { success: true } | { success: false; error; fieldErrors? }`.
+- تحقق Zod عبر `createUserSchema.safeParse` مع normalize `birthDate`.
+- فحص تكرار مسبق + درع `P2002` (بريد مستخدم) + رسائل `P2021/P2022`.
+- إجبار تغيير كلمة المرور لأي مستخدم جديد: `mustChangePassword: true`.
+
+### المهمة 2 — لوحة إدارة المستخدمين ومجموعة إجراءات الأدمن
+- `updateAdminUser` → `UpdateUserResult` (بدون رمي).
+- `resetAdminUserPassword` → `UpdateUserResult` (بفحص `A-Za-z0-9`).
+- `adminDeleteUser` → `UpdateUserResult` (منع حذف الذات + فحص الجلسات).
+- `components/admin/admin-users-manager.tsx`: المعالجات الأربع
+  (`handleCreate` / `handleSaveEdit` / `handleResetPassword` / `handleDelete`)
+  أصبحت تعتمد على نتيجة الإجراء بدل `try/catch`.
+
+### المهمة 3 — الإجراءات الحرجة الأربعة ومستهلكوها
+
+| الإجراء | الملف | المستهلك |
+|---|---|---|
+| `createInstitutionBySpecialist` | `lib/actions/entity-actions.ts` | `components/specialist/entity-create-form.tsx` |
+| `createExaminer` + `resetExaminerPassword` + `deleteExaminer` | `lib/actions/examiner-actions.ts` | `components/specialist/teachers-manager.tsx` |
+| `createCommittee` + `deleteCommittee` + `assignStudentToCommittee` | `lib/actions/committee-actions.ts` | `components/specialist/committee-manager.tsx` |
+| `createStudentApplication` | `lib/actions/student-actions.ts` | `components/students/nomination-form.tsx` |
+
+نمط موحّد لكل إجراء: `let user; try { user = await requireUser(); requireRole(...) }
+catch { return { success:false, error } }` + معاملة داخل `try/catch` للذراّتية مع
+رسالة ودّية بدل انتشار الخطأ.
+
+### المهمة 4 — `emailSchema` متسامح
+`lib/validations/user.ts`:
+- بريد جديد `emailSchema` = `trim` + `toLowerCase` + `min/max` + regex ودّي.
+- طُبّق على `createUserSchema` (يستخدمه `createAdminUser`) وعلى
+  `createExaminerSchema` في `examiner-actions.ts` بدل `z.string().email()` الصارم.
+
+### المهمة 5 — إيقاف الاستطلاع الدوري للإشعارات
+`components/notification/notification-badge.tsx`:
+- حُذف `setInterval(fetchCount, 30000)` الذي كان يرسل طلب Server Action
+  (`getUnreadCount`) كل 30 ثانية (مصدر "POST كل 30s" في ترمينال الإنتاج).
+- بقي: جلب أولي عند التركيب + تحديث لحظي عبر Pusher فقط.
+
+### المهمة 6 — اختبار E2E في وضع الإنتاج (وفق قواعد `OO.txt`)
+- لم يُستخدم حساب `ossamaamr50436@gmail.com` إطلاقاً.
+- أُنشئ `diag-admin@example.com / AdminTest123` (ADMIN, `mustChangePassword:false`)
+  مباشرة في قاعدة البيانات بفعل `bcryptjs`, واختُبر به ثم حُذف بعد الاختبار.
+- أُضيف اختبار `mustChangePassword`: بعد إنشاء مستخدم جديد (`test@example.com`)
+  سُجّل الخروج ثم الدخول به وتأكدنا من التوجيه القسري إلى `/change-password`
+  ثم إتمام التغيير والوصول إلى لوحة الدور `/examiner`.
+- كل طوابع الصفحة/الاختيارات كُتبت بطرق مصنفة (type) بدون `any` أو `as unknown as`.
+- مخطط السكربت المؤقت (حُذف بعد التنفيذ) لخطوة بخطوة.
+
+## 18) نتائج اختبار E2E (إنتاج — `next start` على port 3000)
+
+```
+[1] ✅ دخول diag-admin إلى /admin
+[2] ✅ لا يوجد استطلاع دوري (0 طلب إضافي خلال 62 ثانية)
+[3] ✅ إنشاء مستخدم جديد — عرض رسالة النجاح الحقيقية
+[4] ✅ رسالة خطأ التكرار تظهر بوضوح
+[5] ✅ رسالة تحقق البريد غير الصالح (emailSchema)
+[6] ✅ توجيه قسري إلى /change-password بعد أول دخول
+[6b] ✅ بعد تغيير كلمة المرور: الوصول إلى لوحة /examiner
+[7] ✅ حذف المستخدم المؤقت من لوحة الأدمن يعرض رسالة النجاح
+```
+
+## 19) التحقق النهائي (الجزء الثالث)
+
+```powershell
+pnpm typecheck   # OK — بدون أخطاء
+pnpm build       # OK — 42/42 صفحة
+# E2E: seed diag-admin → تصفح → إنشاء/تكرار/بريد خاطئ/حذف → mustChangePassword → تنظيف
+scripts/verify-before-deploy.ts  # OK — Users: 1 (ossamaamr50436@gmail.com فقط)
+```
+
+ملاحظات:
+- لم يتم الرفع إلى GitHub — سيُراجع المستخدم ثم يرفع بنفسه.
+- السكربت المؤقت `scripts/_diag-e2e.ts` حُذف بعد نجاح الاختبار والتنظيف.
+- مستخدما الاختبار المؤقتان حُذفا من قاعدة البيانات (قاعدة نظيفة: `Users: 1`).

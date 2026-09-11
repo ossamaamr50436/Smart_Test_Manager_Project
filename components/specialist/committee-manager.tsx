@@ -69,7 +69,7 @@ export function CommitteeManager({
     setSuccess("");
     setLoading(true);
     try {
-      await createCommittee({
+      const result = await createCommittee({
         name,
         branch,
         seasonId,
@@ -78,13 +78,17 @@ export function CommitteeManager({
         startModelNumber: Number(startModel),
         endModelNumber: Number(endModel),
       });
-      setSuccess("تم إنشاء اللجنة بنجاح");
-      setName("");
-      setTeacher1Id("");
-      setTeacher2Id("");
-      setStartModel("1");
-      setEndModel("10");
-      router.refresh();
+      if (result.success) {
+        setSuccess("تم إنشاء اللجنة بنجاح");
+        setName("");
+        setTeacher1Id("");
+        setTeacher2Id("");
+        setStartModel("1");
+        setEndModel("10");
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally {
@@ -97,10 +101,14 @@ export function CommitteeManager({
     setSuccess("");
     setLoading(true);
     try {
-      await deleteCommittee(id);
-      setConfirmDeleteId(null);
-      setSuccess("تم حذف اللجنة");
-      router.refresh();
+      const result = await deleteCommittee(id);
+      if (result.success) {
+        setConfirmDeleteId(null);
+        setSuccess("تم حذف اللجنة");
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally {
@@ -117,11 +125,15 @@ export function CommitteeManager({
     setSuccess("");
     setLoading(true);
     try {
-      await assignStudentToCommittee({ studentId: assignStudentId, committeeId: assignCommitteeId });
-      setSuccess("تم توزيع الطالب على اللجنة");
-      setAssignStudentId("");
-      setAssignCommitteeId("");
-      router.refresh();
+      const result = await assignStudentToCommittee({ studentId: assignStudentId, committeeId: assignCommitteeId });
+      if (result.success) {
+        setSuccess("تم توزيع الطالب على اللجنة");
+        setAssignStudentId("");
+        setAssignCommitteeId("");
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally {

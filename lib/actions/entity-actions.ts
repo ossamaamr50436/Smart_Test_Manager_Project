@@ -20,6 +20,11 @@ import { validatePhoneE164 } from "@/lib/phone-countries";
 // - إرجاع كلمة المرور لعرضها مع زر نسخ
 // ============================================================
 
+/** نوع نتيجة إنشاء جهة — union ليعرض العميل رسالة الخطأ الحقيقية بدل الحجب في الإنتاج */
+export type CreateInstitutionResult =
+  | { success: true; institutionId: string; password: string; email: string }
+  | { success: false; error: string };
+
 /** إنشاء جهة تعليمية جديدة برمز وصول — خاص بالأخصائي/الأدمن */
 export async function createInstitutionBySpecialist(input: {
   name: string;
@@ -30,19 +35,26 @@ export async function createInstitutionBySpecialist(input: {
   licenseNumber: string;
   district: string;
   email: string;
-}): Promise<{
-  success: true;
-  institutionId: string;
-  password: string;
-  email: string;
-}> {
-  const user = await requireUser();
+}): Promise<CreateInstitutionResult> {
+  let user;
+  try {
+    user = await requireUser();
 
-  // عزل الصلاحيات: الأخصائي أو الأدمن (الجهات تُدار من الأخصائي)
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+    // عزل الصلاحيات: الأخصائي أو الأدمن (الجهات تُدار من الأخصائي)
+    requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
 
   // منع إساءة الاستخدام
-  await checkRateLimit(`specialist-create-entity:${user.id}`, 10);
+  try {
+    await checkRateLimit(`specialist-create-entity:${user.id}`, 10);
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+    };
+  }
 
   const name = (input.name ?? "").trim();
   const managerName = (input.managerName ?? "").trim();
@@ -54,34 +66,34 @@ export async function createInstitutionBySpecialist(input: {
   const email = (input.email ?? "").trim().toLowerCase();
 
   // ---- تحققات المدخلات ----
-  if (name.length < 2) throw new Error("اسم الجهة مطلوب (حرفان على الأقل)");
-  if (name.length > 200) throw new Error("اسم الجهة طويل جداً (الحد الأقصى 200 حرف)");
-  if (/<[^>]*>/.test(name)) throw new Error("اسم الجهة لا يسمح بوسوم HTML");
-  if (managerName.length < 2) throw new Error("اسم مدير الجهة مطلوب");
-  if (supervisorName.length < 2) throw new Error("اسم مشرف الجهة مطلوب");
-  if (district.length < 2) throw new Error("الحي مطلوب");
-  if (licenseNumber.length < 3) throw new Error("رقم التصريح مطلوب (3 أحرف على الأقل)");
-  if (licenseNumber.length > 50) throw new Error("رقم التصريح طويل جداً");
+  if (name.length < 2) return { success: false, error: "اسم الجهة مطلوب (حرفان على الأقل)" };
+  if (name.length > 200) return { success: false, error: "اسم الجهة طويل جداً (الحد الأقصى 200 حرف)" };
+  if (/<[^>]*>/.test(name)) return { success: false, error: "اسم الجهة لا يسمح بوسوم HTML" };
+  if (managerName.length < 2) return { success: false, error: "اسم مدير الجهة مطلوب" };
+  if (supervisorName.length < 2) return { success: false, error: "اسم مشرف الجهة مطلوب" };
+  if (district.length < 2) return { success: false, error: "الحي مطلوب" };
+  if (licenseNumber.length < 3) return { success: false, error: "رقم التصريح مطلوب (3 أحرف على الأقل)" };
+  if (licenseNumber.length > 50) return { success: false, error: "رقم التصريح طويل جداً" };
 
   if (!validatePhoneE164(managerPhone)) {
-    throw new Error("رقم هاتف المدير غير صالح — يبدأ بـ+ وأرقام فقط (6-15 خانة)");
+    return { success: false, error: "رقم هاتف المدير غير صالح — يبدأ بـ+ وأرقام فقط (6-15 خانة)" };
   }
   if (!validatePhoneE164(supervisorPhone)) {
-    throw new Error("رقم هاتف المشرف غير صالح — يبدأ بـ+ وأرقام فقط (6-15 خانة)");
+    return { success: false, error: "رقم هاتف المشرف غير صالح — يبدأ بـ+ وأرقام فقط (6-15 خانة)" };
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error("البريد الإلكتروني غير صالح");
+    return { success: false, error: "البريد الإلكتروني غير صالح" };
   }
-  if (email.length > 254) throw new Error("البريد الإلكتروني طويل جداً");
+  if (email.length > 254) return { success: false, error: "البريد الإلكتروني طويل جداً" };
 
   // منع التكرار (فحص مسبق سريع + درع P2002 عند التسابق)
   const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) throw new Error("يوجد حساب بنفس البريد الإلكتروني مسبقاً");
+  if (existingUser) return { success: false, error: "يوجد حساب بنفس البريد الإلكتروني مسبقاً" };
   const existingLicense = await prisma.institution.findUnique({
     where: { licenseNumber },
   });
-  if (existingLicense) throw new Error("رقم التصريح مستخدم مسبقاً — اختر رقماً آخر");
+  if (existingLicense) return { success: false, error: "رقم التصريح مستخدم مسبقاً — اختر رقماً آخر" };
 
   // كلمة المرور التلقائية = رقم التصريح (تُشفّر بـ bcrypt cost 12)
   const plainPassword = licenseNumber;
@@ -135,8 +147,10 @@ export async function createInstitutionBySpecialist(input: {
       return { institutionId: institution.id };
     });
   } catch (error) {
-    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
-    throw error;
+    if (isUniqueConstraintError(error)) {
+      return { success: false, error: friendlyUniqueMessage(error) };
+    }
+    return { success: false, error: "حدث خطأ غير متوقع أثناء إنشاء الجهة — تحقق من السجلات" };
   }
 
   revalidatePath("/test-specialist/entities/create");

@@ -8,8 +8,8 @@ import { subscribeToUserNotifications } from "@/lib/realtime-client";
 // ============================================================
 // عداد الإشعارات غير المقروءة
 // يظهر بجانب أيقونة الإشعارات في الشريط الجانبي.
-// - يقوم بتحديث لحظي عبر قناة Pusher الخاصة بالمستخدم
-// - مع تحديث دوري كخطة احتياطية عند انقطاع المزامنة
+// - تحديث لحظي عبر قناة Pusher الخاصة بالمستخدم
+// - تحديث عند فتح الصفحة (بدون استطلاع دوري للخادم)
 // ============================================================
 
 export function NotificationBadge() {
@@ -40,12 +40,8 @@ export function NotificationBadge() {
 
     fetchCount();
 
-    // تحديث دوري كخطة احتياطية
-    const interval = setInterval(fetchCount, 30000);
-
     return () => {
       mounted = false;
-      clearInterval(interval);
       unsubscribe?.();
     };
   }, [currentUserId]);

@@ -125,21 +125,21 @@ export function AdminUsersManager() {
     setError("");
     setSuccess("");
     startTransition(async () => {
-      try {
-        await createAdminUser({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          role: form.role,
-          birthDate: form.birthDate || undefined,
-          institutionId: form.role === Role.INSTITUTION ? form.institutionId || undefined : undefined,
-        });
+      const result = await createAdminUser({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: form.role,
+        birthDate: form.birthDate || undefined,
+        institutionId: form.role === Role.INSTITUTION ? form.institutionId || undefined : undefined,
+      });
+      if (result.success) {
         setSuccess("تم إنشاء المستخدم بنجاح");
         setShowCreate(false);
         setForm({ name: "", email: "", password: "", role: Role.EXAMINER, birthDate: "", institutionId: "" });
         loadUsers();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "فشل إنشاء المستخدم");
+      } else {
+        setError(result.error);
       }
     });
   }
@@ -162,19 +162,19 @@ export function AdminUsersManager() {
     setError("");
     setSuccess("");
     startTransition(async () => {
-      try {
-        await updateAdminUser(editing.id, {
-          name: editForm.name,
-          email: editForm.email,
-          role: editForm.role,
-          birthDate: editForm.birthDate || null,
-          institutionId: editForm.role === Role.INSTITUTION ? editForm.institutionId || null : null,
-        });
+      const result = await updateAdminUser(editing.id, {
+        name: editForm.name,
+        email: editForm.email,
+        role: editForm.role,
+        birthDate: editForm.birthDate || null,
+        institutionId: editForm.role === Role.INSTITUTION ? editForm.institutionId || null : null,
+      });
+      if (result.success) {
         setSuccess("تم حفظ التعديلات");
         setEditing(null);
         loadUsers();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "فشل حفظ التعديلات");
+      } else {
+        setError(result.error);
       }
     });
   }
@@ -187,13 +187,13 @@ export function AdminUsersManager() {
     setError("");
     setSuccess("");
     startTransition(async () => {
-      try {
-        await resetAdminUserPassword(passwordTarget.id, passwordValue);
+      const result = await resetAdminUserPassword(passwordTarget.id, passwordValue);
+      if (result.success) {
         setSuccess(`تم تغيير كلمة مرور ${passwordTarget.name}`);
         setPasswordTarget(null);
         setPasswordValue("");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "فشل تغيير كلمة المرور");
+      } else {
+        setError(result.error);
       }
     });
   }
@@ -203,12 +203,12 @@ export function AdminUsersManager() {
     setError("");
     setSuccess("");
     startTransition(async () => {
-      try {
-        await adminDeleteUser(u.id);
+      const result = await adminDeleteUser(u.id);
+      if (result.success) {
         setSuccess("تم حذف المستخدم");
         loadUsers();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "فشل حذف المستخدم");
+      } else {
+        setError(result.error);
       }
     });
   }

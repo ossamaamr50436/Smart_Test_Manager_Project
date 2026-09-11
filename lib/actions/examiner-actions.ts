@@ -13,34 +13,48 @@ import {
   isUniqueConstraintError,
   friendlyUniqueMessage,
 } from "@/lib/actions/unique-guard";
-import { passwordSchema, birthDateSchema } from "@/lib/validations/user";
+import { emailSchema, passwordSchema, birthDateSchema } from "@/lib/validations/user";
 import { z } from "zod";
 
 // ============================================================
 // إدارة المعلمين (المرحلة 13) — خاص بالأخصائي/الأدمن
 // إنشاء + إعادة تعيين كلمة المرور + حذف (EXAMINER فقط)
+// كل إجراء يعيد union { success } | { success:false; error } ليعرض العميل الخطأ الحقيقي
 // ============================================================
 
 const createExaminerSchema = z.object({
   name: z.string().min(2, "اسم المعلم لا يقل عن حرفين").max(120),
-  email: z.string().email("بريد إلكتروني غير صحيح").max(254),
+  email: emailSchema,
   password: passwordSchema,
   birthDate: birthDateSchema,
 });
 
 export type CreateExaminerInput = z.infer<typeof createExaminerSchema>;
 
+/** نتيجة إنشاء معلم — success مع examinerId أو خطأ واضح */
+export type CreateExaminerResult =
+  | { success: true; examinerId: string }
+  | { success: false; error: string };
+
+/** نتيجة إجراء عام (إعادة تعيين/حذف) — نجاح أو خطأ واضح */
+export type ExaminerActionResult = { success: true } | { success: false; error: string };
+
 function assertRole(user: SessionUser) {
   requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 }
 
-export async function createExaminer(input: CreateExaminerInput) {
-  const user = await requireUser();
-  assertRole(user);
+export async function createExaminer(input: CreateExaminerInput): Promise<CreateExaminerResult> {
+  let user;
+  try {
+    user = await requireUser();
+    assertRole(user);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
 
   const parsed = createExaminerSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "بيانات المعلم غير صحيحة");
+    return { success: false, error: parsed.error.issues[0]?.message ?? "بيانات المعلم غير صحيحة" };
   }
   const data = parsed.data;
 
@@ -60,81 +74,102 @@ export async function createExaminer(input: CreateExaminerInput) {
       select: { id: true, name: true, email: true },
     });
   } catch (error) {
-    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
-    throw error;
+    if (isUniqueConstraintError(error)) {
+      return { success: false, error: friendlyUniqueMessage(error) };
+    }
+    return { success: false, error: "حدث خطأ غير متوقع أثناء إنشاء المعلم" };
   }
 
-  await prisma.auditLog.create({
-    data: {
-      userId: user.id,
-      action: AuditAction.CREATE,
-      details: JSON.stringify({
-        entity: "User",
-        role: Role.EXAMINER,
-        examinerId: created.id,
-        email: data.email,
-      }),
-    },
-  });
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: AuditAction.CREATE,
+        details: JSON.stringify({
+          entity: "User",
+          role: Role.EXAMINER,
+          examinerId: created.id,
+          email: data.email,
+        }),
+      },
+    });
+  } catch {
+    // فشل سجل التدقيق لا يمنع النجاح
+  }
 
   revalidatePath("/test-specialist/teachers");
   return { success: true, examinerId: created.id };
 }
 
-export async function resetExaminerPassword(examinerId: string, newPassword: string) {
-  const user = await requireUser();
-  assertRole(user);
+export async function resetExaminerPassword(
+  examinerId: string,
+  newPassword: string
+): Promise<ExaminerActionResult> {
+  let user;
+  try {
+    user = await requireUser();
+    assertRole(user);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
 
   if (!examinerId || typeof examinerId !== "string" || examinerId.length > 64) {
-    throw new Error("معرّف المعلم غير صالح");
+    return { success: false, error: "معرّف المعلم غير صالح" };
   }
 
   const parsedPassword = passwordSchema.safeParse(newPassword);
   if (!parsedPassword.success) {
-    throw new Error(
-      parsedPassword.error.issues[0]?.message ?? "كلمة المرور غير صالحة"
-    );
+    return { success: false, error: parsedPassword.error.issues[0]?.message ?? "كلمة المرور غير صالحة" };
   }
 
   const examiner = await prisma.user.findUnique({
     where: { id: examinerId },
     select: { id: true, role: true },
   });
-  if (!examiner) throw new Error("المعلم غير موجود");
+  if (!examiner) return { success: false, error: "المعلم غير موجود" };
   if (examiner.role !== Role.EXAMINER) {
-    throw new Error("هذا الحساب ليس حساب معلم");
+    return { success: false, error: "هذا الحساب ليس حساب معلم" };
   }
 
   const hashedPassword = await bcrypt.hash(parsedPassword.data, 12);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: examinerId },
-      data: { password: hashedPassword, mustChangePassword: true },
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: examinerId },
+        data: { password: hashedPassword, mustChangePassword: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: AuditAction.UPDATE,
+          details: JSON.stringify({
+            entity: "User",
+            actionType: "reset_examiner_password",
+            examinerId,
+          }),
+        },
+      });
     });
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: AuditAction.UPDATE,
-        details: JSON.stringify({
-          entity: "User",
-          actionType: "reset_examiner_password",
-          examinerId,
-        }),
-      },
-    });
-  });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء إعادة تعيين كلمة المرور" };
+  }
 
   revalidatePath("/test-specialist/teachers");
   return { success: true };
 }
 
-export async function deleteExaminer(examinerId: string) {
-  const user = await requireUser();
-  assertRole(user);
+export async function deleteExaminer(examinerId: string): Promise<ExaminerActionResult> {
+  let user;
+  try {
+    user = await requireUser();
+    assertRole(user);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
 
   if (!examinerId || typeof examinerId !== "string" || examinerId.length > 64) {
-    throw new Error("معرّف المعلم غير صالح");
+    return { success: false, error: "معرّف المعلم غير صالح" };
   }
 
   const examiner = await prisma.user.findUnique({
@@ -154,9 +189,9 @@ export async function deleteExaminer(examinerId: string) {
       },
     },
   });
-  if (!examiner) throw new Error("المعلم غير موجود");
+  if (!examiner) return { success: false, error: "المعلم غير موجود" };
   if (examiner.role !== Role.EXAMINER) {
-    throw new Error("هذا الحساب ليس حساب معلم");
+    return { success: false, error: "هذا الحساب ليس حساب معلم" };
   }
 
   const inUse =
@@ -167,26 +202,31 @@ export async function deleteExaminer(examinerId: string) {
     examiner._count.assessments;
 
   if (inUse > 0) {
-    throw new Error(
-      `لا يمكن حذف المعلم «${examiner.name}» لارتباطه بـ ${inUse} لجنة/جلسة/تقييم — يمكن تعطيله عبر إعادة تعيين كلمة المرور فقط`
-    );
+    return {
+      success: false,
+      error: `لا يمكن حذف المعلم «${examiner.name}» لارتباطه بـ ${inUse} لجنة/جلسة/تقييم — يمكن تعطيله عبر إعادة تعيين كلمة المرور فقط`,
+    };
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.delete({ where: { id: examinerId } });
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: AuditAction.DELETE,
-        details: JSON.stringify({
-          entity: "User",
-          role: Role.EXAMINER,
-          examinerId,
-          name: examiner.name,
-        }),
-      },
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.user.delete({ where: { id: examinerId } });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: AuditAction.DELETE,
+          details: JSON.stringify({
+            entity: "User",
+            role: Role.EXAMINER,
+            examinerId,
+            name: examiner.name,
+          }),
+        },
+      });
     });
-  });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء حذف المعلم" };
+  }
 
   revalidatePath("/test-specialist/teachers");
   return { success: true };

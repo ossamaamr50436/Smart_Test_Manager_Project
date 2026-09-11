@@ -1,263 +1,230 @@
-# 🎯 البرومبت الشامل (ضعه في `O.txt`)
-
-```text
-أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Tailwind CSS، Shadcn/ui، Radix UI، وNextAuth v5.
+أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Zod، Prisma.
 
 📌 سياق المهمة:
-المنصة تعمل على Vercel بنجاح. لدينا 4 مهام متكاملة:
-1. نقل قائمة المستخدم إلى الشريط العلوي.
-2. تحسين نظام الألوان (تدرجات بدل لونين).
-3. إضافة أنيميشن احترافي في المنصة.
-4. **إصلاح مشكلة حرجة**: الأزرار تحتاج ضغطتين أو ثلاث لتنفيذ الإجراء (حتى زر الدخول).
+المنصة منشورة على Vercel. عند إنشاء مستخدم من `/admin/users`، يظهر دائماً:
+```
+An error occurred in the Server Components render. The specific message is omitted...
+```
+مهما كان نوع البريد. المستخدم لا يعرف سبب الخطأ.
+
+🔴 السبب الجذري:
+Server Actions تستخدم `throw new Error("...")` لعرض الأخطاء. هذا يعمل في التطوير
+لكن **Next.js في الإنتاج يحجب رسالة الخطأ** لأسباب أمنية.
+
+✅ الحل:
+تحويل جميع Server Actions المعنية من **throw** إلى **return { success: false, error: "..." }**.
+هذا هو الأسلوب الصحيح لـNext.js 14 Server Actions.
 
 ---
 
 📜 التعليمات الصارمة:
-1. اقرأ `CONSTITUTION.txt` و `components/dashboard/dashboard-sidebar.tsx` و `app/(dashboard)/layout.tsx` و `components/ui/*.tsx` أولاً.
-2. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm build` محلياً.
+1. اقرأ الملفات المذكورة قبل التعديل.
+2. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm build`.
 3. لا تستخدم `any`.
-4. لا تحذف أي ملف موجود.
-5. **لا ترفع على GitHub** — سأراجع ثم أرفع بنفسي.
-6. وثّق كل شيء في `DEPLOYMENT_FIX_REPORT.md` بأقسام جديدة.
+4. **لا ترفع على GitHub**.
+5. وثّق في `DEPLOYMENT_FIX_REPORT.md`.
 
 ---
 
-🔴 المهمة 1 (الأهم): إصلاح مشكلة الأزرار التي تحتاج ضغطات متعددة
+🔴 المهمة 1: تحويل `createAdminUser` من throw إلى return
 
-**المشكلة الوصفية:**
-- المستخدم يضغط على زر (مثل "دخول" أو "حفظ") فلا ينفذ من المرة الأولى.
-- يحتاج لضغطه 2-3 مرات.
-- المشكلة تحدث في **كل الأزرار** في المنصة.
+**الملف:** `lib/actions/admin-panel-actions.ts`
 
-**الأسباب المحتملة (افحصها بالترتيب):**
+**التغيير المطلوب:**
 
-**A) مشكلة Hydration في Next.js:**
-- افحص `app/layout.tsx` و `app/(dashboard)/layout.tsx`.
-- إذا كان هناك مكوّن `"use client"` داخل Server Component بشكل خاطئ، قد يؤدي لتأخر Hydration.
-- ابحث عن تحذيرات Hydration في Console.
+```typescript
+// ===== قبل =====
+export async function createAdminUser(input: unknown) {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+  
+  // ... Zod validation
+  throw new Error("البريد الإلكتروني غير صالح");  // ❌ محجوب في الإنتاج
+}
 
-**B) مشكلة `asChild` في Radix UI:**
-- افحص `components/ui/button.tsx`.
-- إذا كان الزر مغلّفاً بـ`DropdownMenuTrigger` أو `DialogTrigger` مع `asChild`، قد يستهلك الحدث.
-- تأكد من أن `<Button>` يستخدم `forwardRef` بشكل صحيح.
+// ===== بعد =====
+export type CreateUserResult =
+  | { success: true; userId: string }
+  | { success: false; error: string; fieldErrors?: Record<string, string> };
 
-**C) مشكلة `pointer-events` أو `z-index`:**
-- افحص CSS العام (`app/globals.css`).
-- إذا كان هناك عنصر متراكب (overlay, backdrop) بشفافية كاملة، قد يمنع النقرات.
-- تحقق من `lib/csp.ts` — قد يكون CSP يحجب بعض السكربتات.
-
-**D) مشكلة `form` submission في صفحة الدخول:**
-- افحص `app/(auth)/login/page.tsx`.
-- تأكد أن `<form onSubmit>` يستخدم `e.preventDefault()` بشكل صحيح.
-- إذا كان `signIn` من NextAuth يستخدم `redirect: false`، تأكد من معالجة الرد.
-- **الحل الشائع**: استخدام `startTransition` أو `useActionState` أو حالة `loading` لمنع التكرار.
-
-**E) مشكلة إعادة الرسم (Re-rendering):**
-- افحص `components/providers/*.tsx`.
-- إذا كان Provider يُعيد رسم الشجرة كاملة عند كل تغيير، قد يتأخر الاستجابة.
-
-**المطلوب:**
-1. حدد السبب الجذري (أو الأسباب) بأدلة.
-2. طبّق الحل في كل مكان فيه زر:
-   - **صفحة الدخول** (`app/(auth)/login/page.tsx`).
-   - **كل النماذج** (`components/**/*form*.tsx` و `components/**/*manager*.tsx`).
-   - **أزرار الشريط الجانبي والقوائم**.
-3. الحل المعتمد (طبّقه بشكل موحّد):
-   - استخدم `<Button type="submit" disabled={isLoading}>` مع حالة `isLoading`.
-   - داخل Server Action، استخدم `useTransition` أو `useFormStatus`.
-   - تأكد من أن `onClick` لا يستدعي `preventDefault` أو `stopPropagation` بلا داعٍ.
-4. بعد الإصلاح، اختبر يدوياً:
-   - الضغط **مرة واحدة** على زر الدخول → ينجح.
-   - الضغط **مرة واحدة** على أي زر حفظ → ينجح.
-   - الضغط **مرة واحدة** على تسجيل الخروج → ينجح.
-
----
-
-🔴 المهمة 2: نقل قائمة المستخدم إلى الشريط العلوي
-
-**المطلوب:**
-
-**2.1 أنشئ `components/dashboard/dashboard-topbar.tsx`:**
-- مكوّن `"use client"`.
-- شريط أفقي: `h-14 sticky top-0 z-30 border-b bg-card px-4 flex items-center`.
-- **على الطرف الأيسر (نهاية RTL)**: قائمة المستخدم المنسدلة (Avatar + الاسم + الدور + ChevronDown).
-- استخدم `ms-auto` لمحاذاة القائمة إلى اليسار في RTL.
-
-**2.2 احذف قسم "قائمة المستخدم" من `dashboard-sidebar.tsx`:**
-- احذف القسم الذي كان فيه `border-t p-3` (أسفل الشريط).
-- احتفظ بـ: الشعار، التنقل، الإشعارات، زر الدعم.
-
-**2.3 عدّل `app/(dashboard)/layout.tsx`:**
-```tsx
-<div className="flex h-screen">
-  <DashboardSidebar />
-  <div className="flex flex-1 flex-col">
-    <DashboardTopBar />
-    <main className="flex-1 overflow-y-auto">{children}</main>
-  </div>
-</div>
-```
-
-**2.4 على الجوال:**
-- الشريط العلوي يبقى ظاهراً.
-- قائمة المستخدم تعمل بشكل جيد.
-
----
-
-🔴 المهمة 3: نظام ألوان متدرج (Gradients) احترافي
-
-**المشكلة:**
-- المنصة حالياً تستخدم لونين ثابتين فقط (primary + secondary).
-- المطلوب: نظام ألوان **متدربج** (Gradient System) احترافي.
-
-**المطلوب:**
-
-**3.1 في `app/globals.css` أضف:**
-- متغيرات CSS جديدة للتدرجات:
-  ```css
-  --gradient-primary: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-600)) 100%);
-  --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--secondary-600)) 100%);
-  --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  --gradient-sidebar: linear-gradient(180deg, hsl(var(--primary-700)) 0%, hsl(var(--primary-900)) 100%);
-  --gradient-card-hover: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--primary-50)) 100%);
-  ```
-
-**3.2 في `tailwind.config.ts`:**
-- أضف ألواناً موسّعة لكل درجة primary-50 → primary-900.
-- مثال:
-  ```
-  primary: {
-    50: '#f0f9fa', 100: '#d9f0f2', ..., 500: '#015e63', 600: '#014f53', ..., 900: '#002225'
+export async function createAdminUser(input: unknown): Promise<CreateUserResult> {
+  try {
+    const user = await requireUser();
+    requireRole(user, [Role.ADMIN]);
+  } catch (e) {
+    return { success: false, error: "غير مصرح — يجب أن تكون أدمن" };
   }
-  ```
-- طبّق نفس المنهج على secondary.
 
-**3.3 طبّق التدرجات في:**
+  // Zod validation
+  const parsed = createUserSchema.safeParse(input);
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const field = issue.path.join(".");
+      fieldErrors[field] = issue.message;
+    }
+    return {
+      success: false,
+      error: `تحقق من البيانات: ${Object.values(fieldErrors).join(" | ")}`,
+      fieldErrors,
+    };
+  }
 
-**أ) الشريط الجانبي:**
-- الخلفية: `bg-gradient-to-b from-primary-700 to-primary-900`.
-- العناصر النشطة: `bg-gradient-to-r from-primary-500 to-primary-600`.
-- أيقونات بلون أبيض.
+  const data = parsed.data;
+  const hashedPassword = await bcrypt.hash(data.password, 12);
 
-**ب) الأزرار الرئيسية:**
-- `bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800`.
-- ظل: `shadow-md hover:shadow-lg`.
+  try {
+    const created = await prisma.user.create({
+      data: { ...data, password: hashedPassword },
+    });
+    
+    // Audit (بمعالجة مستقلة)
+    try {
+      await recordAudit(user.id, AuditAction.CREATE, { ... });
+    } catch {}
 
-**ج) البطاقات (Cards):**
-- عند Hover: `hover:bg-gradient-to-br hover:from-card hover:to-primary-50`.
-- حدود متدرجة: `border-gradient` (استخدم pseudo-element إذا لزم).
-
-**د) الشارات (Badges):**
-- النجاح: `bg-gradient-to-r from-emerald-500 to-emerald-600`.
-- التحذير: `bg-gradient-to-r from-amber-500 to-amber-600`.
-- الخطأ: `bg-gradient-to-r from-red-500 to-red-600`.
-
-**هـ) الشريط العلوي:**
-- خلفية: `bg-gradient-to-r from-card via-card to-primary-50`.
-
-**3.4 الشهادات (إن وُجدت):**
-- خلفية: `bg-gradient-to-br from-amber-50 via-white to-amber-50`.
-
----
-
-🔴 المهمة 4: أنيميشن احترافي
-
-**المطلوب:**
-
-**4.1 في `app/globals.css` أضف keyframes:**
-```css
-@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-@keyframes slideInFromRight { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
-@keyframes slideInFromTop { from { transform: translateY(-10px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
-@keyframes scaleIn { from { transform: scale(0.95); opacity: 0 } to { transform: scale(1); opacity: 1 } }
-@keyframes pulse-soft { 0%, 100% { opacity: 1 } 50% { opacity: 0.7 } }
-@keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
-```
-
-**4.2 أضف Utility Classes:**
-```css
-.animate-fade-in { animation: fadeIn 0.3s ease-out }
-.animate-slide-in { animation: slideInFromTop 0.3s ease-out }
-.animate-scale-in { animation: scaleIn 0.2s ease-out }
-.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite }
-.skeleton { background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground)/0.1) 50%, hsl(var(--muted)) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite }
-```
-
-**4.3 طبّق الأنيميشن في:**
-
-**أ) الصفحات الجديدة:**
-- عند الدخول لأي صفحة: `animate-fade-in` على `<main>`.
-
-**ب) القوائم المنسدلة (Dropdown):**
-- عند الفتح: `animate-scale-in origin-top-left`.
-
-**ج) الـModal/Dialog:**
-- عند الفتح: `animate-scale-in`.
-- عند الإغلاق: `animate-fade-out`.
-
-**د) البطاقات:**
-- Hover: `transition-all duration-200 hover:shadow-md hover:-translate-y-0.5`.
-
-**هـ) الأزرار:**
-- `transition-all duration-150 active:scale-[0.98]`.
-
-**و) الإشعارات (Toast):**
-- عند الظهور: `animate-slide-in`.
-
-**ز) الشارات:**
-- `animate-pulse-soft` للأشياء الحية (مثل العداد).
-
-**ح) Loading States:**
-- استبدل `Spinner` بـ`skeleton` حيثما يناسب.
-
-**4.4 احترم `prefers-reduced-motion`:**
-```css
-@media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    revalidatePath("/admin/users");
+    return { success: true, userId: created.id };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return { success: false, error: "البريد الإلكتروني مستخدم بالفعل" };
+      }
+      if (error.code === "P2022" || error.code === "P2021") {
+        return { success: false, error: "خطأ في مزامنة قاعدة البيانات" };
+      }
+    }
+    console.error("createAdminUser failed:", error);
+    return { success: false, error: "حدث خطأ غير متوقع — تحقق من السجلات" };
+  }
 }
 ```
 
 ---
 
-✅ معايير النجاح النهائية:
+🔴 المهمة 2: تحديث `admin-users-manager.tsx` لاستقبال النتيجة
 
-**الأزرار:**
-1. زر الدخول يعمل من **ضغطة واحدة**.
-2. كل أزرار الحفظ تعمل من **ضغطة واحدة**.
-3. تسجيل الخروج يعمل من **ضغطة واحدة**.
+**الملف:** `components/admin/admin-users-manager.tsx`
 
-**الشريط العلوي:**
-4. قائمة المستخدم في الطرف الأيسر أعلى الصفحة لجميع الأدوار.
-5. لا يوجد أثر للقائمة القديمة في Sidebar.
+**التغيير المطلوب:**
 
-**الألوان:**
-6. الشريط الجانبي بتدرج داكن جميل.
-7. الأزرار الرئيسية بتدرجات.
-8. البطاقات لها ظلال ناعمة عند Hover.
+```typescript
+// ===== قبل =====
+try {
+  await createAdminUser(data);
+  setMessage("تم إنشاء المستخدم بنجاح");
+} catch (e) {
+  setError("حدث خطأ غير متوقع");  // ❌ رسالة عامة
+}
 
-**الأنيميشن:**
-9. الصفحات تدخل بـ`fade-in`.
-10. القوائم المنسدلة تظهر بـ`scale-in`.
-11. البطاقات تتحرك بنعومة عند Hover.
+// ===== بعد =====
+const result = await createAdminUser(data);
 
-**التقنية:**
-12. `pnpm typecheck` + `pnpm build` ينجحان.
-13. لا تحذيرات في Console.
+if (result.success) {
+  setMessage("تم إنشاء المستخدم بنجاح");
+  setError("");
+  // إعادة تعيين النموذج
+} else {
+  setError(result.error);  // ✅ عرض الخطأ الحقيقي
+  setMessage("");
+  if (result.fieldErrors) {
+    // اختياري: عرض الأخطاء تحت كل حقل
+    console.log("Field errors:", result.fieldErrors);
+  }
+}
+```
 
-📝 التوثيق:
-- حدّث `DEPLOYMENT_FIX_REPORT.md` بالأقسام:
-  - "إصلاح مشكلة الأزرار" (السبب + الحل).
-  - "نقل قائمة المستخدم إلى الشريط العلوي".
-  - "نظام الألوان المتدرج".
-  - "الأنيميشن والانتقالات".
+**نفس النمط** يُطبَّق على كل Server Action تُستدعى من هذا المكوّن (تعديل، حذف، إعادة تعيين).
+
+---
+
+🔴 المهمة 3: تطبيق نفس النمط على Server Actions أخرى حرجة
+
+**الملفات المطلوبة:**
+- `lib/actions/entity-actions.ts` — `createInstitutionBySpecialist`
+- `lib/actions/examiner-actions.ts` — `createExaminer`
+- `lib/actions/committee-actions.ts` — `createCommittee`, `deleteCommittee`, `assignStudentToCommittee`
+- `lib/actions/student-actions.ts` — `createStudentApplication`
+
+**لكل واحدة:**
+1. حوّل النوع إلى `{ success: true; ... } | { success: false; error: string }`.
+2. استبدل `throw new Error(...)` بـ`return { success: false, error: "..." }`.
+3. حدّث المكوّن المستدعي لعرض `result.error`.
+
+⚠️ **إذا كان أحد المكونات يعتمد على `try/catch` بشكل كبير**، اتركه كما هو وأخبرني — سنراجعه يدوياً.
+
+---
+
+🔴 المهمة 4: إصلاح البريد في `lib/validations/user.ts`
+
+**استبدل `z.string().email()` بـ regex متسامح:**
+
+```typescript
+email: z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1, "البريد الإلكتروني مطلوب")
+  .max(254, "البريد الإلكتروني طويل جداً")
+  .regex(
+    /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
+    "البريد الإلكتروني غير صالح (مثال: name@domain.com)"
+  ),
+```
+
+**سبب الاستبدال:**
+- `z.string().email()` صارم جداً ويرفض حالات مشروعة.
+- `trim()` يزيل المسافات (شائعة عند النسخ واللصق).
+- `toLowerCase()` يوحّد البريد.
+- Regex البسيط يقبل أي بريد معقول.
+
+---
+
+🔴 المهمة 5: منع POST المتكرر كل 30 ثانية
+
+**الملاحظة من Logs:**
+ظهر POST إلى `/admin/users` كل 30 ثانية بالضبط (20:55, 20:56, 20:57, ...).
+هذا يعني وجود حلقة إعادة محاولة عالقة.
+
+**افحص `components/admin/admin-users-manager.tsx` و`app/(dashboard)/admin/users/page.tsx`:**
+
+1. **لا تضع `router.refresh()` داخل `useEffect` بلا شروط.**
+2. **استخدم `useTransition`** بدلاً من `loading` state يدوي:
+   ```typescript
+   const [isPending, startTransition] = useTransition();
+   ```
+3. **تأكد أن `<form>` يستخدم `onSubmit`** مع `e.preventDefault()`.
+
+**أضف سجل تشخيصي مؤقت:**
+- إذا كانت المشكلة من مكون آخر، سيظهر في الـ logs أي مسار يُستدعى.
+
+---
+
+🔴 المهمة 6: اختبار محلي في وضع الإنتاج
+
+```powershell
+pnpm build
+pnpm start
+```
+
+**اختبر:**
+1. `/admin/users` → إنشاء مستخدم ببريد `test@example.com` → ✅ نجاح مع رسالة واضحة.
+2. إنشاء مستخدم بنفس البريد مرة أخرى → ❌ رسالة "البريد مستخدم بالفعل" **ظاهرة في الواجهة**.
+3. إنشاء مستخدم ببريد خاطئ `abc` → ❌ رسالة "البريد الإلكتروني غير صالح" **ظاهرة**.
+4. **راقب Terminal** لمدة دقيقتين — لا يجب أن ترى POST متكرر كل 30 ثانية.
+
+---
+
+✅ معايير النجاح:
+1. `pnpm typecheck` + `pnpm build` ينجحان.
+2. في الواجهة، كل خطأ يظهر **نصاً واضحاً** (وليس صفحة "Server Components render").
+3. إنشاء مستخدم ببريد صحيح يعمل من **ضغطة واحدة**.
+4. لا يوجد POST متكرر.
+5. التوثيق محدّث في `DEPLOYMENT_FIX_REPORT.md`.
 
 🚫 ممنوع:
-- حذف ملفات موجودة.
-- تغيير هيكل `prisma/schema.prisma`.
-- إضافة اعتماديات جديدة (استخدم Tailwind + CSS الموجود).
+- استخدام `any`.
+- حذف ملفات.
 - الـpush إلى GitHub.
-- كسر أي وظيفة موجودة (تسجيل دخول، إنشاء حساب، إلخ).
 
-**ابدأ الآن. اتبع المهام بالترتيب، ووثّق كل خطوة.**
+**ابدأ الآن. هذا الإصلاح حاسم قبل الإطلاق.**

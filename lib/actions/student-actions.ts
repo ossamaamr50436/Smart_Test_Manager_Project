@@ -32,6 +32,10 @@ async function recordAudit(userId: string, action: AuditAction, details: unknown
   });
 }
 
+export type CreateStudentApplicationResult =
+  | { success: true; studentId: string }
+  | { success: false; error: string };
+
 /**
  * 1) ترشيح طالب جديد — خاص بالجهة التعليمية
  * - يقبل الطالب تلقائياً بربط institutionId بالجهة المرتبطة بحساب المستخدم
@@ -46,22 +50,34 @@ export async function createStudentApplication(
     fileName: string;
     mimeType: string;
   }
-) {
-  const user = await requireUser();
+): Promise<CreateStudentApplicationResult> {
+  let user;
+  try {
+    user = await requireUser();
 
-  // عزل الصلاحيات: الجهة التعليمية فقط
-  requireRole(user, [Role.INSTITUTION]);
+    // عزل الصلاحيات: الجهة التعليمية فقط
+    requireRole(user, [Role.INSTITUTION]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب تسجيل الدخول بحساب جهة تعليمية" };
+  }
   if (!user.institutionId) {
-    throw new Error("حساب الجهة غير مرتبط بمؤسسة تعليمية");
+    return { success: false, error: "حساب الجهة غير مرتبط بمؤسسة تعليمية" };
   }
 
   // منع إساءة الاستخدام: حد أقصى 20 طالب لكل جهة خلال 15 دقيقة
-  await checkRateLimit(`student-create:${user.id}`, 20);
+  try {
+    await checkRateLimit(`student-create:${user.id}`, 20);
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+    };
+  }
 
   // التحقق من صحة البيانات
   const parsed = studentApplicationSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "بيانات غير صحيحة");
+    return { success: false, error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
   }
   const data = parsed.data;
 
@@ -74,7 +90,7 @@ export async function createStudentApplication(
 
   if (requireFile || applicationFile) {
     if (!applicationFile) {
-      throw new Error("يجب رفع نموذج اختبار الطالب (PDF) لإكمال الترشيح");
+      return { success: false, error: "يجب رفع نموذج اختبار الطالب (PDF) لإكمال الترشيح" };
     }
 
     // التحقق من أن الملف PDF فعلياً وبحد أقصى للحجم (OWASP — منع DoS)
@@ -85,7 +101,7 @@ export async function createStudentApplication(
         allowedMimes: ["application/pdf"],
       });
     } catch {
-      throw new Error("نموذج الاختبار يجب أن يكون ملف PDF (الحد الأقصى 20MB)");
+      return { success: false, error: "نموذج الاختبار يجب أن يكون ملف PDF (الحد الأقصى 20MB)" };
     }
 
     // مجلد خاص بالجهة داخل مجلد الجذر (يُنشأ عند الحاجة)
@@ -94,7 +110,7 @@ export async function createStudentApplication(
       select: { name: true },
     });
     if (!institution) {
-      throw new Error("الجهة التعليمية غير موجودة");
+      return { success: false, error: "الجهة التعليمية غير موجودة" };
     }
 
     try {
@@ -108,48 +124,64 @@ export async function createStudentApplication(
       applicationFileId = uploaded.fileId;
       applicationFileUrl = uploaded.webViewLink;
     } catch {
-      throw new Error("تعذر رفع نموذج الاختبار على Google Drive — تحقق من اتصال النظام ثم أعد المحاولة");
+      return {
+        success: false,
+        error: "تعذر رفع نموذج الاختبار على Google Drive — تحقق من اتصال النظام ثم أعد المحاولة",
+      };
     }
   }
 
-  const student = await prisma.student.create({
-    data: {
-      name: data.name,
-      age: data.age,
-      branch: data.branch,
-      nationality: data.nationality,
-      teacherName: data.teacherName,
-      parentPhone: data.parentPhone,
-      address: data.address ?? null,
-      phone: data.phone ?? null,
-      status: StudentStatus.PENDING,
-      institutionId: user.institutionId,
-      applicationFileId,
-      applicationFileUrl,
-    },
-  });
-
-  // إشعار بالأخصائي (قد يكون أكثر من أخصائي)
-  const specialists = await prisma.user.findMany({
-    where: { role: Role.TEST_SPECIALIST },
-    select: { id: true },
-  });
-
-  if (size(specialists) > 0) {
-    await prisma.notification.createMany({
-      data: specialists.map((s) => ({
-        userId: s.id,
-        message: `طلب ترشيح جديد للطالب «${student.name}» بانتظار المراجعة`,
-        type: NotificationType.RECRUITMENT,
-      })),
+  let student;
+  try {
+    student = await prisma.student.create({
+      data: {
+        name: data.name,
+        age: data.age,
+        branch: data.branch,
+        nationality: data.nationality,
+        teacherName: data.teacherName,
+        parentPhone: data.parentPhone,
+        address: data.address ?? null,
+        phone: data.phone ?? null,
+        status: StudentStatus.PENDING,
+        institutionId: user.institutionId,
+        applicationFileId,
+        applicationFileUrl,
+      },
     });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء حفظ الطلب — أعد المحاولة" };
   }
 
-  await recordAudit(user.id, AuditAction.CREATE, {
-    entity: "Student",
-    studentId: student.id,
-    name: student.name,
-  });
+  // إشعار بالأخصائي (قد يكون أكثر من أخصائي) — فشل الإشعار لا يمنع حفظ الطلب
+  try {
+    const specialists = await prisma.user.findMany({
+      where: { role: Role.TEST_SPECIALIST },
+      select: { id: true },
+    });
+
+    if (size(specialists) > 0) {
+      await prisma.notification.createMany({
+        data: specialists.map((s) => ({
+          userId: s.id,
+          message: `طلب ترشيح جديد للطالب «${student.name}» بانتظار المراجعة`,
+          type: NotificationType.RECRUITMENT,
+        })),
+      });
+    }
+  } catch {
+    // غير حاسم — الطلب محفوظ بالفعل
+  }
+
+  try {
+    await recordAudit(user.id, AuditAction.CREATE, {
+      entity: "Student",
+      studentId: student.id,
+      name: student.name,
+    });
+  } catch {
+    // فشل سجل التدقيق لا يمنع النجاح
+  }
 
   revalidatePath("/test-specialist/requests");
 

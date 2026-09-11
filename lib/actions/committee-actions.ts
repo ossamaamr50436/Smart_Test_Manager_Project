@@ -8,7 +8,14 @@ import { revalidatePath } from "next/cache";
 // ============================================================
 // المهمة 2: إدارة اللجان (Committee)
 // صلاحية صارمة: TEST_SPECIALIST و ADMIN فقط
+// كل إجراء يعيد union { success } | { success:false; error } ليعرض العميل الخطأ الحقيقي
 // ============================================================
+
+export type CreateCommitteeResult =
+  | { success: true; committeeId: string }
+  | { success: false; error: string };
+
+export type CommitteeActionResult = { success: true } | { success: false; error: string };
 
 export async function createCommittee(input: {
   name: string;
@@ -18,24 +25,29 @@ export async function createCommittee(input: {
   teacher2Id: string;
   startModelNumber?: number;
   endModelNumber?: number;
-}) {
-  const user = await requireUser();
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+}): Promise<CreateCommitteeResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
 
   const name = (input.name ?? "").trim();
-  if (name.length < 2) throw new Error("اسم اللجنة مطلوب (حرفان على الأقل)");
-  if (name.length > 200) throw new Error("اسم اللجنة طويل جداً");
+  if (name.length < 2) return { success: false, error: "اسم اللجنة مطلوب (حرفان على الأقل)" };
+  if (name.length > 200) return { success: false, error: "اسم اللجنة طويل جداً" };
 
   const validBranches = ["5", "10", "15", "20", "25", "30"];
   if (!validBranches.includes(input.branch)) {
-    throw new Error("الفرع غير صالح");
+    return { success: false, error: "الفرع غير صالح" };
   }
 
   if (!input.teacher1Id || !input.teacher2Id) {
-    throw new Error("يجب اختيار المعلمين");
+    return { success: false, error: "يجب اختيار المعلمين" };
   }
   if (input.teacher1Id === input.teacher2Id) {
-    throw new Error("لا يمكن اختيار المعلم نفسه في المعلمين الأول والثاني");
+    return { success: false, error: "لا يمكن اختيار المعلم نفسه في المعلمين الأول والثاني" };
   }
 
   // التحقق من وجود الموسم
@@ -43,17 +55,17 @@ export async function createCommittee(input: {
     where: { id: input.seasonId },
     select: { id: true },
   });
-  if (!season) throw new Error("الموسم غير موجود");
+  if (!season) return { success: false, error: "الموسم غير موجود" };
 
   // التحقق من وجود المعلمين
   const teachers = await prisma.user.findMany({
     where: { id: { in: [input.teacher1Id, input.teacher2Id] } },
     select: { id: true, role: true },
   });
-  if (teachers.length !== 2) throw new Error("أحد المعلمين غير موجود");
+  if (teachers.length !== 2) return { success: false, error: "أحد المعلمين غير موجود" };
   for (const t of teachers) {
     if (t.role !== Role.EXAMINER) {
-      throw new Error("يجب أن يكون كل من المعلمين بدور EXAMINER");
+      return { success: false, error: "يجب أن يكون كل من المعلمين بدور EXAMINER" };
     }
   }
 
@@ -62,61 +74,71 @@ export async function createCommittee(input: {
     where: { name, seasonId: input.seasonId },
     select: { id: true },
   });
-  if (existing) throw new Error("يوجد لجنة بنفس الاسم في هذا الموسم");
+  if (existing) return { success: false, error: "يوجد لجنة بنفس الاسم في هذا الموسم" };
 
   const start = input.startModelNumber ?? 1;
   const end = input.endModelNumber ?? 10;
 
-  const committee = await prisma.$transaction(async (tx) => {
-    const created = await tx.committee.create({
-      data: {
-        name,
-        branch: input.branch,
-        seasonId: input.seasonId,
-        teacher1Id: input.teacher1Id,
-        teacher2Id: input.teacher2Id,
-      },
-    });
-
-    // توزيع النماذج على اللجنة إذا حُدد نطاق
-    await tx.committeeModelAllocation.create({
-      data: {
-        committeeId: created.id,
-        branch: input.branch,
-        startModelNumber: start,
-        endModelNumber: end,
-        seasonId: input.seasonId,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: AuditAction.CREATE,
-        details: JSON.stringify({
-          entity: "Committee",
-          committeeId: created.id,
+  let committee;
+  try {
+    committee = await prisma.$transaction(async (tx) => {
+      const created = await tx.committee.create({
+        data: {
           name,
           branch: input.branch,
+          seasonId: input.seasonId,
           teacher1Id: input.teacher1Id,
           teacher2Id: input.teacher2Id,
-        }),
-      },
-    });
+        },
+      });
 
-    return created;
-  });
+      // توزيع النماذج على اللجنة إذا حُدد نطاق
+      await tx.committeeModelAllocation.create({
+        data: {
+          committeeId: created.id,
+          branch: input.branch,
+          startModelNumber: start,
+          endModelNumber: end,
+          seasonId: input.seasonId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: AuditAction.CREATE,
+          details: JSON.stringify({
+            entity: "Committee",
+            committeeId: created.id,
+            name,
+            branch: input.branch,
+            teacher1Id: input.teacher1Id,
+            teacher2Id: input.teacher2Id,
+          }),
+        },
+      });
+
+      return created;
+    });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء إنشاء اللجنة" };
+  }
 
   revalidatePath("/test-specialist/committees");
   return { success: true, committeeId: committee.id };
 }
 
-export async function deleteCommittee(committeeId: string) {
-  const user = await requireUser();
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+export async function deleteCommittee(committeeId: string): Promise<CommitteeActionResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
 
   if (!committeeId || typeof committeeId !== "string" || committeeId.length > 64) {
-    throw new Error("معرّف اللجنة غير صالح");
+    return { success: false, error: "معرّف اللجنة غير صالح" };
   }
 
   const committee = await prisma.committee.findUnique({
@@ -127,29 +149,33 @@ export async function deleteCommittee(committeeId: string) {
       _count: { select: { students: true } },
     },
   });
-  if (!committee) throw new Error("اللجنة غير موجودة");
+  if (!committee) return { success: false, error: "اللجنة غير موجودة" };
 
   if (committee._count.students > 0) {
-    throw new Error("لا يمكن حذف لجنة مرتبط بها طلاب — أزل الطلاب أولاً");
+    return { success: false, error: "لا يمكن حذف لجنة مرتبط بها طلاب — أزل الطلاب أولاً" };
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.committeeModelAllocation.deleteMany({
-      where: { committeeId },
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.committeeModelAllocation.deleteMany({
+        where: { committeeId },
+      });
+      await tx.committee.delete({ where: { id: committeeId } });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: AuditAction.DELETE,
+          details: JSON.stringify({
+            entity: "Committee",
+            committeeId,
+            name: committee.name,
+          }),
+        },
+      });
     });
-    await tx.committee.delete({ where: { id: committeeId } });
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: AuditAction.DELETE,
-        details: JSON.stringify({
-          entity: "Committee",
-          committeeId,
-          name: committee.name,
-        }),
-      },
-    });
-  });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء حذف اللجنة" };
+  }
 
   revalidatePath("/test-specialist/committees");
   return { success: true };
@@ -158,46 +184,55 @@ export async function deleteCommittee(committeeId: string) {
 export async function assignStudentToCommittee(input: {
   studentId: string;
   committeeId: string;
-}) {
-  const user = await requireUser();
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+}): Promise<CommitteeActionResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
 
   const student = await prisma.student.findUnique({
     where: { id: input.studentId },
     select: { id: true, name: true, status: true, branch: true },
   });
-  if (!student) throw new Error("الطالب غير موجود");
+  if (!student) return { success: false, error: "الطالب غير موجود" };
   if (student.status !== "APPROVED") {
-    throw new Error("يجب أن يكون الطالب بحالة APPROVED قبل توزيعه على لجنة");
+    return { success: false, error: "يجب أن يكون الطالب بحالة APPROVED قبل توزيعه على لجنة" };
   }
 
   const committee = await prisma.committee.findUnique({
     where: { id: input.committeeId },
     select: { id: true, branch: true, name: true },
   });
-  if (!committee) throw new Error("اللجنة غير موجودة");
+  if (!committee) return { success: false, error: "اللجنة غير موجودة" };
 
-  await prisma.$transaction(async (tx) => {
-    await tx.student.update({
-      where: { id: input.studentId },
-      data: {
-        committeeId: input.committeeId,
-        status: "ASSIGNED",
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: AuditAction.UPDATE,
-        details: JSON.stringify({
-          entity: "Student",
-          studentId: input.studentId,
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.student.update({
+        where: { id: input.studentId },
+        data: {
           committeeId: input.committeeId,
-        }),
-      },
+          status: "ASSIGNED",
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: AuditAction.UPDATE,
+          details: JSON.stringify({
+            entity: "Student",
+            studentId: input.studentId,
+            committeeId: input.committeeId,
+          }),
+        },
+      });
     });
-  });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء توزيع الطالب على اللجنة" };
+  }
 
   revalidatePath("/test-specialist/committees");
   return { success: true };

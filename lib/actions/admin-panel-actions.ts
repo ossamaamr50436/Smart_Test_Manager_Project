@@ -14,6 +14,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isUniqueConstraintError, friendlyUniqueMessage } from "@/lib/actions/unique-guard";
+import { createUserSchema } from "@/lib/validations/user";
 
 // ============================================================
 // لوحة تحكم المسؤول — Server Actions (عزل صلاحيات: ADMIN فقط)
@@ -162,6 +163,10 @@ export async function getAdminUsers(params: {
   return { users, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
+export type CreateUserResult =
+  | { success: true; userId: string }
+  | { success: false; error: string; fieldErrors?: Record<string, string> };
+
 export async function createAdminUser(input: {
   name: string;
   email: string;
@@ -169,71 +174,84 @@ export async function createAdminUser(input: {
   role: string;
   birthDate?: string;
   institutionId?: string;
-}) {
-  const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
-
-  await checkRateLimit(`admin-create-user:${user.id}`, 20);
-
-  if (!input.name || input.name.trim().length < 2) throw new Error("الاسم مطلوب");
-  if (input.name.length > 100) throw new Error("الاسم طويل جداً");
-  if (!input.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
-    throw new Error("البريد الإلكتروني غير صالح");
-  }
-  if (input.email.length > 254) throw new Error("البريد الإلكتروني طويل جداً");
-  if (!input.password || input.password.length < 5) {
-    throw new Error("كلمة المرور يجب ألا تقل عن 5 أحرف");
-  }
-  if (!/[A-Z]/.test(input.password) || !/[a-z]/.test(input.password) || !/[0-9]/.test(input.password)) {
-    throw new Error("كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم");
-  }
-  const validRoles = Object.values(Role);
-  if (!validRoles.includes(input.role as Role)) {
-    throw new Error("دور غير صالح");
+}): Promise<CreateUserResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أدمن" };
   }
 
-  // التحقق من عدم وجود بريد مكرر
-  const existing = await prisma.user.findUnique({ where: { email: input.email } });
-  if (existing) throw new Error("هذا البريد الإلكتروني مستخدم مسبقاً");
+  try {
+    await checkRateLimit(`admin-create-user:${user.id}`, 20);
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+    };
+  }
 
-  // إذا كان الدور INSTITUTION، يجب ربط بمؤسسة
-  const institutionId = input.role === Role.INSTITUTION ? input.institutionId ?? null : null;
+  // التحقق من البيانات (Zod متسامح للبريد — المهمة 4)
+  const parsed = createUserSchema.safeParse({
+    ...input,
+    birthDate:
+      input.birthDate && input.birthDate.trim().length > 0
+        ? new Date(input.birthDate)
+        : undefined,
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const field = issue.path.join(".");
+      if (!fieldErrors[field]) fieldErrors[field] = issue.message;
+    }
+    return {
+      success: false,
+      error: `تحقق من البيانات: ${Object.values(fieldErrors).join(" | ")}`,
+      fieldErrors,
+    };
+  }
+  const data = parsed.data;
 
-  // إذا كان الدور من الممتحنين ورُبط بمؤسسة، يجب التحقق من وجودها
+  // إذا كان الدور INSTITUTION، يجب ربط بمؤسسة موجودة فعلاً
+  const institutionId = data.role === Role.INSTITUTION ? data.institutionId ?? null : null;
   if (institutionId) {
     const inst = await prisma.institution.findUnique({ where: { id: institutionId } });
-    if (!inst) throw new Error("المؤسسة غير موجودة");
+    if (!inst) return { success: false, error: "المؤسسة غير موجودة" };
   }
 
-  const birthDate = input.birthDate ? new Date(input.birthDate) : null;
-  if (!birthDate) throw new Error("تاريخ الميلاد مطلوب");
-  if (Number.isNaN(birthDate.getTime())) throw new Error("تاريخ الميلاد غير صالح");
+  // منع التكرار (فحص مسبق ودّي + درع P2002 عند التسابق)
+  const existing = await prisma.user.findUnique({ where: { email: data.email } });
+  if (existing) return { success: false, error: "هذا البريد الإلكتروني مستخدم مسبقاً" };
 
-  const hashedPassword = await bcrypt.hash(input.password, 12);
+  const hashedPassword = await bcrypt.hash(data.password, 12);
 
   let created;
   try {
     created = await prisma.user.create({
       data: {
-        name: input.name.trim(),
-        email: input.email.trim().toLowerCase(),
+        name: data.name,
+        email: data.email,
         password: hashedPassword,
-        role: input.role as Role,
-        birthDate,
+        role: data.role,
+        birthDate: data.birthDate,
         institutionId,
+        mustChangePassword: true,
       },
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
-      throw new Error(friendlyUniqueMessage(error));
+      return { success: false, error: friendlyUniqueMessage(error) };
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       // P2021: الجدول غير موجود — P2022: العمود غير موجود (عدم مزامنة السكّيما)
       if (error.code === "P2022" || error.code === "P2021") {
-        throw new Error("خطأ في مزامنة قاعدة البيانات — تواصل مع المسؤول");
+        return { success: false, error: "خطأ في مزامنة قاعدة البيانات — تواصل مع المسؤول" };
       }
     }
-    throw new Error("حدث خطأ غير متوقع أثناء إنشاء الحساب");
+    console.error("createAdminUser failed:", error);
+    return { success: false, error: "حدث خطأ غير متوقع أثناء إنشاء الحساب" };
   }
 
   // تسجيل التدقيق مع حماية من فشل التسجيل (لا يُفشل إنشاء الحساب)
@@ -252,45 +270,59 @@ export async function createAdminUser(input: {
   return { success: true, userId: created.id };
 }
 
-export async function updateAdminUser(userId: string, input: {
-  name?: string;
-  email?: string;
-  role?: string;
-  birthDate?: string | null;
-  institutionId?: string | null;
-}) {
-  const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+export type UpdateUserResult = { success: true } | { success: false; error: string };
+
+export async function updateAdminUser(
+  userId: string,
+  input: {
+    name?: string;
+    email?: string;
+    role?: string;
+    birthDate?: string | null;
+    institutionId?: string | null;
+  }
+): Promise<UpdateUserResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أدمن" };
+  }
 
   if (!userId || typeof userId !== "string" || userId.length < 1 || userId.length > 64) {
-    throw new Error("معرّف المستخدم غير صالح");
+    return { success: false, error: "معرّف المستخدم غير صالح" };
   }
 
   const existing = await prisma.user.findUnique({ where: { id: userId } });
-  if (!existing) throw new Error("المستخدم غير موجود");
+  if (!existing) return { success: false, error: "المستخدم غير موجود" };
 
   const data: Prisma.UserUncheckedUpdateInput = {};
 
   if (input.name !== undefined) {
-    if (input.name.trim().length < 2) throw new Error("الاسم مطلوب");
-    if (input.name.length > 100) throw new Error("الاسم طويل جداً");
+    if (input.name.trim().length < 2) return { success: false, error: "الاسم مطلوب" };
+    if (input.name.length > 100) return { success: false, error: "الاسم طويل جداً" };
     data.name = input.name.trim();
   }
 
   if (input.email !== undefined) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) throw new Error("البريد الإلكتروني غير صالح");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
+      return { success: false, error: "البريد الإلكتروني غير صالح" };
+    }
     const dup = await prisma.user.findUnique({ where: { email: input.email.trim().toLowerCase() } });
-    if (dup && dup.id !== userId) throw new Error("هذا البريد مستخدم مسبقاً");
+    if (dup && dup.id !== userId) return { success: false, error: "هذا البريد مستخدم مسبقاً" };
     data.email = input.email.trim().toLowerCase();
   }
 
   if (input.role !== undefined) {
-    if (!Object.values(Role).includes(input.role as Role)) throw new Error("دور غير صالح");
+    if (!Object.values(Role).includes(input.role as Role)) {
+      return { success: false, error: "دور غير صالح" };
+    }
     const newInstitutionId =
       input.role === Role.INSTITUTION ? input.institutionId ?? existing.institutionId : null;
     if (newInstitutionId) {
       const inst = await prisma.institution.findUnique({ where: { id: newInstitutionId } });
-      if (!inst) throw new Error("المؤسسة غير موجودة");
+      if (!inst) return { success: false, error: "المؤسسة غير موجودة" };
     }
     data.role = input.role as Role;
     data.institutionId = newInstitutionId;
@@ -299,57 +331,82 @@ export async function updateAdminUser(userId: string, input: {
   if (input.birthDate !== undefined) {
     if (input.birthDate) {
       const bd = new Date(input.birthDate);
-      if (Number.isNaN(bd.getTime())) throw new Error("تاريخ الميلاد غير صالح");
+      if (Number.isNaN(bd.getTime())) return { success: false, error: "تاريخ الميلاد غير صالح" };
       data.birthDate = bd;
     } else {
-      throw new Error("تاريخ الميلاد مطلوب");
+      return { success: false, error: "تاريخ الميلاد مطلوب" };
     }
   }
 
   try {
     await prisma.user.update({ where: { id: userId }, data });
   } catch (error) {
-    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
-    throw error;
+    if (isUniqueConstraintError(error)) {
+      return { success: false, error: friendlyUniqueMessage(error) };
+    }
+    return { success: false, error: "حدث خطأ غير متوقع أثناء حفظ التعديلات" };
   }
 
-  await recordAudit(user.id, AuditAction.UPDATE, {
-    entity: "User",
-    userId,
-    updatedFields: Object.keys(data),
-  });
+  try {
+    await recordAudit(user.id, AuditAction.UPDATE, {
+      entity: "User",
+      userId,
+      updatedFields: Object.keys(data),
+    });
+  } catch {
+    // فشل سجل التدقيق لا يمنع نجاح التحديث
+  }
 
   revalidatePath("/admin/users");
   return { success: true };
 }
 
-export async function resetAdminUserPassword(userId: string, newPassword: string) {
-  const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+export async function resetAdminUserPassword(
+  userId: string,
+  newPassword: string
+): Promise<UpdateUserResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أدمن" };
+  }
 
-  await checkRateLimit(`admin-reset-pw:${user.id}`, 15);
+  try {
+    await checkRateLimit(`admin-reset-pw:${user.id}`, 15);
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+    };
+  }
 
   if (!userId || typeof userId !== "string" || userId.length < 1 || userId.length > 64) {
-    throw new Error("معرّف المستخدم غير صالح");
+    return { success: false, error: "معرّف المستخدم غير صالح" };
   }
   if (!newPassword || newPassword.length < 5) {
-    throw new Error("كلمة المرور الجديدة يجب ألا تقل عن 5 أحرف");
+    return { success: false, error: "كلمة المرور الجديدة يجب ألا تقل عن 5 أحرف" };
   }
   if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-    throw new Error("كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم");
+    return { success: false, error: "كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم" };
   }
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
-  if (!target) throw new Error("المستخدم غير موجود");
+  if (!target) return { success: false, error: "المستخدم غير موجود" };
 
   const hashed = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
 
-  await recordAudit(user.id, AuditAction.UPDATE, {
-    entity: "User",
-    userId,
-    step: "PASSWORD_RESET",
-  });
+  try {
+    await recordAudit(user.id, AuditAction.UPDATE, {
+      entity: "User",
+      userId,
+      step: "PASSWORD_RESET",
+    });
+  } catch {
+    // فشل سجل التدقيق لا يمنع نجاح تغيير كلمة المرور
+  }
 
   return { success: true };
 }
@@ -937,36 +994,52 @@ export async function adminDeleteInstitution(institutionId: string) {
   return { success: true };
 }
 
-export async function adminDeleteUser(userId: string) {
-  const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+export async function adminDeleteUser(userId: string): Promise<UpdateUserResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أدمن" };
+  }
 
-  await checkRateLimit(`admin-delete-user:${user.id}`, 5);
+  try {
+    await checkRateLimit(`admin-delete-user:${user.id}`, 5);
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+    };
+  }
 
   if (!userId || typeof userId !== "string" || userId.length < 1 || userId.length > 64) {
-    throw new Error("معرّف المستخدم غير صالح");
+    return { success: false, error: "معرّف المستخدم غير صالح" };
   }
   if (userId === user.id) {
-    throw new Error("لا يمكنك حذف حسابك الحالي");
+    return { success: false, error: "لا يمكنك حذف حسابك الحالي" };
   }
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
-  if (!target) throw new Error("المستخدم غير موجود");
+  if (!target) return { success: false, error: "المستخدم غير موجود" };
 
   const activeSessions = await prisma.examSession.count({
     where: { OR: [{ teacher1Id: userId }, { teacher2Id: userId }] },
   });
   if (activeSessions > 0) {
-    throw new Error("لا يمكن حذف مستخدم لديه جلسات اختبار مرتبطة");
+    return { success: false, error: "لا يمكن حذف مستخدم لديه جلسات اختبار مرتبطة" };
   }
 
   await prisma.user.delete({ where: { id: userId } });
 
-  await recordAudit(user.id, AuditAction.DELETE, {
-    entity: "User",
-    userId,
-    name: target.name,
-  });
+  try {
+    await recordAudit(user.id, AuditAction.DELETE, {
+      entity: "User",
+      userId,
+      name: target.name,
+    });
+  } catch {
+    // فشل سجل التدقيق لا يمنع نجاح الحذف
+  }
 
   revalidatePath("/admin/users");
   return { success: true };

@@ -31,12 +31,29 @@ export const passwordSchema = z
   .regex(/[0-9]/, "كلمة المرور يجب أن تحتوي على رقم واحد على الأقل");
 
 /**
+ * بريد إلكتروني متسامح (يستبدل z.string().email() الصارم):
+ * - trim يزيل المسافات (شائعة عند النسخ واللصق)
+ * - toLowerCase يوحّد البريد
+ * - regex بسيط يقبل أي بريد معقول
+ */
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1, "البريد الإلكتروني مطلوب")
+  .max(254, "البريد الإلكتروني طويل جداً")
+  .regex(
+    /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
+    "البريد الإلكتروني غير صالح (مثال: name@domain.com)"
+  );
+
+/**
  * مثال على مخطط مستخدم كامل يُستخدم في أي عملية إنشاء مستخدم
  * (خاصة المعلمين EXAMINER حيث يلزم birthDate للاعتماد المتسلسل)
  */
 export const createUserSchema = z.object({
-  name: z.string().min(2, "اسم المستخدم لا يقل عن حرفين"),
-  email: z.string().email("بريد إلكتروني غير صحيح"),
+  name: z.string().min(2, "اسم المستخدم لا يقل عن حرفين").max(100, "الاسم طويل جداً"),
+  email: emailSchema,
   password: passwordSchema,
   role: z.enum(
     ["ADMIN", "HEAD_OF_AFFAIRS", "CERTIFICATE_SOURCE", "TEST_SPECIALIST", "EXAMINER", "INSTITUTION"],

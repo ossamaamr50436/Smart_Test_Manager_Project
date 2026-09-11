@@ -73,10 +73,14 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
         password: form.password,
         birthDate: new Date(form.birthDate),
       };
-      await createExaminer(input);
-      setSuccess(`تم إنشاء حساب المعلم «${form.name}» — كلمة المرور المؤقتة: ${form.password}`);
-      setForm(EMPTY_FORM);
-      await loadFromServer();
+      const result = await createExaminer(input);
+      if (result.success) {
+        setSuccess(`تم إنشاء حساب المعلم «${form.name}» — كلمة المرور المؤقتة: ${form.password}`);
+        setForm(EMPTY_FORM);
+        await loadFromServer();
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
     } finally {
@@ -89,10 +93,14 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
     setSuccess("");
     setLoading(true);
     try {
-      await resetExaminerPassword(examinerId, resetPassword);
-      setSuccess("تمت إعادة تعيين كلمة المرور وتحديث الحساب");
-      setResetId(null);
-      setResetPassword("");
+      const result = await resetExaminerPassword(examinerId, resetPassword);
+      if (result.success) {
+        setSuccess("تمت إعادة تعيين كلمة المرور وتحديث الحساب");
+        setResetId(null);
+        setResetPassword("");
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
     } finally {
@@ -105,10 +113,14 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
     setSuccess("");
     setLoading(true);
     try {
-      await deleteExaminer(examinerId);
-      setSuccess("تم حذف المعلم");
-      setConfirmDeleteId(null);
-      await loadFromServer();
+      const result = await deleteExaminer(examinerId);
+      if (result.success) {
+        setSuccess("تم حذف المعلم");
+        setConfirmDeleteId(null);
+        await loadFromServer();
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
     } finally {
