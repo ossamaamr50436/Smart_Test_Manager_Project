@@ -1,355 +1,302 @@
-\أنت الآن وكيل برمجي خبير في Next.js 14، TypeScript، Prisma، PostgreSQL (Neon)، NextAuth v5، وTailwind CSS.
+# 🎯 البرومبت الاحترافي الشامل (ضعه في `O.txt`)
+
+```text
+أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، PostgreSQL (Neon)، NextAuth v5، وTailwind CSS.
+
+📌 سياق المهمة:
+- المنصة **منشورة بالفعل على الإنتاج** (Vercel) على الرابط: https://smart-test-manager-project.vercel.app
+- قاعدة البيانات على Neon (سحابية، مشتركة بين البيئة المحلية والإنتاج).
+- المشروع يعمل محلياً بشكل ممتاز، لكن ظهر خطأ في الإنتاج:
+  ```
+  An error occurred in the Server Components render.
+  The specific message is omitted in production builds to avoid leaking sensitive details.
+  A digest property is included on this error instance which may provide additional details about the nature of the error.
+  ```
+- هذا الخطأ يظهر عند **محاولة إنشاء حساب جديد** من لوحة الأدمن (`/admin/users`).
+
+🎯 المطلوب: 4 مراحل متكاملة، تنفَّذ بالترتيب الصارم.
+
+---
 
 📜 التعليمات الصارمة (القانون الأعلى):
-1. اقرأ `CONSTITUTION.txt` أولاً. التزم بجميع المواد.
-2. اقرأ `prisma/schema.prisma` بالكامل قبل أي تعديل.
-3. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm build`.
+1. اقرأ `CONSTITUTION.txt` أولاً.
+2. اقرأ `prisma/schema.prisma` بالكامل.
+3. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm build` **محلياً** قبل الـcommit.
 4. لا تستخدم `any` في TypeScript.
-5. **لا تناقش. نفّذ فقط.**
-6. اقرأ ملف Excel الموجود في جذر المشروع: `اسئلة كامل القرآن.xlsx` (أو أي امتداد مشابه) — إذا لم تجده بهذا الاسم بالتحديد، ابحث في الجذر عن أي ملف `.xlsx` أو `.xls` باسم مشابه.
-7. بعد الانتهاء، اكتب تقريراً في `HANDOVER_REPORT.md`.
+5. لا تحذف أي ملف موجود.
+6. **لا تناقش. نفّذ فقط. وثّق في التقرير.**
+7. في نهاية المهمة، اكتب تقريراً في `DEPLOYMENT_FIX_REPORT.md`.
 
 ---
 
-🔴 **المرحلة 1: حذف كل البيانات من Neon (تنظيف تام)**
+🔴 المرحلة 1: تشخيص خطأ إنشاء الحساب في الإنتاج
 
 **المطلوب:**
-1. أنشئ سكربت `scripts/cleanup-all-data.ts` يقوم بحذف **كل** الجداول بالترتيب الصحيح (من الجداول المرتبطة إلى الجداول الأساسية):
-   - assessments
-   - certificates
-   - notifications
-   - audit_logs
-   - committee_model_allocations
-   - exam_sessions
-   - committees
-   - students
-   - exam_models
-   - exam_seasons
-   - institutions
-   - users
-   - rate_limits
-   - assessment_settings
-   - app_settings
+1. افحص الكود التالي بدقة:
+   - `lib/actions/admin-panel-actions.ts` (دالة `createAdminUser`)
+   - `lib/validations/user.ts` (schema كلمة المرور والتحقق)
+   - `prisma/schema.prisma` (حقول `User` خاصة `mustChangePassword`)
+   - `auth.ts` و `auth.config.ts` (للتأكد من توافق الجلسة)
 
-2. **استثناء وحيد:** احتفظ بسجل `app_settings` (سجل الإعدادات العام) وفقط.
+2. **تحقق من Migration المطبَّق على Neon:**
+   - نفّذ `pnpm prisma migrate status`
+   - إذا وُجد migration معلّق → نفّذ `pnpm prisma migrate deploy`
+   - تحقق أن عمود `mustChangePassword` موجود على جدول `users` في Neon:
+     ```typescript
+     const result = await prisma.$queryRaw`
+       SELECT column_name FROM information_schema.columns 
+       WHERE table_name = 'users' AND column_name = 'mustChangePassword'
+     `;
+     console.log(result);
+     ```
 
-3. نفّذ السكربت: `pnpm tsx scripts/cleanup-all-data.ts`
+3. **أعد إنتاج الخطأ محلياً في وضع الإنتاج:**
+   - `pnpm build && pnpm start`
+   - افتح `http://localhost:3000`
+   - سجّل دخول كأدمن، واذهب إلى `/admin/users`
+   - جرّب إنشاء حساب جديد
+   - **انسخ رسالة الخطأ الكاملة** من Terminal
 
-4. بعد الحذف، أنشئ **حساباً واحداً فقط**:
-   - البريد: `ossamaamr50436@gmail.com`
-   - كلمة المرور: `ossamaamr50436@`
-   - الدور: `ADMIN`
-   - الاسم: "المسؤول العام"
-   - تاريخ الميلاد: أي تاريخ (مثل 1990-01-01)
-   - مشفرة بـbcrypt (cost 12)
+4. **حدد السبب الجذري** وثّقه في التقرير.
 
-**تحقق:** بعد التنفيذ، يجب أن يكون `prisma.user.count()` = 1 فقط.
+5. **أصلح السبب** (بأقل تعديل ممكن) — على الأرجح:
+   - Migration غير مطبّق على Neon → طبّقه
+   - حقل مفقود في Zod schema → أضفه
+   - عدم توافق بين العميل والخادم → أعد توليد Prisma Client
+   - مشكلة في `mustChangePassword` عند قراءته أثناء الجلسة → أصلح المنطق
+
+6. **أضف معالجة أخطاء واضحة في Server Action**:
+   ```typescript
+   try {
+     const created = await prisma.user.create({ ... });
+     return { success: true, userId: created.id };
+   } catch (error) {
+     if (error instanceof Prisma.PrismaClientKnownRequestError) {
+       if (error.code === "P2002") {
+         throw new Error("تعذّر إنشاء الحساب — تحقق من البيانات المدخلة");
+       }
+       if (error.code === "P2022" || error.code === "P2021") {
+         // schema mismatch
+         throw new Error("خطأ في مزامنة قاعدة البيانات — تواصل مع المسؤول");
+       }
+     }
+     throw new Error("حدث خطأ غير متوقع");
+   }
+   ```
+
+7. **أعد الاختبار محلياً** (`pnpm build && pnpm start`) حتى ينجح إنشاء الحساب.
 
 ---
 
-🔴 **المرحلة 2: إصلاح التسريب الأمني (حرج جداً)**
-
-**المشكلة:** عند محاولة إنشاء مستخدم ببريد موجود، تظهر رسالة `Unique constraint failed on the fields: (email)` — وهذا يكشف للمهاجم وجود الحساب.
-
-**المطلوب:** في كل مكان تُنشأ فيه مستخدمون (admin-panel-actions.ts، entity-actions.ts، committee-actions.ts، auth-actions.ts)، غلّف استدعاء `prisma.user.create` في try/catch:
-
-```typescript
-try {
-  const created = await prisma.user.create({ ... });
-  return { success: true, userId: created.id };
-} catch (error) {
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-    // رسالة عامة — لا تكشف أي شيء
-    throw new Error("تعذّر إنشاء الحساب — تحقق من البيانات المدخلة");
-  }
-  throw new Error("حدث خطأ غير متوقع");
-}
-```
-
-نفس الشيء لأي جدول آخر فيه `@unique` (email للجهات، serialNumber للشهادات، إلخ).
-
----
-
-🔴 **المرحلة 3: تعديل نظام كلمة المرور**
+🔴 المرحلة 2: التحقق الشامل من ملفات النشر
 
 **المطلوب:**
-1. **الحد الأدنى: 5 أحرف** (لا يوجد حد أقصى).
-2. باقي الشروط: حرف كبير + حرف صغير + رقم (اختياري، اجعلها شروطاً موثقة).
-3. **ابحث في كل ملفات المشروع عن كل ذكر لكلمة "12"** بجانب كلمة المرور، أو "8 أحرف"، أو "10 أحرف"، واستبدلها بـ"5 أحرف".
-4. الملفات المستهدفة (على الأقل):
-   - `lib/validations/user.ts`
-   - `lib/actions/admin-panel-actions.ts` (createAdminUser + resetAdminUserPassword)
-   - أي نموذج UI فيه placeholder أو helper text عن كلمة المرور.
-   - `ACCOUNTS_REPORT.md` إذا كان يذكر شروطاً قديمة.
-   - صفحة `/admin/settings` أو أي صفحة فيها شرح شروط كلمة المرور.
+1. تحقق من وجود وصلاحية الملفات التالية:
+   - `package.json` (بدون BOM، JSON صحيح)
+   - `next.config.mjs` (بدون BOM)
+   - `tsconfig.json` (بدون BOM)
+   - `vercel.json` (إن وُجد)
+   - `.gitignore` (يستثني `.env`، `node_modules`, `.next`)
 
-5. **عرض الشروط بوضوح في الواجهة**: في كل نموذج إنشاء مستخدم، أضف نصاً: "كلمة المرور: 5 أحرف على الأقل، وتحتوي على حرف كبير وحرف صغير ورقم."
+2. تحقق من `package.json`:
+   - أن `"scripts"` تحتوي على:
+     - `"postinstall": "prisma generate"` ✅
+     - `"build": "next build"` ✅
+     - `"typecheck": "tsc --noEmit"` ✅
+   - أن `"engines"` تُحدد Node 20.x بدلاً من `>=18.17.0` (لتجنب تحذيرات Vercel):
+     ```json
+     "engines": {
+       "node": ">=20.0.0 <21.0.0"
+     }
+     ```
 
----
+3. تحقق من وجود `prisma/migrations/` بكل الـmigrations الأخيرة.
 
-🔴 **المرحلة 4: تحويل كلمة مرور الجهة إلى رقم التصريح + إجبار التغيير**
+4. **أضف ملف `vercel.json`** إذا لم يكن موجوداً:
+   ```json
+   {
+     "buildCommand": "pnpm prisma generate && pnpm build",
+     "installCommand": "pnpm install",
+     "framework": "nextjs"
+   }
+   ```
 
-**4.1 Schema (تعديل `User`):**
-```prisma
-mustChangePassword Boolean @default(false)
-```
+5. **أضف ملف `.env.example`** (للمرجع فقط، بدون قيم حساسة):
+   ```
+   DATABASE_URL=
+   NEXTAUTH_SECRET=
+   NEXTAUTH_URL=
+   GOOGLE_CLIENT_EMAIL=
+   GOOGLE_PRIVATE_KEY=
+   GOOGLE_DRIVE_FOLDER_ID=
+   PUSHER_APP_ID=
+   PUSHER_SECRET=
+   NEXT_PUBLIC_PUSHER_KEY=
+   NEXT_PUBLIC_PUSHER_CLUSTER=
+   ```
 
-**4.2 Schema (تعديل `Institution`):**
-```prisma
-managerName    String
-supervisorName String
-managerPhone   String
-supervisorPhone String
-licenseNumber  String   @unique
-district       String
-```
+6. تحقق من **أي ملف JSON آخر** في المشروع وامسح BOM منه:
+   ```powershell
+   # في PowerShell
+   $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+   Get-ChildItem -Recurse -Include *.json -Exclude node_modules,.next |
+     ForEach-Object {
+       $content = Get-Content $_.FullName -Raw
+       [System.IO.File]::WriteAllText($_.FullName, $content, $utf8NoBom)
+     }
+   ```
 
-**4.3 عند إنشاء جهة:**
-- كلمة المرور = `licenseNumber` (بدون تشفير قبل التخزين — تُشفّر بـbcrypt عادةً).
-- `mustChangePassword = true` على المستخدم المرتبط.
-- بعد أول تسجيل دخول، يُوجَّه المستخدم قسراً إلى `/change-password` قبل أي شيء آخر.
-
-**4.4 Middleware أو Layout:**
-- إذا `session.user.mustChangePassword === true` والمسار ليس `/change-password` أو `/api/auth/*` → أعد التوجيه إلى `/change-password`.
-- بعد تغيير كلمة المرور بنجاح، اضبط `mustChangePassword = false`.
-
-**4.5 صفحة `/change-password`:**
-- حقل كلمة المرور الجديدة + التأكيد.
-- شروط: 5+ أحرف، حرف كبير، حرف صغير، رقم.
-- زر حفظ.
-- لا يمكن تجاوزها.
-
----
-
-🔴 **المرحلة 5: إضافة ملف Excel (100 نموذج للقرآن كامل)**
-
-**5.1 ابحث في جذر المشروع عن ملف اسمه `اسئلة كامل القرآن` بامتداد `.xlsx` أو `.xls`.**
-
-**5.2 اقرأ الملف** (استخدم مكتبة `xlsx` إن وُجدت في `package.json`، وإلا أضفها كاعتماد جديد ضروري).
-
-**5.3 استخرج الأعمدة المتوقعة** (تحقق من رأس الملف):
-- رقم النموذج (1-100)
-- رقم المقطع
-- النص (مثل: من قوله ... إلى قوله ...)
-- السورة
-- الآية
-
-**5.4 حوّل كل صف إلى كائن `Segment` بهذه البنية:**
-```typescript
-{
-  number: number,        // رقم المقطع داخل النموذج
-  fromText: string,      // نص البداية
-  fromSurah: string,     // اسم السورة
-  fromVerse: number,     // رقم الآية
-  toText: string,
-  toSurah: string,
-  toVerse: number,
-}
-```
-
-**5.5 أنشئ سكربت `scripts/import-quran-models.ts`:**
-- ابحث عن الموسم النشط في `exam_seasons`. إذا لم يوجد، أنشئ موسماً باسم "موسم القرآن كامل 1447" مع `isActive = true`.
-- للفرع `"30"` (القرآن كامل — ثلاثون جزءاً):
-  - أنشئ 100 نموذج (`ExamModel`) بأرقام 1-100.
-  - كل نموذج له `detailsJSON = { segments: [...] }`.
-  - `segmentsCount` = عدد المقاطع الفعلي لكل نموذج (من الملف، قد يختلف).
-  - `branch = "30"`.
-  - `institutionId = null` (النماذج لا تُسند لجهة).
-
-**5.6 نفّذ السكربت وتحقق:**
-```typescript
-prisma.examModel.count({ where: { branch: "30" } }) // = 100
-```
-
-**5.7 احذف الملف الأصلي** بعد الاستيراد، أو انقله إلى `scripts/data/` ليصبح مرجعياً.
+7. وثّق كل ملف تم التحقق منه في التقرير.
 
 ---
 
-🔴 **المرحلة 6: أسماء الفروع بالحروف العربية**
+🔴 المرحلة 3: تحسين زر تسجيل الخروج (UX)
 
-**المطلوب:** في كل مكان يعرض فيه الفرع (UI + تقارير + notifications):
-- `"5"` → `"خمسة أجزاء"`
-- `"10"` → `"عشرة أجزاء"`
-- `"15"` → `"خمسة عشر جزءاً"`
-- `"20"` → `"عشرون جزءاً"`
-- `"25"` → `"خمسة وعشرون جزءاً"`
-- `"30"` → `"ثلاثون جزءاً"`
+**القرار المعتمد:** اعتمد نمط **User Menu في أسفل الشريط الجانبي** (مثل Notion, Linear, Google).
 
-**التنفيذ:** أنشئ دالة `getBranchLabel(branch: string): string` في `lib/utils.ts`، واستخدمها في كل مكان.
-
-**ملاحظة:** لا تغير القيمة المخزنة في DB (تبقى `"5"`, `"10"`, إلخ)، فقط العرض.
-
----
-
-🔴 **المرحلة 7: تعديل نصوص في ترشيح الطالب**
-
-**الملف:** `components/students/nomination-form.tsx`
-- استبدل `"الفرع (عدد أجزاء الحفظ)"` بـ`"الفرع"` فقط.
-
----
-
-🔴 **المرحلة 8: إزالة خيار الجهة عند إنشاء النموذج**
-
-**الملف:** `components/specialist/exam-models-manager.tsx` (أو ما يعادله).
-- احذف حقل اختيار الجهة تماماً من نموذج الإنشاء.
-- النماذج تُنشأ فقط بالموسم والفرع، بلا جهة.
-
-**في الـServer Action:** تأكد أن `institutionId` لا يُطلب إطلاقاً عند الإنشاء.
-
----
-
-🔴 **المرحلة 9: إصلاح شارة الإشعارات**
-
-**المشكلة:** عند فتح قائمة الإشعارات، العداد لا ينقص.
+**السبب:**
+- أكثر احترافية وأناقة من زر مباشر.
+- يجمع: (الملف الشخصي، الإعدادات، تغيير كلمة المرور، تسجيل الخروج) في مكان واحد.
+- لا يشغل مساحة في الشريط العلوي.
+- يتوافق مع معايير UI الحديثة.
 
 **المطلوب:**
-1. عند فتح `/notifications`، ضع علامة "مقروء" (`isRead = true`) على جميع إشعارات المستخدم.
-2. حدّث الشارة في الـSidebar فوراً (استخدم `router.refresh()` أو state محلي).
-3. في `app/(dashboard)/notifications/page.tsx`:
-   - عند `useEffect` الأول، استدعِ `markAllAsRead()`.
-   - أعد جلب العدد ليصبح 0.
 
-4. في `POST /notifications` (الذي يستعلم عن العدد): يجب أن يعيد 0 بعد الزيارة.
+3.1 **في `components/dashboard/dashboard-sidebar.tsx`**:
+- أضف منطقة في **أسفل الشريط الجانبي** (عائمة،):
+  - صورة رمزية (Avatar) بحرف الاسم الأول.
+  - اسم المستخدم الكامل + دوره (Admin / Specialist / ...).
+  - زر ثلاث نقاط (⋮) أو سهم (▾) على اليمين.
 
-**اختبار:** إذا فتحت `/notifications`، يجب أن تختفي الشارة الحمراء تماماً.
+3.2 عند الضغط، تفتح قائمة منسدلة (`DropdownMenu` من shadcn/ui) تحتوي على:
+- 👤 **الملف الشخصي** → `/profile` (أنشئ الصفحة إن لم توجد — تعرض الاسم، البريد، الدور، تاريخ الانضمام).
+- ⚙️ **إعدادات المستخدم** → `/settings` (أنشئ الصفحة إن لم توجد — تغيير كلمة المرور فقط).
+- 🚪 **تسجيل الخروج** → استدعاء `signOut({ callbackUrl: "/login" })`.
 
----
+3.3 **تحقق من الاستيرادات:**
+- استخدم `components/ui/dropdown-menu.tsx` الموجود.
+- استخدم `components/ui/avatar.tsx` الموجود.
+- استخدم `signOut` من `next-auth/react`.
 
-🔴 **المرحلة 10: صفحة إنشاء الجهات — موسّعة**
+3.4 **التنسيق:**
+- الزر يبقى قريبا من آخر زر في الصفحة الجانبية، أو يكون عائما، ولو مررت الصفحة (position: sticky أو flex column مع mt-auto).
+- على الجوال: يعمل بنفس الطريقة.
+- الألوان تتبع `primary` و `secondary` من `AppSettings`.
 
-**10.1 Schema `Institution`** — أضف الحقول (المذكورة في المرحلة 4.2):
-- `managerName`
-- `supervisorName`
-- `managerPhone`
-- `supervisorPhone`
-- `licenseNumber` (unique)
-- `district`
-
-**10.2 صفحة `/test-specialist/entities/create` (أو ما يعادلها):**
-- اسم الجهة (نص)
-- اسم مدير الجهة (نص)
-- اسم مشرف الجهة (نص)
-- رقم هاتف مدير الجهة (PhoneInput)
-- رقم هاتف مشرف الجهة (PhoneInput)
-- رقم التصريح (نص، unique)
-- الحي (نص)
-- البريد الإلكتروني (نص، unique)
-
-**10.3 Server Action:**
-- كلمة المرور التلقائية = `licenseNumber`
-- `mustChangePassword = true`
-- إرجاع كلمة المرور (رقم التصريح) مع زر نسخ.
-
-**10.4 قائمة الجهات في `/admin/institutions` و `/test-specialist/entities`:**
-- استبدل عنوان "إدارة المؤسسات" بـ"إدارة الجهات" في كل مكان.
-- أضف أعمدة جديدة (المدير، المشرف، رقم التصريح، الحي) في الجدول.
+3.5 **احذف أي زر تسجيل خروج قديم** في الشريط العلوي أو أي مكان آخر.
 
 ---
 
-🔴 **المرحلة 11: Phone Input احترافي**
-
-**المطلوب:** استبدل `components/ui/phone-input.tsx` بمكوّن جديد:
-1. **حقل بحث** فوق القائمة (بحث باسم الدولة عربي/إنجليزي).
-2. **قائمة كل دول العالم** (أضف مكتبة `country-flag-emoji-json` أو ما يعادلها، أو أضف قائمة يدوية شاملة).
-3. **التصميم المطلوب:**
-   - على **اليسار**: العلم + رمز الاتصال (مثلاً 🇸🇦 +966).
-   - على **اليمين مباشرة وملاصقاً**: حقل إدخال الرقم (بدون مسافة أو فاصل).
-   - عند الضغط على الجزء الأيسر → تفتح قائمة البحث.
-4. **التحقق:** الرقم لا يحتوي إلا على أرقام. طول الرقم 6-15.
-5. **القيمة النهائية:** `+966501234567`.
-
-**أماكن الاستخدام:**
-- ترشيح الطالب (phone + parentPhone)
-- إنشاء الجهات (managerPhone + supervisorPhone)
-- إنشاء المستخدمين
-- أي مكان آخر فيه رقم هاتف
-
----
-
-🔴 **المرحلة 12: الشريط الجانبي — ترتيب منطقي**
-
-**المطلوب:** أعد ترتيب قوائم الشريط الجانبي لكل دور بحيث تكون متسلسلة منطقياً.
-
-**مثال لترتيب ADMIN:**
-1. لوحة التحكم
-2. المستخدمون
-3. الجهات
-4. المواسم
-5. النماذج (اختياري)
-6. الجلسات
-7. الشهادات
-8. سجل التدقيق
-9. الإشعارات
-10. الإعدادات
-
-**مثال لترتيب TEST_SPECIALIST:**
-1. لوحة التحكم
-2. طلبات الترشيح
-3. اللجان
-4. النماذج
-5. إعدادات التقييم
-6. مراجعة التقييمات النهائية
-7. الإشعارات
-
-**مثال لترتيب EXAMINER:**
-1. لوحة التحكم
-2. تقييماتي
-3. الإشعارات
-
----
-
-🔴 **المرحلة 13: صلاحية الأخصائي لإنشاء المعلمين**
+🔴 المرحلة 4: التحقق النهائي قبل الدفع
 
 **المطلوب:**
-- الأخصائي (TEST_SPECIALIST) يمكنه إنشاء مستخدمين بدور `EXAMINER` فقط.
-- يمكنه إدارتهم (تعديل، حذف، إعادة تعيين كلمة المرور) لكن فقط لمن دوره `EXAMINER`.
-- لا يمكنه إنشاء Admin أو Head أو غيره.
 
-**التنفيذ:**
-- Server Action جديد في `lib/actions/specialist-actions.ts` باسم `createExaminer` و `resetExaminerPassword` و `deleteExaminer`.
-- يتحقق من الدور قبل التنفيذ.
-- صفحة `app/(dashboard)/test-specialist/teachers/page.tsx`.
+4.1 نفّذ الأوامر بالترتيب:
+```powershell
+pnpm typecheck
+pnpm build
+```
 
-**الأدمن (ADMIN)** لديه كل الصلاحيات لكل الأدوار.
+**يجب أن ينجحا بدون أي أخطاء.**
+
+4.2 تحقق من قاعدة البيانات:
+```powershell
+pnpm tsx scripts/verify-before-deploy.ts
+```
+
+**المتوقع:**
+- Users: 1 (الأدمن فقط)
+- Institutions: 0
+- Students: 0
+- Seasons: 1
+- Models branch 30: 100
+
+4.3 **اكتب `DEPLOYMENT_FIX_REPORT.md`** في جذر المشروع يحتوي على:
+- ملخص المشكلة (خطأ إنشاء الحساب).
+- السبب الجذري بالتفصيل.
+- الحل المُطبَّق.
+- قائمة ملفات النشر التي تم التحقق منها.
+- تصميم زر تسجيل الخروج الجديد.
+- خطوات إعادة النشر على Vercel.
+
+4.4 **لا ترفع (push) أي شيء على GitHub**. سأراجع التقرير أولاً، ثم أرفع بنفسي.
 
 ---
 
-🔴 **المرحلة 14: الأدمن لا يدير الجهات**
+✅ معايير النجاح النهائية:
+1. `pnpm typecheck` + `pnpm build` ينجحان محلياً.
+2. `pnpm start` (وضع الإنتاج) ينجح في **إنشاء حساب جديد** من `/admin/users`.
+3. `vercel.json` موجود ومُهيّأ.
+4. `package.json` نظيف من BOM + `postinstall` موجود + `engines` = Node 20.x.
+5. زر تسجيل الخروج في القائمة المنسدلة أسفل الشريط الجانبي.
+6. `DEPLOYMENT_FIX_REPORT.md` مكتوب بشكل احترافي.
 
-**المطلوب:**
-- الأدمن ينشئ فقط: المواسم، النماذج (اختياري)، المستخدمين بأي دور.
-- الأخصائي ينشئ: الجهات، اللجان، إعدادات التقييم، المعلمين.
-- **أزل صفحة "الجهات" من Sidebar الأدمن**، واجعلها في Sidebar الأخصائي فقط.
+📝 التوثيق الإلزامي:
+- كل تعديل يجب أن يُشرح في `DEPLOYMENT_FIX_REPORT.md`.
+- اذكر كل ملف جديد أنشأته.
+- اذكر كل migration جديدة إن وُجدت.
 
-**الاستثناء:** قد يحتاج الأدمن للإشراف — اتركها متاحة في `/admin/institutions` لكن **مخفية من القائمة الجانبية**.
-
----
-
-✅ معايير النجاح:
-1. `prisma.user.count()` = 1 فقط (حساب `ossamaamr50436@gmail.com`).
-2. `prisma.examModel.count({ where: { branch: "30" } })` = 100.
-3. `prisma.institution.count()` = 0.
-4. `prisma.student.count()` = 0.
-5. `pnpm typecheck` + `pnpm build` ينجحان.
-6. تسجيل دخول بـ`ossamaamr50436@gmail.com` / `ossamaamr50436@` يعمل.
-7. صفحة `/notifications` تصفّر العداد.
-8. PhoneInput به بحث + أعلام + تخطيط صحيح.
-9. إنشاء معلم كأخصائي يعمل.
-10. إنشاء جهة بكلمة مرور = رقم التصريح + إجبار التغيير.
-
-📝 التوثيق:
-- اكتب `HANDOVER_REPORT.md` يحتوي على:
-  - كل خطوة نُفّذت.
-  - إحصائيات قاعدة البيانات النهائية.
-  - الحساب الوحيد الموجود.
-  - رقم السجل (Migration names).
-  - تعليمات التسليم.
-
-🚫 ممنوع:
+🚫 ممنوع تماماً:
 - استخدام `any`.
-- تجاهل أي مرحلة.
-- حذف `app_settings`.
-- الإبقاء على أي حساب آخر.
-- تجاهل ملف Excel.
+- حذف أي ملف موجود.
+- تعديل `.env`.
+- إضافة اعتماديات جديدة بدون إذن (استخدم الموجود).
+- الـpush إلى GitHub (المستخدم سيقوم به).
 
-**ابدأ الآن. اتبع المراحل بالترتيب. أرسل تقريراً عند الانتهاء.**
+**ابدأ الآن. اتبع المراحل بالترتيب.**
+```
+
+---
+
+## 📋 ملاحظاتي قبل التشغيل
+
+### 1️⃣ لماذا اخترت القائمة المنسدلة أسفل الشريط؟
+
+| النمط | المميزات | العيوب |
+| :--- | :--- | :--- |
+| **زر مباشر في الشريط** | بسيط | يشغل مساحة، أقل احترافية |
+| **ثلاث نقاط في الأعلى** | شائع | بعيد عن العين |
+| ✅ **قائمة منسدلة أسفل الشريط** | احترافي، يجمع كل شيء، ثابت | يحتاج تطبيق جديد |
+
+**القرار**: القائمة المنسدلة أسفل الشريط — معيار التطبيقات الحديثة (Notion، Linear، Vercel نفسه).
+
+### 2️⃣ لماذا `Node 20.x` وليس `>=18`؟
+
+Vercel حذّر في اللوجات:
+```
+Warning: Detected "engines": { "node": ">=18.17.0" } in your package.json
+```
+
+لأن Vercel قد يستخدم Node 24 (الذي أظهرته اللوجات!). التنصيص على `>=20.0.0 <21.0.0` يضمن بيئة مستقرة.
+
+### 3️⃣ لماذا `vercel.json` منفصل؟
+
+يوفر:
+- إعدادات موحدة (لا تعتمد على Vercel Dashboard).
+- يمكن تعديله من Git مباشرة.
+- يقلل الأخطاء البشرية.
+
+---
+
+## 🎯 قبل التشغيل
+
+1. احفظ نقطة رجوع:
+```powershell
+git add -A
+git commit -m "checkpoint: before deployment fix"
+```
+
+2. ضع البرومبت في `O.txt`.
+
+3. شغّل الوكيل.
+
+4. **بعد انتهاء الوكيل**، أرسل لي:
+   - محتوى `DEPLOYMENT_FIX_REPORT.md`.
+   - مخرجات `pnpm typecheck` + `pnpm build`.
+   - نتيجة `pnpm start` + اختبار إنشاء الحساب محلياً.
+
+5. **ثم** نرفع على Vercel معاً.
+
+---
+
+**جاهز؟ ابدأ الآن!** 🚀

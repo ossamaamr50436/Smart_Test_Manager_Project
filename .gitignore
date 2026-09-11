@@ -45,3 +45,4 @@ Thumbs.db
 .cache/
 tmp/
 temp/
+tsconfig.tsbuildinfo

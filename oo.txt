@@ -1,0 +1,1066 @@
+أنت **الوكيل الذكي المتخصص** في تطوير **منصة مدير الاختبارات الذكي** لـ **جمعية تعليم القرآن وعلومه** بالمدينة المنورة.
+
+### الحالة الحالية (سبتمبر 10، 2026):
+- ✅ **85-90%** من المشروع مكتمل
+- ✅ **البنية الأساسية**: Next.js 14 + TypeScript + Neon + Socket.IO
+- ✅ **الأمان**: RBAC صارم + Audit Log شامل
+- ✅ **التوثيق**: دستور محكم + CHANGELOG شامل
+- ✅ **CSP**: إصلاح تسجيل الدخول + PWA جاهزة
+- ⏳ **المتبقي**: تحسينات نهائية + نماذج احترافية
+
+### المستودع الحالي:
+🔗 https://github.com/ossamaamr50436/Smart_Test_Manager_Project
+
+### الملف المعتمد (دستور اللائحة):
+📄 `لائحة_اختبار_الخاتمين_-_الاصدار_الأخير.pdf` (11 صفحة)
+
+---
+
+## 📋 المتطلب الأساسي الجديد: نماذج الاختبار
+
+### صيغة النموذج (Exam Model Format) ✅ **CRITICAL**
+
+بناءً على **لائحة الاختبار** وطلب السروجي، يجب تحسين صيغة النموذج الاختباري:
+
+**الصيغة الجديدة:**
+
+```json
+{
+  "modelNumber": 1,
+  "startVerse": {
+    "surah": "الفاتحة",
+    "verse": 1,
+    "text": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"
+  },
+  "endVerse": {
+    "surah": "الفاتحة",
+    "verse": 7,
+    "text": "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ..."
+  },
+  "sections": [
+    {
+      "id": "section-1",
+      "startVerse": "الفاتحة:1",
+      "endVerse": "الفاتحة:3",
+      "lines": 10,
+      "maxScore": 10,
+      "evaluationCriteria": {
+        "errors": { "weight": 1.0, "description": "الأخطاء النطقية" },
+        "doubts": { "weight": 0.5, "description": "الشك والتردد" },
+        "tajweed": { "weight": 0.25, "description": "أخطاء التجويد" }
+      }
+    }
+  ],
+  "totalScore": 100,
+  "passingScore": 80,
+  "createdAt": "2026-09-10T00:00:00Z",
+  "updatedAt": "2026-09-10T00:00:00Z"
+}
+```
+
+---
+
+## 🎯 المهام الرئيسية (Priority Order)
+
+### ✅ المهمة 1: تحسين Schema النموذج (CRITICAL)
+
+**الملف:** `prisma/schema.prisma`
+
+```prisma
+model ExamModel {
+  // الحقول الحالية:
+  id              String    @id @default(cuid())
+  number          Int       @unique // رقم النموذج (1-100)
+  
+  // الحقول الجديدة (إضافة):
+  startSurah      String    // "الفاتحة"
+  startVerse      Int       // 1
+  startText       String?   // النص الكامل
+  
+  endSurah        String    // "الفاتحة"
+  endVerse        Int       // 7
+  endText         String?   // النص الكامل
+  
+  // JSON للأقسام (Sections)
+  sections        Json      // [{ id, startVerse, endVerse, lines, maxScore, ... }]
+  
+  // معايير التقييم
+  scoringRules    Json      // { errors: 1.0, doubts: 0.5, tajweed: 0.25 }
+  
+  // الدرجات
+  totalScore      Int       @default(100)
+  passingScore    Int       @default(80)
+  
+  // الحقول الموجودة:
+  content         String?   // اختياري (للتوافق للخلف)
+  institutionId   String?
+  institution     Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  assessments     ExamAssessment[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([institutionId, number])
+  @@index([institutionId])
+}
+```
+
+**التحقق:**
+```bash
+pnpm prisma generate
+pnpm prisma migrate create add_exam_model_fields
+pnpm prisma migrate deploy
+```
+
+---
+
+### ✅ المهمة 2: تحديث Server Actions (Model Management)
+
+**الملف:** `lib/actions/model-actions.ts`
+
+```typescript
+// ========== النموذج الجديد (Input Validation) ==========
+
+export const createExamModelInput = z.object({
+  number: z.number().int().min(1).max(100),
+  startSurah: z.string().min(1),
+  startVerse: z.number().int().min(1),
+  startText: z.string().optional(),
+  endSurah: z.string().min(1),
+  endVerse: z.number().int().min(1),
+  endText: z.string().optional(),
+  sections: z.array(z.object({
+    id: z.string(),
+    startVerse: z.string(), // "الفاتحة:1"
+    endVerse: z.string(),   // "الفاتحة:3"
+    lines: z.number().int().min(1),
+    maxScore: z.number().int().min(1),
+    evaluationCriteria: z.object({
+      errors: z.object({
+        weight: z.number().positive(),
+        description: z.string()
+      }),
+      doubts: z.object({
+        weight: z.number().positive(),
+        description: z.string()
+      }),
+      tajweed: z.object({
+        weight: z.number().positive(),
+        description: z.string()
+      })
+    })
+  })),
+  totalScore: z.number().int().default(100),
+  passingScore: z.number().int().default(80)
+});
+
+// ========== إنشاء النموذج ==========
+
+export async function createExamModel(input: z.infer<typeof createExamModelInput>) {
+  // 1. التحقق من المستخدم والصلاحية
+  const user = await getCurrentUser();
+  if (!user) throw new Error("غير مسجل دخول");
+  
+  if (user.role !== Role.TEST_SPECIALIST && user.role !== Role.ADMIN) {
+    throw new Error("ليس لديك صلاحية إنشاء نماذج");
+  }
+  
+  // 2. التحقق من البيانات
+  const validated = createExamModelInput.parse(input);
+  
+  // 3. التحقق من عدم التكرار (رقم النموذج فريد)
+  const existing = await prisma.examModel.findUnique({
+    where: { 
+      institutionId_number: {
+        institutionId: user.institutionId || undefined,
+        number: validated.number
+      }
+    }
+  });
+  
+  if (existing) {
+    throw new Error(`النموذج رقم ${validated.number} موجود بالفعل`);
+  }
+  
+  // 4. إنشاء النموذج
+  const model = await prisma.examModel.create({
+    data: {
+      number: validated.number,
+      startSurah: validated.startSurah,
+      startVerse: validated.startVerse,
+      startText: validated.startText,
+      endSurah: validated.endSurah,
+      endVerse: validated.endVerse,
+      endText: validated.endText,
+      sections: validated.sections,
+      scoringRules: {
+        errors: 1.0,
+        doubts: 0.5,
+        tajweed: 0.25
+      },
+      totalScore: validated.totalScore,
+      passingScore: validated.passingScore,
+      institutionId: user.institutionId
+    }
+  });
+  
+  // 5. تسجيل في Audit Log
+  await createAuditLog({
+    action: "CREATE_EXAM_MODEL",
+    resourceType: "ExamModel",
+    resourceId: model.id,
+    userId: user.id,
+    changes: { modelNumber: model.number }
+  });
+  
+  // 6. الإشعار
+  await createNotification({
+    userId: user.id,
+    type: "MODEL_CREATED",
+    title: `تم إنشاء النموذج رقم ${model.number}`,
+    message: `من ${model.startSurah}:${model.startVerse} إلى ${model.endSurah}:${model.endVerse}`,
+    relatedId: model.id
+  });
+  
+  return { success: true, modelId: model.id };
+}
+
+// ========== تحديث النموذج ==========
+
+export async function updateExamModel(
+  modelId: string, 
+  input: Partial<z.infer<typeof createExamModelInput>>
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("غير مسجل دخول");
+  
+  // التحقق من الملكية
+  const model = await prisma.examModel.findUniqueOrThrow({
+    where: { id: modelId }
+  });
+  
+  if (model.institutionId !== user.institutionId && user.role !== Role.ADMIN) {
+    throw new Error("لا يمكنك تعديل نموذج جهة أخرى");
+  }
+  
+  // تحديث البيانات المسموحة فقط
+  const updateData: any = {};
+  if (input.startSurah) updateData.startSurah = input.startSurah;
+  if (input.startVerse) updateData.startVerse = input.startVerse;
+  if (input.startText !== undefined) updateData.startText = input.startText;
+  if (input.endSurah) updateData.endSurah = input.endSurah;
+  if (input.endVerse) updateData.endVerse = input.endVerse;
+  if (input.endText !== undefined) updateData.endText = input.endText;
+  if (input.sections) updateData.sections = input.sections;
+  if (input.totalScore) updateData.totalScore = input.totalScore;
+  if (input.passingScore) updateData.passingScore = input.passingScore;
+  
+  const updated = await prisma.examModel.update({
+    where: { id: modelId },
+    data: updateData
+  });
+  
+  // Audit Log + Notification
+  await createAuditLog({
+    action: "UPDATE_EXAM_MODEL",
+    resourceType: "ExamModel",
+    resourceId: modelId,
+    userId: user.id,
+    changes: updateData
+  });
+  
+  return { success: true };
+}
+
+// ========== الحصول على نموذج ==========
+
+export async function getExamModel(modelId: string) {
+  const model = await prisma.examModel.findUniqueOrThrow({
+    where: { id: modelId }
+  });
+  
+  return {
+    ...model,
+    displayName: `${model.startSurah}:${model.startVerse} → ${model.endSurah}:${model.endVerse}`
+  };
+}
+
+// ========== قائمة النماذج ==========
+
+export async function getExamModels(filters?: {
+  institutionId?: string;
+  search?: string;
+  page?: number;
+}) {
+  const where: any = {};
+  
+  if (filters?.institutionId) {
+    where.institutionId = filters.institutionId;
+  }
+  
+  if (filters?.search) {
+    where.OR = [
+      { startSurah: { contains: filters.search, mode: 'insensitive' } },
+      { endSurah: { contains: filters.search, mode: 'insensitive' } }
+    ];
+  }
+  
+  const page = filters?.page || 1;
+  const take = 20;
+  const skip = (page - 1) * take;
+  
+  const [models, total] = await Promise.all([
+    prisma.examModel.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { number: 'asc' }
+    }),
+    prisma.examModel.count({ where })
+  ]);
+  
+  return {
+    models: models.map(m => ({
+      ...m,
+      displayName: `${m.startSurah}:${m.startVerse} → ${m.endSurah}:${m.endVerse}`
+    })),
+    pagination: { page, total, pages: Math.ceil(total / take) }
+  };
+}
+```
+
+---
+
+### ✅ المهمة 3: واجهة إدارة النماذج (UI)
+
+**الملف:** `components/test-specialist/exam-models-manager.tsx`
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { 
+  createExamModel, 
+  updateExamModel, 
+  getExamModels,
+  deleteExamModel 
+} from '@/lib/actions/model-actions';
+import { useToast } from '@/hooks/use-toast';
+
+export function ExamModelsManager() {
+  const [models, setModels] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    number: '',
+    startSurah: '',
+    startVerse: '',
+    startText: '',
+    endSurah: '',
+    endVerse: '',
+    endText: ''
+  });
+  const { toast } = useToast();
+
+  // تحميل النماذج
+  const loadModels = async () => {
+    try {
+      const result = await getExamModels();
+      setModels(result.models);
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'خطأ', description: 'فشل تحميل النماذج' });
+    }
+  };
+
+  // إضافة/تحديث نموذج
+  const handleSave = async () => {
+    try {
+      if (editingId) {
+        await updateExamModel(editingId, formData);
+        toast({ title: 'نجح', description: 'تم تحديث النموذج' });
+      } else {
+        await createExamModel({
+          ...formData,
+          number: parseInt(formData.number),
+          startVerse: parseInt(formData.startVerse),
+          endVerse: parseInt(formData.endVerse),
+          sections: []
+        });
+        toast({ title: 'نجح', description: 'تم إنشاء النموذج' });
+      }
+      
+      setIsOpen(false);
+      setFormData({});
+      setEditingId(null);
+      await loadModels();
+    } catch (error) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error instanceof Error ? error.message : 'فشل حفظ النموذج'
+      });
+    }
+  };
+
+  // حذف نموذج
+  const handleDelete = async (modelId: string) => {
+    if (!confirm('هل تريد حذف هذا النموذج؟')) return;
+    
+    try {
+      await deleteExamModel(modelId);
+      toast({ title: 'نجح', description: 'تم حذف النموذج' });
+      await loadModels();
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'خطأ' });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2>إدارة النماذج الاختبارية</h2>
+        <Button onClick={() => setIsOpen(true)}>+ نموذج جديد</Button>
+      </div>
+
+      {/* جدول النماذج */}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>الرقم</TableHead>
+            <TableHead>من</TableHead>
+            <TableHead>إلى</TableHead>
+            <TableHead>الإجراءات</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {models.map(model => (
+            <TableRow key={model.id}>
+              <TableCell>{model.number}</TableCell>
+              <TableCell>{model.startSurah}:{model.startVerse}</TableCell>
+              <TableCell>{model.endSurah}:{model.endVerse}</TableCell>
+              <TableCell className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setEditingId(model.id)}>تعديل</Button>
+                <Button size="sm" variant="destructive" onClick={() => handleDelete(model.id)}>حذف</Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* نموذج الإنشاء/التحديث */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'تعديل' : 'إنشاء'} نموذج اختبار</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* البيانات الأساسية */}
+            <div>
+              <Label>رقم النموذج (1-100)</Label>
+              <Input 
+                type="number" 
+                min="1" 
+                max="100"
+                value={formData.number}
+                onChange={e => setFormData({...formData, number: e.target.value})}
+              />
+            </div>
+
+            {/* من قوله تعالى */}
+            <div className="space-y-2">
+              <Label className="font-bold">من قوله تعالى:</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Input 
+                  placeholder="السورة"
+                  value={formData.startSurah}
+                  onChange={e => setFormData({...formData, startSurah: e.target.value})}
+                />
+                <Input 
+                  type="number"
+                  placeholder="الآية"
+                  value={formData.startVerse}
+                  onChange={e => setFormData({...formData, startVerse: e.target.value})}
+                />
+              </div>
+              <textarea 
+                placeholder="النص (اختياري)"
+                value={formData.startText}
+                onChange={e => setFormData({...formData, startText: e.target.value})}
+                className="w-full p-2 border rounded"
+              />
+            </div>
+
+            {/* إلى قوله تعالى */}
+            <div className="space-y-2">
+              <Label className="font-bold">إلى قوله تعالى:</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Input 
+                  placeholder="السورة"
+                  value={formData.endSurah}
+                  onChange={e => setFormData({...formData, endSurah: e.target.value})}
+                />
+                <Input 
+                  type="number"
+                  placeholder="الآية"
+                  value={formData.endVerse}
+                  onChange={e => setFormData({...formData, endVerse: e.target.value})}
+                />
+              </div>
+              <textarea 
+                placeholder="النص (اختياري)"
+                value={formData.endText}
+                onChange={e => setFormData({...formData, endText: e.target.value})}
+                className="w-full p-2 border rounded"
+              />
+            </div>
+
+            {/* الأزرار */}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setIsOpen(false)}>إلغاء</Button>
+              <Button onClick={handleSave}>حفظ</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+```
+
+---
+
+### ✅ المهمة 4: بيانات اختبار شاملة (Seed Data)
+
+**الملف:** `prisma/seed.ts`
+
+```typescript
+import { prisma } from '@/lib/db';
+import { Role } from '@prisma/client';
+import { hash } from 'bcryptjs';
+
+async function main() {
+  console.log('🌱 بدء ملء قاعدة البيانات...');
+
+  // 1. حذف البيانات القديمة
+  await prisma.examAssessment.deleteMany();
+  await prisma.examSession.deleteMany();
+  await prisma.examCommittee.deleteMany();
+  await prisma.examModel.deleteMany();
+  await prisma.student.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.institution.deleteMany();
+  await prisma.season.deleteMany();
+
+  // 2. إنشاء موسم
+  const season = await prisma.season.create({
+    data: {
+      year: 1447,
+      term: 'الفصل الأول',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-12-31'),
+      isActive: true
+    }
+  });
+
+  // 3. إنشاء 80 جهة تعليمية
+  const institutions = [];
+  for (let i = 1; i <= 80; i++) {
+    const inst = await prisma.institution.create({
+      data: {
+        name: `جهة التعليم ${i}`,
+        email: `institution${i}@example.com`,
+        phone: `050${i.toString().padStart(7, '0')}`
+      }
+    });
+    institutions.push(inst);
+  }
+
+  // 4. إنشاء 8 معلمين بأعمار مختلفة
+  const examiners = [];
+  const examinerAges = [56, 24, 45, 32, 52, 28, 48, 35];
+  
+  for (let i = 0; i < 8; i++) {
+    const birthYear = 2026 - examinerAges[i];
+    const examiner = await prisma.user.create({
+      data: {
+        email: `examiner${i + 1}@example.com`,
+        name: `معلم ${i + 1}`,
+        passwordHash: await hash('password123', 10),
+        role: Role.EXAMINER,
+        birthDate: new Date(`${birthYear}-01-01`),
+        phone: `050${(1000000 + i).toString()}`
+      }
+    });
+    examiners.push(examiner);
+  }
+
+  // 5. إنشاء 100 نموذج اختبار
+  const surahs = [
+    { name: 'الفاتحة', verses: 7 },
+    { name: 'البقرة', verses: 286 },
+    { name: 'آل عمران', verses: 200 },
+    { name: 'النساء', verses: 176 },
+    { name: 'المائدة', verses: 120 }
+  ];
+
+  const models = [];
+  for (let i = 1; i <= 100; i++) {
+    const startSurah = surahs[i % surahs.length];
+    const endSurah = surahs[(i + 1) % surahs.length];
+    
+    const model = await prisma.examModel.create({
+      data: {
+        number: i,
+        startSurah: startSurah.name,
+        startVerse: Math.min(i, startSurah.verses),
+        endSurah: endSurah.name,
+        endVerse: Math.min(i + 10, endSurah.verses),
+        sections: [
+          {
+            id: `section-1-${i}`,
+            startVerse: `${startSurah.name}:${Math.min(i, startSurah.verses)}`,
+            endVerse: `${startSurah.name}:${Math.min(i + 5, startSurah.verses)}`,
+            lines: 10,
+            maxScore: 10,
+            evaluationCriteria: {
+              errors: { weight: 1.0, description: 'أخطاء نطقية' },
+              doubts: { weight: 0.5, description: 'شك وتردد' },
+              tajweed: { weight: 0.25, description: 'أخطاء تجويد' }
+            }
+          }
+        ],
+        totalScore: 100,
+        passingScore: 80
+      }
+    });
+    models.push(model);
+  }
+
+  // 6. إنشاء 200+ طالب موزعين على الجهات
+  const students = [];
+  let studentIndex = 0;
+  
+  for (const institution of institutions) {
+    const studentCount = Math.floor(Math.random() * 3) + 2; // 2-4 طلاب لكل جهة
+    
+    for (let j = 0; j < studentCount; j++) {
+      const student = await prisma.student.create({
+        data: {
+          name: `طالب ${++studentIndex}`,
+          age: Math.floor(Math.random() * 10) + 18,
+          branch: [5, 10, 15, 20, 25, 30][Math.floor(Math.random() * 6)],
+          teacherName: `معلم الجهة ${institution.name}`,
+          guardianPhone: `050${Math.random().toString().slice(2, 9)}`,
+          institutionId: institution.id,
+          status: 'approved'
+        }
+      });
+      students.push(student);
+    }
+  }
+
+  // 7. إنشاء 4 لجان اختبار
+  const committees = [];
+  
+  for (let i = 0; i < 4; i++) {
+    const committee = await prisma.examCommittee.create({
+      data: {
+        name: `اللجنة ${i + 1}`,
+        teacher1Id: examiners[i * 2].id,
+        teacher2Id: examiners[i * 2 + 1].id,
+        seasonId: season.id
+      }
+    });
+    committees.push(committee);
+  }
+
+  console.log('✅ تم ملء قاعدة البيانات بنجاح!');
+  console.log(`   - ${institutions.length} جهة تعليمية`);
+  console.log(`   - ${examiners.length} معلمين`);
+  console.log(`   - ${models.length} نموذج اختبار`);
+  console.log(`   - ${students.length} طالب`);
+  console.log(`   - ${committees.length} لجنة اختبار`);
+}
+
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
+```
+
+**التشغيل:**
+```bash
+pnpm prisma db seed
+```
+
+---
+
+### ✅ المهمة 5: تحسينات الأداء (Performance)
+
+**الملف:** `lib/db.ts` (جديد)
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
+const prismaClientSingleton = () => {
+  return new PrismaClient({
+    log: 
+      process.env.NODE_ENV === 'development'
+        ? ['query', 'error', 'warn']
+        : ['error'],
+  })
+};
+
+export const prisma = global.prisma ?? prismaClientSingleton();
+
+if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+
+// ========== Optimized Queries ==========
+
+export const optimizedQueries = {
+  // الطلاب مع الحد الأدنى من البيانات
+  studentWithMinimal: {
+    select: {
+      id: true,
+      name: true,
+      age: true,
+      branch: true,
+      status: true,
+      institution: { select: { name: true } }
+    }
+  },
+
+  // المعلمين مع البيانات الأساسية
+  examinerWithBasic: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      birthDate: true
+    }
+  },
+
+  // التقييمات مع البيانات الكاملة
+  assessmentWithFull: {
+    include: {
+      student: { select: { name: true, branch: true } },
+      examiner: { select: { name: true, birthDate: true } },
+      model: { select: { number: true, startSurah: true } }
+    }
+  }
+};
+```
+
+---
+
+### ✅ المهمة 6: اختبارات E2E (Playwright)
+
+**الملف:** `tests/e2e/exam-workflow.spec.ts` (جديد)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+
+test.describe('نمطية سير الاختبار الكامل', () => {
+  test('من الترشيح إلى إصدار الشهادة', async ({ browser }) => {
+    // 1. تسجيل دخول الجهة
+    const institutionPage = await browser.newPage();
+    await institutionPage.goto(`${BASE_URL}/login`);
+    await institutionPage.fill('[name="email"]', 'institution1@example.com');
+    await institutionPage.fill('[name="password"]', 'password123');
+    await institutionPage.click('button:has-text("دخول")');
+    await institutionPage.waitForURL('**/institution');
+
+    // 2. ترشيح طالب
+    await institutionPage.click('button:has-text("ترشيح طالب جديد")');
+    await institutionPage.fill('[name="name"]', 'أحمد محمد');
+    await institutionPage.fill('[name="age"]', '20');
+    await institutionPage.selectOption('[name="branch"]', '15');
+    await institutionPage.fill('[name="guardianPhone"]', '0501234567');
+    await institutionPage.click('button:has-text("إرسال الترشيح")');
+    
+    // التحقق من النجاح
+    await expect(institutionPage.locator('text=تم ترشيح الطالب بنجاح')).toBeVisible();
+
+    // 3. تسجيل دخول الأخصائي
+    const specialistPage = await browser.newPage();
+    await specialistPage.goto(`${BASE_URL}/login`);
+    await specialistPage.fill('[name="email"]', 'specialist@example.com');
+    await specialistPage.fill('[name="password"]', 'password123');
+    await specialistPage.click('button:has-text("دخول")');
+    await specialistPage.waitForURL('**/test-specialist');
+
+    // 4. الموافقة على الطلب
+    await specialistPage.click('button:has-text("طلبات جديدة")');
+    await specialistPage.click('text=أحمد محمد');
+    await specialistPage.click('button:has-text("قبول الطلب")');
+
+    // 5. إنشاء لجنة وتوزيع الطالب
+    await specialistPage.click('button:has-text("إنشاء لجنة")');
+    await specialistPage.fill('[name="teacherIds"]', '1,2');
+    await specialistPage.click('button:has-text("إنشاء")');
+
+    // 6. تسجيل دخول المعلم الأول (الأكبر سناً)
+    const examiner1Page = await browser.newPage();
+    await examiner1Page.goto(`${BASE_URL}/login`);
+    await examiner1Page.fill('[name="email"]', 'examiner1@example.com');
+    await examiner1Page.fill('[name="password"]', 'password123');
+    await examiner1Page.click('button:has-text("دخول")');
+    await examiner1Page.waitForURL('**/examiner');
+
+    // 7. تقييم الطالب
+    await examiner1Page.click('text=أحمد محمد');
+    await examiner1Page.fill('[name="errors"]', '2');
+    await examiner1Page.fill('[name="doubts"]', '1');
+    await examiner1Page.click('button:has-text("اعتماد التقييم")');
+
+    // 8. تسجيل دخول المعلم الثاني (الأصغر سناً)
+    const examiner2Page = await browser.newPage();
+    await examiner2Page.goto(`${BASE_URL}/login`);
+    await examiner2Page.fill('[name="email"]', 'examiner2@example.com');
+    await examiner2Page.fill('[name="password"]', 'password123');
+    await examiner2Page.click('button:has-text("دخول")');
+
+    // 9. المراجعة والاعتماد النهائي
+    await examiner2Page.click('text=أحمد محمد');
+    await expect(examiner2Page.locator('text=تقييم المعلم الأول')).toBeVisible();
+    await examiner2Page.click('button:has-text("اعتماد نهائي")');
+
+    // 10. التحقق من انتقال الدرجات للأخصائي
+    await specialistPage.reload();
+    await expect(specialistPage.locator('text=أحمد محمد').first()).toBeVisible();
+  });
+});
+```
+
+**التشغيل:**
+```bash
+pnpm playwright install
+pnpm test:e2e
+```
+
+---
+
+### ✅ المهمة 7: اختبارات الأداء (Load Testing)
+
+**الملف:** `k6-load-test.js` (جديد)
+
+```javascript
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export const options = {
+  vus: 100, // 100 مستخدم متزامن
+  duration: '5m', // 5 دقائق
+  thresholds: {
+    'http_req_duration': ['p(95)<500'], // 95% من الطلبات < 500ms
+  },
+};
+
+export default function () {
+  // 1. تسجيل دخول
+  const loginRes = http.post(
+    'http://localhost:3000/api/auth/callback/credentials',
+    {
+      email: `user${Math.floor(Math.random() * 100)}@example.com`,
+      password: 'password123'
+    }
+  );
+
+  check(loginRes, {
+    'login status': (r) => r.status === 200,
+  });
+
+  sleep(1);
+
+  // 2. جلب الطلاب
+  const studentsRes = http.get('http://localhost:3000/api/students');
+  check(studentsRes, {
+    'students status': (r) => r.status === 200,
+    'has data': (r) => r.json('students').length > 0,
+  });
+
+  sleep(1);
+
+  // 3. جلب النماذج
+  const modelsRes = http.get('http://localhost:3000/api/models');
+  check(modelsRes, {
+    'models status': (r) => r.status === 200,
+  });
+
+  sleep(2);
+}
+```
+
+**التشغيل:**
+```bash
+k6 run k6-load-test.js
+```
+
+---
+
+### ✅ المهمة 8: الإشعارات المتقدمة
+
+**الملف:** `lib/services/notification-service.ts` (جديد)
+
+```typescript
+import { prisma } from '@/lib/db';
+import { Resend } from 'resend';
+import { Twilio } from 'twilio';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const twilio = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+export const notificationService = {
+  // إشعار بريد إلكتروني
+  async sendEmail(to: string, subject: string, html: string) {
+    try {
+      return await resend.emails.send({
+        from: 'notifications@exam-platform.com',
+        to,
+        subject,
+        html
+      });
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      throw error;
+    }
+  },
+
+  // رسالة نصية
+  async sendSMS(to: string, body: string) {
+    try {
+      return await twilio.messages.create({
+        from: process.env.TWILIO_PHONE,
+        to,
+        body
+      });
+    } catch (error) {
+      console.error('Failed to send SMS:', error);
+      throw error;
+    }
+  },
+
+  // إشعار متعدد القنوات
+  async notifyMultiChannel(
+    userId: string,
+    type: string,
+    title: string,
+    message: string
+  ) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+    // 1. إشعار في-المنصة
+    await prisma.notification.create({
+      data: {
+        userId,
+        type,
+        title,
+        message
+      }
+    });
+
+    // 2. بريد إلكتروني
+    if (user.email) {
+      await this.sendEmail(
+        user.email,
+        title,
+        `<p>${message}</p><p><a href="http://exam-platform.com/dashboard">فتح المنصة</a></p>`
+      );
+    }
+
+    // 3. رسالة نصية (اختياري)
+    if (user.phone && process.env.TWILIO_ENABLED === 'true') {
+      await this.sendSMS(user.phone, `${title}\n${message}`);
+    }
+  }
+};
+```
+
+---
+
+## 📋 أوامر التشغيل النهائية
+
+```bash
+# 1. التثبيت والإعداد
+pnpm install
+cp .env.example .env
+# (ملء متغيرات البيئة)
+
+# 2. قاعدة البيانات
+pnpm prisma generate
+pnpm prisma migrate deploy
+pnpm prisma db seed
+
+# 3. الاختبارات
+pnpm run lint         # فحص الكود
+pnpm run build        # بناء الإنتاج
+pnpm test:unit        # اختبارات Unit
+pnpm test:integration # اختبارات Integration
+pnpm test:security    # اختبارات الأمان
+pnpm playwright install
+pnpm test:e2e         # اختبارات End-to-End
+k6 run k6-load-test.js # اختبار الحمل
+
+# 4. التطوير
+pnpm dev              # تطوير محلي
+
+# 5. الإنتاج
+pnpm build
+pnpm start            # أو vercel deploy
+```
+
+---
+
+## ✅ معايير القبول النهائية
+
+قبل الإطلاق يجب:
+
+- [ ] جميع الاختبارات تمر (Unit + Integration + E2E + Load)
+- [ ] صفر أخطاء في `npm run lint` و `npm run build`
+- [ ] بيانات اختبار شاملة (80 جهة + 200+ طالب + 100 نموذج)
+- [ ] النماذج تحتوي على "من قوله تعالى ... إلى قوله تعالى..."
+- [ ] لا توجد مشاكل في تسجيل الدخول (CSP محل)
+- [ ] المزامنة الحية تعمل < 500ms
+- [ ] الشهادات توليد بشكل صحيح
+- [ ] Google Drive integration يعمل بدون أخطاء
+- [ ] اختبار الحمل: 100 مستخدم متزامن بدون انهيار
+- [ ] الإشعارات (Email + SMS) تصل بنجاح
+
+---
+
+## 🎉 النتيجة المتوقعة
+
+بعد تطبيق كل المهام:
+
+✅ **منصة احترافية 100%** جاهزة للإطلاق الفوري  
+✅ **نماذج احترافية** بصيغة جديدة (من ... إلى ...)  
+✅ **أداء عالي** تحت الحمل (100+ مستخدم)  
+✅ **اختبارات شاملة** (Unit + Integration + E2E + Load)  
+✅ **توثيق متقدم** مع أمثلة حقيقية  
+✅ **جاهزة للإنتاج** على Vercel + Nginx  
+
+---
+
+## 📞 ملاحظات مهمة
+
+1. **الدستور أولاً**: اقرأ `CONSTITUTION.txt` وتأكد من الالتزام بـ 8 مواد
+2. **الاختبارات حتمي**: لا تطلق بدون اختبارات شاملة
+3. **بيانات واقعية**: استخدم بيانات قريبة من الواقع
+4. **الأمان دائماً**: RBAC، Audit Log، Rate Limiting
+5. **الأداء مهم**: < 500ms للعمليات الحية
+
+---
+
+**Good luck! 🚀 المشروع في أيدك الآن، واثق أنك ستكمله بنجاح!**
