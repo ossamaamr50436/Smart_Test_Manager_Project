@@ -223,6 +223,7 @@ export function ExamModelsManager({
   async function handleDelete(id: string) {
     setError("");
     setSuccess("");
+    setLoading(true);
     try {
       await deleteExamModel(id);
       setConfirmDeleteId(null);
@@ -230,6 +231,8 @@ export function ExamModelsManager({
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -451,6 +454,7 @@ export function ExamModelsManager({
                               <Button
                                 variant="destructive"
                                 size="sm"
+                                disabled={loading}
                                 onClick={() => handleDelete(m.id)}
                               >
                                 تأكيد الحذف

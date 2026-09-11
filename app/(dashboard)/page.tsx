@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold">مرحباً، {userName}</h1>
         <p className="mt-1 text-muted-foreground">
@@ -55,7 +55,10 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.label}>
+          <Card
+            key={stat.label}
+            className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-card hover:to-primary-50 hover:shadow-md"
+          >
             <CardHeader>
               <CardTitle className="text-3xl">{stat.value}</CardTitle>
               <CardDescription>{stat.label}</CardDescription>

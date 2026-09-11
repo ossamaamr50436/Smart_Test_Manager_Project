@@ -71,6 +71,7 @@ export function CommitteeForm({
     setLoading(true);
     try {
       await assignCommittee(data);
+      setLoading(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");

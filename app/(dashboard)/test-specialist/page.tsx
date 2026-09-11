@@ -69,7 +69,7 @@ export default async function TestSpecialistDashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold">لوحة أخصائي الاختبارات</h1>
         <p className="mt-1 text-muted-foreground">
@@ -80,7 +80,7 @@ export default async function TestSpecialistDashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => (
           <Link key={stat.href} href={stat.href}>
-            <Card className="transition-colors hover:bg-secondary-50">
+            <Card className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-card hover:to-primary-50 hover:shadow-md">
               <CardHeader>
                 <CardTitle className="text-base">{stat.label}</CardTitle>
               </CardHeader>

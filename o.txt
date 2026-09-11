@@ -1,302 +1,263 @@
-# 🎯 البرومبت الاحترافي الشامل (ضعه في `O.txt`)
+# 🎯 البرومبت الشامل (ضعه في `O.txt`)
 
 ```text
-أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، PostgreSQL (Neon)، NextAuth v5، وTailwind CSS.
+أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Tailwind CSS، Shadcn/ui، Radix UI، وNextAuth v5.
 
 📌 سياق المهمة:
-- المنصة **منشورة بالفعل على الإنتاج** (Vercel) على الرابط: https://smart-test-manager-project.vercel.app
-- قاعدة البيانات على Neon (سحابية، مشتركة بين البيئة المحلية والإنتاج).
-- المشروع يعمل محلياً بشكل ممتاز، لكن ظهر خطأ في الإنتاج:
-  ```
-  An error occurred in the Server Components render.
-  The specific message is omitted in production builds to avoid leaking sensitive details.
-  A digest property is included on this error instance which may provide additional details about the nature of the error.
-  ```
-- هذا الخطأ يظهر عند **محاولة إنشاء حساب جديد** من لوحة الأدمن (`/admin/users`).
-
-🎯 المطلوب: 4 مراحل متكاملة، تنفَّذ بالترتيب الصارم.
+المنصة تعمل على Vercel بنجاح. لدينا 4 مهام متكاملة:
+1. نقل قائمة المستخدم إلى الشريط العلوي.
+2. تحسين نظام الألوان (تدرجات بدل لونين).
+3. إضافة أنيميشن احترافي في المنصة.
+4. **إصلاح مشكلة حرجة**: الأزرار تحتاج ضغطتين أو ثلاث لتنفيذ الإجراء (حتى زر الدخول).
 
 ---
 
-📜 التعليمات الصارمة (القانون الأعلى):
-1. اقرأ `CONSTITUTION.txt` أولاً.
-2. اقرأ `prisma/schema.prisma` بالكامل.
-3. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm build` **محلياً** قبل الـcommit.
-4. لا تستخدم `any` في TypeScript.
-5. لا تحذف أي ملف موجود.
-6. **لا تناقش. نفّذ فقط. وثّق في التقرير.**
-7. في نهاية المهمة، اكتب تقريراً في `DEPLOYMENT_FIX_REPORT.md`.
+📜 التعليمات الصارمة:
+1. اقرأ `CONSTITUTION.txt` و `components/dashboard/dashboard-sidebar.tsx` و `app/(dashboard)/layout.tsx` و `components/ui/*.tsx` أولاً.
+2. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm build` محلياً.
+3. لا تستخدم `any`.
+4. لا تحذف أي ملف موجود.
+5. **لا ترفع على GitHub** — سأراجع ثم أرفع بنفسي.
+6. وثّق كل شيء في `DEPLOYMENT_FIX_REPORT.md` بأقسام جديدة.
 
 ---
 
-🔴 المرحلة 1: تشخيص خطأ إنشاء الحساب في الإنتاج
+🔴 المهمة 1 (الأهم): إصلاح مشكلة الأزرار التي تحتاج ضغطات متعددة
+
+**المشكلة الوصفية:**
+- المستخدم يضغط على زر (مثل "دخول" أو "حفظ") فلا ينفذ من المرة الأولى.
+- يحتاج لضغطه 2-3 مرات.
+- المشكلة تحدث في **كل الأزرار** في المنصة.
+
+**الأسباب المحتملة (افحصها بالترتيب):**
+
+**A) مشكلة Hydration في Next.js:**
+- افحص `app/layout.tsx` و `app/(dashboard)/layout.tsx`.
+- إذا كان هناك مكوّن `"use client"` داخل Server Component بشكل خاطئ، قد يؤدي لتأخر Hydration.
+- ابحث عن تحذيرات Hydration في Console.
+
+**B) مشكلة `asChild` في Radix UI:**
+- افحص `components/ui/button.tsx`.
+- إذا كان الزر مغلّفاً بـ`DropdownMenuTrigger` أو `DialogTrigger` مع `asChild`، قد يستهلك الحدث.
+- تأكد من أن `<Button>` يستخدم `forwardRef` بشكل صحيح.
+
+**C) مشكلة `pointer-events` أو `z-index`:**
+- افحص CSS العام (`app/globals.css`).
+- إذا كان هناك عنصر متراكب (overlay, backdrop) بشفافية كاملة، قد يمنع النقرات.
+- تحقق من `lib/csp.ts` — قد يكون CSP يحجب بعض السكربتات.
+
+**D) مشكلة `form` submission في صفحة الدخول:**
+- افحص `app/(auth)/login/page.tsx`.
+- تأكد أن `<form onSubmit>` يستخدم `e.preventDefault()` بشكل صحيح.
+- إذا كان `signIn` من NextAuth يستخدم `redirect: false`، تأكد من معالجة الرد.
+- **الحل الشائع**: استخدام `startTransition` أو `useActionState` أو حالة `loading` لمنع التكرار.
+
+**E) مشكلة إعادة الرسم (Re-rendering):**
+- افحص `components/providers/*.tsx`.
+- إذا كان Provider يُعيد رسم الشجرة كاملة عند كل تغيير، قد يتأخر الاستجابة.
 
 **المطلوب:**
-1. افحص الكود التالي بدقة:
-   - `lib/actions/admin-panel-actions.ts` (دالة `createAdminUser`)
-   - `lib/validations/user.ts` (schema كلمة المرور والتحقق)
-   - `prisma/schema.prisma` (حقول `User` خاصة `mustChangePassword`)
-   - `auth.ts` و `auth.config.ts` (للتأكد من توافق الجلسة)
-
-2. **تحقق من Migration المطبَّق على Neon:**
-   - نفّذ `pnpm prisma migrate status`
-   - إذا وُجد migration معلّق → نفّذ `pnpm prisma migrate deploy`
-   - تحقق أن عمود `mustChangePassword` موجود على جدول `users` في Neon:
-     ```typescript
-     const result = await prisma.$queryRaw`
-       SELECT column_name FROM information_schema.columns 
-       WHERE table_name = 'users' AND column_name = 'mustChangePassword'
-     `;
-     console.log(result);
-     ```
-
-3. **أعد إنتاج الخطأ محلياً في وضع الإنتاج:**
-   - `pnpm build && pnpm start`
-   - افتح `http://localhost:3000`
-   - سجّل دخول كأدمن، واذهب إلى `/admin/users`
-   - جرّب إنشاء حساب جديد
-   - **انسخ رسالة الخطأ الكاملة** من Terminal
-
-4. **حدد السبب الجذري** وثّقه في التقرير.
-
-5. **أصلح السبب** (بأقل تعديل ممكن) — على الأرجح:
-   - Migration غير مطبّق على Neon → طبّقه
-   - حقل مفقود في Zod schema → أضفه
-   - عدم توافق بين العميل والخادم → أعد توليد Prisma Client
-   - مشكلة في `mustChangePassword` عند قراءته أثناء الجلسة → أصلح المنطق
-
-6. **أضف معالجة أخطاء واضحة في Server Action**:
-   ```typescript
-   try {
-     const created = await prisma.user.create({ ... });
-     return { success: true, userId: created.id };
-   } catch (error) {
-     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-       if (error.code === "P2002") {
-         throw new Error("تعذّر إنشاء الحساب — تحقق من البيانات المدخلة");
-       }
-       if (error.code === "P2022" || error.code === "P2021") {
-         // schema mismatch
-         throw new Error("خطأ في مزامنة قاعدة البيانات — تواصل مع المسؤول");
-       }
-     }
-     throw new Error("حدث خطأ غير متوقع");
-   }
-   ```
-
-7. **أعد الاختبار محلياً** (`pnpm build && pnpm start`) حتى ينجح إنشاء الحساب.
+1. حدد السبب الجذري (أو الأسباب) بأدلة.
+2. طبّق الحل في كل مكان فيه زر:
+   - **صفحة الدخول** (`app/(auth)/login/page.tsx`).
+   - **كل النماذج** (`components/**/*form*.tsx` و `components/**/*manager*.tsx`).
+   - **أزرار الشريط الجانبي والقوائم**.
+3. الحل المعتمد (طبّقه بشكل موحّد):
+   - استخدم `<Button type="submit" disabled={isLoading}>` مع حالة `isLoading`.
+   - داخل Server Action، استخدم `useTransition` أو `useFormStatus`.
+   - تأكد من أن `onClick` لا يستدعي `preventDefault` أو `stopPropagation` بلا داعٍ.
+4. بعد الإصلاح، اختبر يدوياً:
+   - الضغط **مرة واحدة** على زر الدخول → ينجح.
+   - الضغط **مرة واحدة** على أي زر حفظ → ينجح.
+   - الضغط **مرة واحدة** على تسجيل الخروج → ينجح.
 
 ---
 
-🔴 المرحلة 2: التحقق الشامل من ملفات النشر
-
-**المطلوب:**
-1. تحقق من وجود وصلاحية الملفات التالية:
-   - `package.json` (بدون BOM، JSON صحيح)
-   - `next.config.mjs` (بدون BOM)
-   - `tsconfig.json` (بدون BOM)
-   - `vercel.json` (إن وُجد)
-   - `.gitignore` (يستثني `.env`، `node_modules`, `.next`)
-
-2. تحقق من `package.json`:
-   - أن `"scripts"` تحتوي على:
-     - `"postinstall": "prisma generate"` ✅
-     - `"build": "next build"` ✅
-     - `"typecheck": "tsc --noEmit"` ✅
-   - أن `"engines"` تُحدد Node 20.x بدلاً من `>=18.17.0` (لتجنب تحذيرات Vercel):
-     ```json
-     "engines": {
-       "node": ">=20.0.0 <21.0.0"
-     }
-     ```
-
-3. تحقق من وجود `prisma/migrations/` بكل الـmigrations الأخيرة.
-
-4. **أضف ملف `vercel.json`** إذا لم يكن موجوداً:
-   ```json
-   {
-     "buildCommand": "pnpm prisma generate && pnpm build",
-     "installCommand": "pnpm install",
-     "framework": "nextjs"
-   }
-   ```
-
-5. **أضف ملف `.env.example`** (للمرجع فقط، بدون قيم حساسة):
-   ```
-   DATABASE_URL=
-   NEXTAUTH_SECRET=
-   NEXTAUTH_URL=
-   GOOGLE_CLIENT_EMAIL=
-   GOOGLE_PRIVATE_KEY=
-   GOOGLE_DRIVE_FOLDER_ID=
-   PUSHER_APP_ID=
-   PUSHER_SECRET=
-   NEXT_PUBLIC_PUSHER_KEY=
-   NEXT_PUBLIC_PUSHER_CLUSTER=
-   ```
-
-6. تحقق من **أي ملف JSON آخر** في المشروع وامسح BOM منه:
-   ```powershell
-   # في PowerShell
-   $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-   Get-ChildItem -Recurse -Include *.json -Exclude node_modules,.next |
-     ForEach-Object {
-       $content = Get-Content $_.FullName -Raw
-       [System.IO.File]::WriteAllText($_.FullName, $content, $utf8NoBom)
-     }
-   ```
-
-7. وثّق كل ملف تم التحقق منه في التقرير.
-
----
-
-🔴 المرحلة 3: تحسين زر تسجيل الخروج (UX)
-
-**القرار المعتمد:** اعتمد نمط **User Menu في أسفل الشريط الجانبي** (مثل Notion, Linear, Google).
-
-**السبب:**
-- أكثر احترافية وأناقة من زر مباشر.
-- يجمع: (الملف الشخصي، الإعدادات، تغيير كلمة المرور، تسجيل الخروج) في مكان واحد.
-- لا يشغل مساحة في الشريط العلوي.
-- يتوافق مع معايير UI الحديثة.
+🔴 المهمة 2: نقل قائمة المستخدم إلى الشريط العلوي
 
 **المطلوب:**
 
-3.1 **في `components/dashboard/dashboard-sidebar.tsx`**:
-- أضف منطقة في **أسفل الشريط الجانبي** (عائمة،):
-  - صورة رمزية (Avatar) بحرف الاسم الأول.
-  - اسم المستخدم الكامل + دوره (Admin / Specialist / ...).
-  - زر ثلاث نقاط (⋮) أو سهم (▾) على اليمين.
+**2.1 أنشئ `components/dashboard/dashboard-topbar.tsx`:**
+- مكوّن `"use client"`.
+- شريط أفقي: `h-14 sticky top-0 z-30 border-b bg-card px-4 flex items-center`.
+- **على الطرف الأيسر (نهاية RTL)**: قائمة المستخدم المنسدلة (Avatar + الاسم + الدور + ChevronDown).
+- استخدم `ms-auto` لمحاذاة القائمة إلى اليسار في RTL.
 
-3.2 عند الضغط، تفتح قائمة منسدلة (`DropdownMenu` من shadcn/ui) تحتوي على:
-- 👤 **الملف الشخصي** → `/profile` (أنشئ الصفحة إن لم توجد — تعرض الاسم، البريد، الدور، تاريخ الانضمام).
-- ⚙️ **إعدادات المستخدم** → `/settings` (أنشئ الصفحة إن لم توجد — تغيير كلمة المرور فقط).
-- 🚪 **تسجيل الخروج** → استدعاء `signOut({ callbackUrl: "/login" })`.
+**2.2 احذف قسم "قائمة المستخدم" من `dashboard-sidebar.tsx`:**
+- احذف القسم الذي كان فيه `border-t p-3` (أسفل الشريط).
+- احتفظ بـ: الشعار، التنقل، الإشعارات، زر الدعم.
 
-3.3 **تحقق من الاستيرادات:**
-- استخدم `components/ui/dropdown-menu.tsx` الموجود.
-- استخدم `components/ui/avatar.tsx` الموجود.
-- استخدم `signOut` من `next-auth/react`.
-
-3.4 **التنسيق:**
-- الزر يبقى قريبا من آخر زر في الصفحة الجانبية، أو يكون عائما، ولو مررت الصفحة (position: sticky أو flex column مع mt-auto).
-- على الجوال: يعمل بنفس الطريقة.
-- الألوان تتبع `primary` و `secondary` من `AppSettings`.
-
-3.5 **احذف أي زر تسجيل خروج قديم** في الشريط العلوي أو أي مكان آخر.
-
----
-
-🔴 المرحلة 4: التحقق النهائي قبل الدفع
-
-**المطلوب:**
-
-4.1 نفّذ الأوامر بالترتيب:
-```powershell
-pnpm typecheck
-pnpm build
+**2.3 عدّل `app/(dashboard)/layout.tsx`:**
+```tsx
+<div className="flex h-screen">
+  <DashboardSidebar />
+  <div className="flex flex-1 flex-col">
+    <DashboardTopBar />
+    <main className="flex-1 overflow-y-auto">{children}</main>
+  </div>
+</div>
 ```
 
-**يجب أن ينجحا بدون أي أخطاء.**
+**2.4 على الجوال:**
+- الشريط العلوي يبقى ظاهراً.
+- قائمة المستخدم تعمل بشكل جيد.
 
-4.2 تحقق من قاعدة البيانات:
-```powershell
-pnpm tsx scripts/verify-before-deploy.ts
+---
+
+🔴 المهمة 3: نظام ألوان متدرج (Gradients) احترافي
+
+**المشكلة:**
+- المنصة حالياً تستخدم لونين ثابتين فقط (primary + secondary).
+- المطلوب: نظام ألوان **متدربج** (Gradient System) احترافي.
+
+**المطلوب:**
+
+**3.1 في `app/globals.css` أضف:**
+- متغيرات CSS جديدة للتدرجات:
+  ```css
+  --gradient-primary: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-600)) 100%);
+  --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--secondary-600)) 100%);
+  --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  --gradient-sidebar: linear-gradient(180deg, hsl(var(--primary-700)) 0%, hsl(var(--primary-900)) 100%);
+  --gradient-card-hover: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--primary-50)) 100%);
+  ```
+
+**3.2 في `tailwind.config.ts`:**
+- أضف ألواناً موسّعة لكل درجة primary-50 → primary-900.
+- مثال:
+  ```
+  primary: {
+    50: '#f0f9fa', 100: '#d9f0f2', ..., 500: '#015e63', 600: '#014f53', ..., 900: '#002225'
+  }
+  ```
+- طبّق نفس المنهج على secondary.
+
+**3.3 طبّق التدرجات في:**
+
+**أ) الشريط الجانبي:**
+- الخلفية: `bg-gradient-to-b from-primary-700 to-primary-900`.
+- العناصر النشطة: `bg-gradient-to-r from-primary-500 to-primary-600`.
+- أيقونات بلون أبيض.
+
+**ب) الأزرار الرئيسية:**
+- `bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800`.
+- ظل: `shadow-md hover:shadow-lg`.
+
+**ج) البطاقات (Cards):**
+- عند Hover: `hover:bg-gradient-to-br hover:from-card hover:to-primary-50`.
+- حدود متدرجة: `border-gradient` (استخدم pseudo-element إذا لزم).
+
+**د) الشارات (Badges):**
+- النجاح: `bg-gradient-to-r from-emerald-500 to-emerald-600`.
+- التحذير: `bg-gradient-to-r from-amber-500 to-amber-600`.
+- الخطأ: `bg-gradient-to-r from-red-500 to-red-600`.
+
+**هـ) الشريط العلوي:**
+- خلفية: `bg-gradient-to-r from-card via-card to-primary-50`.
+
+**3.4 الشهادات (إن وُجدت):**
+- خلفية: `bg-gradient-to-br from-amber-50 via-white to-amber-50`.
+
+---
+
+🔴 المهمة 4: أنيميشن احترافي
+
+**المطلوب:**
+
+**4.1 في `app/globals.css` أضف keyframes:**
+```css
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes slideInFromRight { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
+@keyframes slideInFromTop { from { transform: translateY(-10px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+@keyframes scaleIn { from { transform: scale(0.95); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+@keyframes pulse-soft { 0%, 100% { opacity: 1 } 50% { opacity: 0.7 } }
+@keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
 ```
 
-**المتوقع:**
-- Users: 1 (الأدمن فقط)
-- Institutions: 0
-- Students: 0
-- Seasons: 1
-- Models branch 30: 100
+**4.2 أضف Utility Classes:**
+```css
+.animate-fade-in { animation: fadeIn 0.3s ease-out }
+.animate-slide-in { animation: slideInFromTop 0.3s ease-out }
+.animate-scale-in { animation: scaleIn 0.2s ease-out }
+.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite }
+.skeleton { background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground)/0.1) 50%, hsl(var(--muted)) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite }
+```
 
-4.3 **اكتب `DEPLOYMENT_FIX_REPORT.md`** في جذر المشروع يحتوي على:
-- ملخص المشكلة (خطأ إنشاء الحساب).
-- السبب الجذري بالتفصيل.
-- الحل المُطبَّق.
-- قائمة ملفات النشر التي تم التحقق منها.
-- تصميم زر تسجيل الخروج الجديد.
-- خطوات إعادة النشر على Vercel.
+**4.3 طبّق الأنيميشن في:**
 
-4.4 **لا ترفع (push) أي شيء على GitHub**. سأراجع التقرير أولاً، ثم أرفع بنفسي.
+**أ) الصفحات الجديدة:**
+- عند الدخول لأي صفحة: `animate-fade-in` على `<main>`.
+
+**ب) القوائم المنسدلة (Dropdown):**
+- عند الفتح: `animate-scale-in origin-top-left`.
+
+**ج) الـModal/Dialog:**
+- عند الفتح: `animate-scale-in`.
+- عند الإغلاق: `animate-fade-out`.
+
+**د) البطاقات:**
+- Hover: `transition-all duration-200 hover:shadow-md hover:-translate-y-0.5`.
+
+**هـ) الأزرار:**
+- `transition-all duration-150 active:scale-[0.98]`.
+
+**و) الإشعارات (Toast):**
+- عند الظهور: `animate-slide-in`.
+
+**ز) الشارات:**
+- `animate-pulse-soft` للأشياء الحية (مثل العداد).
+
+**ح) Loading States:**
+- استبدل `Spinner` بـ`skeleton` حيثما يناسب.
+
+**4.4 احترم `prefers-reduced-motion`:**
+```css
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+```
 
 ---
 
 ✅ معايير النجاح النهائية:
-1. `pnpm typecheck` + `pnpm build` ينجحان محلياً.
-2. `pnpm start` (وضع الإنتاج) ينجح في **إنشاء حساب جديد** من `/admin/users`.
-3. `vercel.json` موجود ومُهيّأ.
-4. `package.json` نظيف من BOM + `postinstall` موجود + `engines` = Node 20.x.
-5. زر تسجيل الخروج في القائمة المنسدلة أسفل الشريط الجانبي.
-6. `DEPLOYMENT_FIX_REPORT.md` مكتوب بشكل احترافي.
 
-📝 التوثيق الإلزامي:
-- كل تعديل يجب أن يُشرح في `DEPLOYMENT_FIX_REPORT.md`.
-- اذكر كل ملف جديد أنشأته.
-- اذكر كل migration جديدة إن وُجدت.
+**الأزرار:**
+1. زر الدخول يعمل من **ضغطة واحدة**.
+2. كل أزرار الحفظ تعمل من **ضغطة واحدة**.
+3. تسجيل الخروج يعمل من **ضغطة واحدة**.
 
-🚫 ممنوع تماماً:
-- استخدام `any`.
-- حذف أي ملف موجود.
-- تعديل `.env`.
-- إضافة اعتماديات جديدة بدون إذن (استخدم الموجود).
-- الـpush إلى GitHub (المستخدم سيقوم به).
+**الشريط العلوي:**
+4. قائمة المستخدم في الطرف الأيسر أعلى الصفحة لجميع الأدوار.
+5. لا يوجد أثر للقائمة القديمة في Sidebar.
 
-**ابدأ الآن. اتبع المراحل بالترتيب.**
-```
+**الألوان:**
+6. الشريط الجانبي بتدرج داكن جميل.
+7. الأزرار الرئيسية بتدرجات.
+8. البطاقات لها ظلال ناعمة عند Hover.
 
----
+**الأنيميشن:**
+9. الصفحات تدخل بـ`fade-in`.
+10. القوائم المنسدلة تظهر بـ`scale-in`.
+11. البطاقات تتحرك بنعومة عند Hover.
 
-## 📋 ملاحظاتي قبل التشغيل
+**التقنية:**
+12. `pnpm typecheck` + `pnpm build` ينجحان.
+13. لا تحذيرات في Console.
 
-### 1️⃣ لماذا اخترت القائمة المنسدلة أسفل الشريط؟
+📝 التوثيق:
+- حدّث `DEPLOYMENT_FIX_REPORT.md` بالأقسام:
+  - "إصلاح مشكلة الأزرار" (السبب + الحل).
+  - "نقل قائمة المستخدم إلى الشريط العلوي".
+  - "نظام الألوان المتدرج".
+  - "الأنيميشن والانتقالات".
 
-| النمط | المميزات | العيوب |
-| :--- | :--- | :--- |
-| **زر مباشر في الشريط** | بسيط | يشغل مساحة، أقل احترافية |
-| **ثلاث نقاط في الأعلى** | شائع | بعيد عن العين |
-| ✅ **قائمة منسدلة أسفل الشريط** | احترافي، يجمع كل شيء، ثابت | يحتاج تطبيق جديد |
+🚫 ممنوع:
+- حذف ملفات موجودة.
+- تغيير هيكل `prisma/schema.prisma`.
+- إضافة اعتماديات جديدة (استخدم Tailwind + CSS الموجود).
+- الـpush إلى GitHub.
+- كسر أي وظيفة موجودة (تسجيل دخول، إنشاء حساب، إلخ).
 
-**القرار**: القائمة المنسدلة أسفل الشريط — معيار التطبيقات الحديثة (Notion، Linear، Vercel نفسه).
-
-### 2️⃣ لماذا `Node 20.x` وليس `>=18`؟
-
-Vercel حذّر في اللوجات:
-```
-Warning: Detected "engines": { "node": ">=18.17.0" } in your package.json
-```
-
-لأن Vercel قد يستخدم Node 24 (الذي أظهرته اللوجات!). التنصيص على `>=20.0.0 <21.0.0` يضمن بيئة مستقرة.
-
-### 3️⃣ لماذا `vercel.json` منفصل؟
-
-يوفر:
-- إعدادات موحدة (لا تعتمد على Vercel Dashboard).
-- يمكن تعديله من Git مباشرة.
-- يقلل الأخطاء البشرية.
-
----
-
-## 🎯 قبل التشغيل
-
-1. احفظ نقطة رجوع:
-```powershell
-git add -A
-git commit -m "checkpoint: before deployment fix"
-```
-
-2. ضع البرومبت في `O.txt`.
-
-3. شغّل الوكيل.
-
-4. **بعد انتهاء الوكيل**، أرسل لي:
-   - محتوى `DEPLOYMENT_FIX_REPORT.md`.
-   - مخرجات `pnpm typecheck` + `pnpm build`.
-   - نتيجة `pnpm start` + اختبار إنشاء الحساب محلياً.
-
-5. **ثم** نرفع على Vercel معاً.
-
----
-
-**جاهز؟ ابدأ الآن!** 🚀
+**ابدأ الآن. اتبع المهام بالترتيب، ووثّق كل خطوة.**

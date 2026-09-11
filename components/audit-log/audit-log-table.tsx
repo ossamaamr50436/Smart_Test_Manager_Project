@@ -33,13 +33,13 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  CREATE: "bg-green-100 text-green-800",
-  UPDATE: "bg-blue-100 text-blue-800",
-  DELETE: "bg-red-100 text-red-800",
+  CREATE: "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white",
+  UPDATE: "bg-gradient-to-r from-sky-500 to-sky-600 text-white",
+  DELETE: "bg-gradient-to-r from-red-500 to-red-600 text-white",
   LOGIN: "bg-gray-100 text-gray-800",
-  APPROVE: "bg-emerald-100 text-emerald-800",
-  REJECT: "bg-orange-100 text-orange-800",
-  ASSESS: "bg-purple-100 text-purple-800",
+  APPROVE: "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white",
+  REJECT: "bg-gradient-to-r from-amber-500 to-amber-600 text-white",
+  ASSESS: "bg-gradient-to-r from-purple-500 to-purple-600 text-white",
 };
 
 export function AuditLogTable() {

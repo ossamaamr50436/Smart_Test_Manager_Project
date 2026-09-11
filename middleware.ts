@@ -49,6 +49,10 @@ export default async function middleware(req: NextRequest) {
     }
   }
 
+  // تمرير nonce عبر request headers حتى يقرأه layout عبر headers().get("x-nonce")
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+
   // تشغيل NextAuth Middleware
   const nextAuth = auth as unknown as (
     request: NextRequest
@@ -74,13 +78,13 @@ export default async function middleware(req: NextRequest) {
         response.headers.set("set-cookie", setCookie);
       }
     } else {
-      response = NextResponse.next();
+      response = NextResponse.next({ request: { headers: requestHeaders } });
       headers.forEach((value, key) => {
         response.headers.set(key, value);
       });
     }
   } else {
-    response = NextResponse.next();
+    response = NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   response.headers.set("x-nonce", nonce);

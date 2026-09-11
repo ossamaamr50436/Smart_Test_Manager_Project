@@ -37,15 +37,15 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  INFO: "bg-blue-100 text-blue-800 border-blue-200",
-  SUCCESS: "bg-green-100 text-green-800 border-green-200",
-  WARNING: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  ERROR: "bg-red-100 text-red-800 border-red-200",
-  RECRUITMENT: "bg-purple-100 text-purple-800 border-purple-200",
-  APPROVAL: "bg-indigo-100 text-indigo-800 border-indigo-200",
-  SCHEDULE: "bg-cyan-100 text-cyan-800 border-cyan-200",
-  ASSESSMENT: "bg-orange-100 text-orange-800 border-orange-200",
-  CERTIFICATE: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  INFO: "bg-gradient-to-r from-sky-500 to-sky-600 text-white border-sky-600",
+  SUCCESS: "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-emerald-600",
+  WARNING: "bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-600",
+  ERROR: "bg-gradient-to-r from-red-500 to-red-600 text-white border-red-600",
+  RECRUITMENT: "bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-600",
+  APPROVAL: "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-indigo-600",
+  SCHEDULE: "bg-gradient-to-r from-cyan-500 to-cyan-600 text-white border-cyan-600",
+  ASSESSMENT: "bg-gradient-to-r from-orange-500 to-orange-600 text-white border-orange-600",
+  CERTIFICATE: "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-emerald-600",
 };
 
 export function NotificationsList() {

@@ -211,7 +211,7 @@ export function AdminInstitutionsManager() {
           dir="rtl"
           className="max-w-xs"
         />
-        <Button variant="outline" onClick={handleSearch}>بحث</Button>
+        <Button variant="outline" disabled={isPending} onClick={handleSearch}>بحث</Button>
       </div>
 
       {showCreate && (
@@ -350,7 +350,7 @@ export function AdminInstitutionsManager() {
                       <td className="px-3 py-2">
                         <div className="flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => openEdit(inst)}>تعديل</Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDelete(inst)}>حذف</Button>
+                          <Button size="sm" variant="destructive" disabled={isPending} onClick={() => handleDelete(inst)}>حذف</Button>
                         </div>
                       </td>
                     </tr>

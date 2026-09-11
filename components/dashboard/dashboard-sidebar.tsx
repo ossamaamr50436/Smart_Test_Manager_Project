@@ -1,18 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, MessageCircle, Settings, UserRound } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { MessageCircle } from "lucide-react";
 import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
@@ -89,12 +80,10 @@ export function DashboardSidebar() {
   const links = role ? ROLE_LINKS[role] ?? [] : [];
   const platformName = settings?.platformName ?? "تطبيق الاختبارات";
   const whatsappNumber = settings?.whatsappNumber ?? null;
-  const displayName = user?.name?.trim() || "مستخدم";
-  const avatarChar = displayName.charAt(0);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-l bg-card">
-      <div className="border-b bg-primary-dynamic p-4">
+    <aside className="flex w-64 shrink-0 flex-col border-l bg-gradient-to-b from-primary-700 to-primary-900">
+      <div className="border-b border-white/10 p-4">
         <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -106,17 +95,17 @@ export function DashboardSidebar() {
         </div>
       </div>
 
-      {/* منطقة التنقل — قابلة للتمرير بينما يبقى قائمة المستخدم مثبتاً أسفلها */}
+      {/* منطقة التنقل — قابلة للتمرير */}
       <div className="flex-1 overflow-y-auto p-4">
         {/* رابط الإشعارات لجميع المستخدمين */}
-        <nav className="mb-4 space-y-1">
+        <nav className="mb-4 space-y-1 animate-slide-in">
           <Link
             href={NOTIFICATIONS_LINK.href}
             className={cn(
-              "relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+              "relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-150",
               pathname === NOTIFICATIONS_LINK.href
-                ? "bg-primary-600 font-medium text-white shadow-sm"
-                : "text-foreground hover:bg-secondary-100 hover:text-primary-700"
+                ? "bg-gradient-to-r from-primary-500 to-primary-600 font-medium text-white shadow-md"
+                : "text-white/80 hover:bg-white/10 hover:text-white"
             )}
           >
             <NotificationBadge />
@@ -133,10 +122,10 @@ export function DashboardSidebar() {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "block rounded-md px-3 py-2 text-sm transition-colors",
+                    "block rounded-md px-3 py-2 text-sm transition-all duration-150",
                     active
-                      ? "bg-primary-600 font-medium text-white shadow-sm"
-                      : "text-foreground hover:bg-secondary-100 hover:text-primary-700"
+                      ? "bg-gradient-to-r from-primary-500 to-primary-600 font-medium text-white shadow-md"
+                      : "text-white/80 hover:bg-white/10 hover:text-white"
                   )}
                 >
                   {link.label}
@@ -151,60 +140,12 @@ export function DashboardSidebar() {
             href={`https://wa.me/${whatsappNumber}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 flex items-center gap-2 rounded-md bg-secondary-200/60 px-3 py-2 text-sm font-medium text-primary-800 transition-colors hover:bg-secondary-200"
+            className="mt-4 flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
           >
             <MessageCircle className="h-4 w-4" />
             تواصل مع الدعم الفني
           </Link>
         )}
-      </div>
-
-      {/* قائمة المستخدم — أسفل الشريط الجانبي (مثل Notion / Linear) */}
-      <div className="border-t p-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start transition-colors hover:bg-secondary-200/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <Avatar className="h-9 w-9">
-                <AvatarFallback>{avatarChar}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">{roleLabel}</p>
-              </div>
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 bg-popover">
-            <DropdownMenuLabel className="font-normal">
-              <p className="truncate font-medium text-foreground">{displayName}</p>
-              <p className="truncate text-xs font-normal text-muted-foreground">{roleLabel}</p>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/profile">
-                <UserRound className="h-4 w-4" />
-                الملف الشخصي
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings">
-                <Settings className="h-4 w-4" />
-                إعدادات المستخدم
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onSelect={() => signOut({ callbackUrl: "/login" })}
-            >
-              <LogOut className="h-4 w-4" />
-              تسجيل الخروج
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </aside>
   );

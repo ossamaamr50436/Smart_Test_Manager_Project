@@ -149,7 +149,7 @@ export function AdminSeasonsManager() {
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{season.name}</p>
                       {season.isActive && (
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                        <span className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-2 py-0.5 text-xs font-medium text-white">
                           نشط
                         </span>
                       )}
@@ -162,7 +162,7 @@ export function AdminSeasonsManager() {
                       {season._count.sessions} جلسة — {season._count.models} نموذج
                     </p>
                   </div>
-                  <Button size="sm" variant={season.isActive ? "outline" : "default"} onClick={() => toggleActive(season)}>
+                  <Button size="sm" variant={season.isActive ? "outline" : "default"} disabled={isPending} onClick={() => toggleActive(season)}>
                     {season.isActive ? "إلغاء التفعيل" : "تفعيل"}
                   </Button>
                 </div>

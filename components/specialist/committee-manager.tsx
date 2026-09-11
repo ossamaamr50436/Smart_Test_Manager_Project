@@ -95,6 +95,7 @@ export function CommitteeManager({
   async function handleDelete(id: string) {
     setError("");
     setSuccess("");
+    setLoading(true);
     try {
       await deleteCommittee(id);
       setConfirmDeleteId(null);
@@ -102,6 +103,8 @@ export function CommitteeManager({
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -247,7 +250,7 @@ export function CommitteeManager({
                       <td className="p-2 text-center">
                         {confirmDeleteId === c.id ? (
                           <div className="flex items-center justify-center gap-1">
-                            <Button variant="destructive" size="sm" onClick={() => handleDelete(c.id)}>تأكيد</Button>
+                            <Button variant="destructive" size="sm" disabled={loading} onClick={() => handleDelete(c.id)}>تأكيد</Button>
                             <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>إلغاء</Button>
                           </div>
                         ) : (

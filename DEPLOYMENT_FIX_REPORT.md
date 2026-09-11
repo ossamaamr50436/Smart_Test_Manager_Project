@@ -215,3 +215,113 @@ pnpm tsx scripts/verify-before-deploy.ts
 4. بعد اكتمال البناء (الوصول إلى `Ready`)، اختبر من الإنتاج.
 5. تحقّق من لوجات التصريحات الجديدة على Vercel: يجب ألا يظهر تحذير `engines` ولا
    `prisma generate` مفقود.
+
+---
+
+# الجزء الثاني — تحسينات الواجهة (4 مهام جديدة)
+
+> التاريخ: الجمعة 2026-09-11 — نُفّذت المهام الأربع حسب `o.txt` الجديد بعد اكتمال الجزء الأول.
+
+## 10) المهمة 1 — إصلاح الأزرار التي تتطلب 2–3 ضغطات
+
+### التشخيص (السبب الجذري)
+فحص شامل لمسار الضغطة الأولى للمستخدم (نموذج تسجيل الدخول وكل النماذج/الأزرار):
+
+1. **`upgrade-insecure-requests` في `lib/csp.ts`** (التوجيه الأخير) كان يرفع جميع طلبات
+   HTTP محلية إلى HTTPS فيتجاهل المتصفح الطلبات/المصادر ويؤخر/يفشل الطلبات الأولى على
+   `http://localhost`. **حُذف التوجيه** — فهو غير مجدٍ، وكل طلبات الإنتاج HTTPS أصلاً.
+2. **عدم وصول `x-nonce` إلى مكونات السيرفر:** الـ middleware كان يضع `x-nonce` على
+   **رؤوس الاستجابة فقط** (`response.headers.set`)، بينما `headers()` في `app/(dashboard)/layout.tsx`
+   تقرأ **رؤوس الطلب** → كانت تعيد `undefined`، فيفشل شرط `'nonce-…'` المتوقع في CSP
+   فلا تُحقَن السكربتات المضمّنة أول مرة (تُعاد المحاولة لاحقاً فتنجح، ومن هنا الشعور
+   بالضغطات المتعددة). **الإصلاح:** في `middleware.ts` يتم الآن استنساخ رؤوس الطلب
+   (`req.headers`) ووضع `x-nonce` عليها ثم تمريرها عبر
+   `NextResponse.next({ request: { headers: requestHeaders } })` في كلا الفرعين، مع
+   الإبقاء على ترويسة الاستجابة.
+3. **لا يوجد ردّ بصري عند الضغط:** زر `Button` لم يكن يتحرك عند الضغط
+   (`transition-colors` فقط) فيبدو الضغط "ميّتاً" فيضغط المستخدم مجدداً. **الإصلاح:**
+   `components/ui/button.tsx` → `transition-all duration-150 active:scale-[0.98]`.
+4. **أزرار غير معطَّلة أثناء المعالجة:** قد يضغط المستخدم مرتين قبل اكتمال العملية.
+   أُضيفت `disabled` مع مؤشرات تحميل في الملفات التالية:
+
+| الملف | الإضافة |
+| :--- | :--- |
+| `admin-seasons-manager.tsx` | زر التفعيل/العكس `disabled={isPending}` |
+| `admin-institutions-manager.tsx` | زرا البحث والحذف `disabled={isPending}` |
+| `exam-models-manager.tsx` | زر «تأكيد» الحذف `disabled={loading}` + `handleDelete` يدير `loading` |
+| `committee-manager.tsx` | زر «تأكيد» الحذف `disabled={loading}` + `handleDelete` يدير `loading` |
+| `committee-form.tsx` | إعادة `setLoading(false)` بعد النجاح قبل `router.refresh()` |
+
+### التحقق
+- `pnpm typecheck` ناجح.
+- `pnpm build` ناجح (42/42 صفحة).
+
+## 11) المهمة 2 — نقل قائمة المستخدم من أسفل الشريط الجانبي إلى الشريط العلوي
+
+- **`components/dashboard/dashboard-topbar.tsx`** (جديد): شريط علوي لاصق (`sticky top-0 z-30`)
+  يعرض قائمة المستخدم منسدلة (الملف الشخصي `/profile`، إعدادات المستخدم `/settings`،
+  تسجيل الخروج) وسهم ▾ بجوار الاسم والدور، مع `ms-auto` لالتقاء الجهة اليسرى في RTL.
+- **`components/dashboard/dashboard-sidebar.tsx`**: أُزيل قسم قائمة المستخدم السفلي
+  (`DropdownMenu` + `Avatar` + `signOut`) نهائياً، مع حذف الاستيرادات غير المستخدمة.
+- **`app/(dashboard)/layout.tsx`**: البنية أصبحت `flex h-screen` → `Sidebar` + عمود
+  (‎`TopBar` + `main flex-1 overflow-y-auto p-6`).
+
+## 12) المهمة 3 — نظام الألوان المتدرجة
+
+- **`app/globals.css`**: متغيرات تدرجات CSS جديدة (`--gradient-primary`، `--gradient-secondary`،
+  `--gradient-success`، `--gradient-warning`، `--gradient-danger`، `--gradient-card-hover`)
+  مع كلاسات `bg-gradient-*` المقابلة.
+- **`tailwind.config.ts`**: توسيع لوحة `secondary` من 50 حتى 900 (كانت حتى 500).
+- **التطبيق على المكونات:**
+  - الشريط الجانبي: `bg-gradient-to-b from-primary-700 to-primary-900`، والعنصر النشط
+    `bg-gradient-to-r from-primary-500 to-primary-600` مع ظل ناعم.
+  - زر `Button` الافتراضي: `bg-gradient-to-r from-primary-500 to-primary-700`
+    وزر الحذف: `from-red-500 to-red-600`.
+  - الشريط العلوي: `bg-gradient-to-r from-card via-card to-primary-50`.
+  - بطاقات الإحصائيات في `/` و `/admin` و `/test-specialist`: hover متدرج
+    `from-card to-primary-50` مع رفع خفيف.
+  - الشارات: عمليات سجل التدقيق وإشعارات النجاح/الخطأ/التحذير بألوان متدرجة
+    (emerald/amber/red/…).
+
+## 13) المهمة 4 — الأنيميشن الاحترافي
+
+- **`app/globals.css`**: keyframes جديدة (`fadeIn`، `slideInFromTop`، `slideInFromRight`،
+  `scaleIn`، `pulse-soft`، `shimmer`) مع كلاساتها:
+  - `.animate-fade-in` (دخول الصفحة)
+  - `.animate-slide-in` (دخول القوائم من أعلى)
+  - `.animate-scale-in` (حوارات)
+  - `.animate-pulse-soft` (نبض خفيف)
+  - `.skeleton` (مؤشر تحميل متدرج)
+- إضافة كتلة `prefers-reduced-motion: reduce` لإيقاف الحركة لمن يفضّلونها.
+- **التطبيق:** `animate-fade-in` لحاويات صفحات `/` و `/admin` و `/examiner` و
+  `/test-specialist`، و`animate-slide-in` لروابط الشريط الجانبي، في حين يستفيد الزر
+  من `active:scale-[0.98]` من المهمة 1.
+
+## 14) ملخص التغييرات
+
+### ملفات جديدة
+- `components/dashboard/dashboard-topbar.tsx`
+
+### ملفات معدّلة
+- `lib/csp.ts` — حذف `upgrade-insecure-requests`
+- `middleware.ts` — تمرير `x-nonce` عبر رؤوس الطلب
+- `components/ui/button.tsx` — `transition-all duration-150 active:scale-[0.98]`
+- `components/dashboard/dashboard-sidebar.tsx` — تدرجات + حذف قائمة المستخدم
+- `app/(dashboard)/layout.tsx` — بنية TopBar + المحتوى القابل للتمرير
+- `tailwind.config.ts` — توسيع `secondary` حتى 900
+- `app/globals.css` — متغيرات تدرجات + keyframes + reduced-motion
+- `admin-seasons-manager.tsx` / `admin-institutions-manager.tsx` / `exam-models-manager.tsx`
+  / `committee-manager.tsx` / `committee-form.tsx` — تعطيل الأزرار أثناء المعالجة
+- `app/(dashboard)/page.tsx` / `admin/page.tsx` / `examiner/page.tsx` /
+  `test-specialist/page.tsx` — بطاقات hover متدرجة + `animate-fade-in`
+- `audit-log-table.tsx` / `notifications-list.tsx` / `admin-seasons-manager.tsx` —
+  شارات متدرجة
+
+## 15) التحقق النهائي
+
+```powershell
+pnpm typecheck   # OK — لا أخطاء
+pnpm build       # OK — 42/42 صفحة
+```
+
+ملاحظة: لم يتم الرفع إلى GitHub — سيُراجع المستخدم ثم يرفع بنفسه.
