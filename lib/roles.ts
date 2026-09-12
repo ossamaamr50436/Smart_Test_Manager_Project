@@ -5,6 +5,7 @@ export type RoleKey = keyof typeof ROLE_LABELS;
 
 // أسماء الأدوار بالعربية للعرض
 export const ROLE_LABELS: Record<Role, string> = {
+  SUPER_ADMIN: "المالك (سوبر أدمن)",
   ADMIN: "المسؤول",
   HEAD_OF_AFFAIRS: "رئيس الشؤون التعليمية",
   CERTIFICATE_SOURCE: "مصدر الشهادات",
@@ -15,6 +16,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 // المسار الافتراضي لكل دور (يُستخدم في الـ Middleware للتوجيه)
 export const ROLE_DASHBOARD_PATHS: Record<Role, string> = {
+  SUPER_ADMIN: "/admin",
   ADMIN: "/admin",
   HEAD_OF_AFFAIRS: "/head-of-affairs",
   CERTIFICATE_SOURCE: "/certificate-source",

@@ -17,7 +17,6 @@ datasource db {
 // الأدوار (Enums)
 // ------------------------------------------------------------
 enum Role {
-  SUPER_ADMIN // جديد — مالك المنصة (بدون tenantId)
   ADMIN // المسؤول
   HEAD_OF_AFFAIRS // رئيس الشؤون التعليمية
   CERTIFICATE_SOURCE // مصدر الشهادات
@@ -82,38 +81,6 @@ enum AuditAction {
 }
 
 // ------------------------------------------------------------
-// Multi-Tenant — المؤسسات/الجمعيات
-// ------------------------------------------------------------
-model Tenant {
-  id              String   @id @default(cuid())
-  name            String   @unique
-  slug            String   @unique
-  driveFolderId   String?
-  driveFolderUrl  String?
-  primaryColor    String   @default("#015e63")
-  secondaryColor  String   @default("#d3bb8b")
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relations
-  users               User[]
-  institutions        Institution[]
-  students            Student[]
-  examSeasons         ExamSeason[]
-  examModels          ExamModel[]
-  committees          Committee[]
-  examSessions        ExamSession[]
-  assessments         Assessment[]
-  certificates        Certificate[]
-  notifications       Notification[]
-  auditLogs           AuditLog[]
-  assessmentSettings  AssessmentSettings[]
-
-  @@map("tenants")
-}
-
-// ------------------------------------------------------------
 // المستخدمون
 // ------------------------------------------------------------
 model User {
@@ -128,21 +95,18 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   institutionId      String? // للمستخدمين من نوع Institution فقط (عزل الصلاحيات)
-  tenantId           String? // Multi-Tenant — nullable لأن SUPER_ADMIN ليس له tenant
 
-  tenant               Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  institution          Institution?     @relation(fields: [institutionId], references: [id])
-  auditLogs            AuditLog[]       @relation("UserAuditLogs")
+  institution          Institution?   @relation(fields: [institutionId], references: [id])
+  auditLogs            AuditLog[]     @relation("UserAuditLogs")
   notifications        Notification[]
-  sessionsAsTeacher1   ExamSession[]    @relation("Teacher1")
-  sessionsAsTeacher2   ExamSession[]    @relation("Teacher2")
-  committeesAsTeacher1 Committee[]      @relation("CommitteeTeacher1")
-  committeesAsTeacher2 Committee[]      @relation("CommitteeTeacher2")
+  sessionsAsTeacher1   ExamSession[]  @relation("Teacher1")
+  sessionsAsTeacher2   ExamSession[]  @relation("Teacher2")
+  committeesAsTeacher1 Committee[]    @relation("CommitteeTeacher1")
+  committeesAsTeacher2 Committee[]    @relation("CommitteeTeacher2")
   assessments          Assessment[]
-  certificatesIssued   Certificate[]    @relation("CertificateIssuer")
+  certificatesIssued   Certificate[]  @relation("CertificateIssuer")
 
   @@index([institutionId])
-  @@index([tenantId])
   @@map("users")
 }
 
@@ -160,18 +124,15 @@ model Institution {
   district        String // الحي
   contactInfo     String?
   credentials     String? // معرف/كلمة مرور خاصة بالجهة
-  tenantId        String? // Multi-Tenant
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant     Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users      User[]
   students   Student[]
   examModels ExamModel[]
 
   @@index([licenseNumber])
-  @@index([tenantId])
   @@map("institutions")
 }
 
@@ -191,11 +152,9 @@ model Student {
   status        StudentStatus @default(PENDING)
   institutionId String
   committeeId   String? // اللجنة المرتبطة بالطالب (المهمة 1)
-  tenantId      String? // Multi-Tenant
   createdAt     DateTime      @default(now()) // تاريخ الترشيح
   updatedAt     DateTime      @updatedAt
 
-  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   institution  Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   committee    Committee?    @relation(fields: [committeeId], references: [id])
   examSessions ExamSession[]
@@ -208,7 +167,6 @@ model Student {
   @@index([institutionId])
   @@index([committeeId])
   @@index([status])
-  @@index([tenantId])
   @@map("students")
 }
 
@@ -221,16 +179,13 @@ model ExamSeason {
   startDate DateTime
   endDate   DateTime
   isActive  Boolean  @default(false)
-  tenantId  String? // Multi-Tenant
   createdAt DateTime @default(now())
 
-  tenant           Tenant?                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sessions         ExamSession[]
   models           ExamModel[]
   modelAllocations CommitteeModelAllocation[]
   committees       Committee[]
 
-  @@index([tenantId])
   @@map("exam_seasons")
 }
 
@@ -244,11 +199,9 @@ model Committee {
   seasonId   String
   teacher1Id String // المعلم الأول في اللجنة
   teacher2Id String // المعلم الثاني في اللجنة
-  tenantId   String? // Multi-Tenant
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tenant      Tenant?                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   season      ExamSeason                 @relation(fields: [seasonId], references: [id])
   teacher1    User                       @relation("CommitteeTeacher1", fields: [teacher1Id], references: [id])
   teacher2    User                       @relation("CommitteeTeacher2", fields: [teacher2Id], references: [id])
@@ -258,7 +211,6 @@ model Committee {
   @@unique([name, seasonId])
   @@index([seasonId])
   @@index([branch])
-  @@index([tenantId])
   @@map("committees")
 }
 
@@ -274,9 +226,7 @@ model ExamModel {
   segmentsCount Int     @default(10) // عدد مقاطع النموذج (1-30)
   institutionId String? // احتفاظ لتوافق البيانات — لم تعد تُسند أثناء الإنشاء (المرحلة 8)
   seasonId      String // الموسم الذي يتبع له النموذج
-  tenantId      String? // Multi-Tenant
 
-  tenant      Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   institution Institution?  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   season      ExamSeason    @relation(fields: [seasonId], references: [id])
   assessments Assessment[]
@@ -285,7 +235,6 @@ model ExamModel {
   @@unique([modelNumber, seasonId, branch])
   @@index([institutionId])
   @@index([branch])
-  @@index([tenantId])
   @@map("exam_models")
 }
 
@@ -303,16 +252,14 @@ model ExamSession {
   status     ExamSessionStatus @default(SCHEDULED)
   seasonId   String // الموسم الذي تنتمي إليه الجلسة
   modelId    String? // النموذج المختار للأداء
-  tenantId   String? // Multi-Tenant
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
-  tenant   Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  student  Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacher1 User        @relation("Teacher1", fields: [teacher1Id], references: [id])
-  teacher2 User        @relation("Teacher2", fields: [teacher2Id], references: [id])
-  season   ExamSeason  @relation(fields: [seasonId], references: [id])
-  model    ExamModel?  @relation(fields: [modelId], references: [id])
+  student  Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher1 User       @relation("Teacher1", fields: [teacher1Id], references: [id])
+  teacher2 User       @relation("Teacher2", fields: [teacher2Id], references: [id])
+  season   ExamSeason @relation(fields: [seasonId], references: [id])
+  model    ExamModel? @relation(fields: [modelId], references: [id])
 
   assessments   Assessment[]
   notifications Notification[]
@@ -321,7 +268,6 @@ model ExamSession {
   @@index([studentId])
   @@index([teacher1Id])
   @@index([teacher2Id])
-  @@index([tenantId])
   @@map("exam_sessions")
 }
 
@@ -354,12 +300,8 @@ model AssessmentSettings {
   errorDeduction   Float    @default(2.0) // خصم لكل خطأ
   doubtDeduction   Float    @default(1.0) // خصم لكل شك
   tajweedDeduction Float    @default(0.5) // خصم لكل تجويد
-  tenantId         String? // Multi-Tenant
   updatedAt        DateTime @updatedAt
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
   @@map("assessment_settings")
 }
 
@@ -401,11 +343,9 @@ model Assessment {
   finalScore            Float            @default(0) // الدرجة النهائية من 100
   isFinalApproved       Boolean          @default(false)
   status                AssessmentStatus @default(DRAFT)
-  tenantId              String? // Multi-Tenant
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
-  tenant     Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   examSession ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
   evaluator   User        @relation(fields: [evaluatorId], references: [id])
   model       ExamModel   @relation(fields: [modelId], references: [id])
@@ -414,7 +354,6 @@ model Assessment {
   @@unique([examSessionId, evaluatorId])
   @@index([examSessionId])
   @@index([evaluatorId])
-  @@index([tenantId])
   @@map("assessments")
 }
 
@@ -435,16 +374,13 @@ model Certificate {
   signatureUrl    String? // رابط صورة التوقيع الرقمي
   signedById      String? // معرف الموقّع
   signedAt        DateTime?
-  tenantId        String? // Multi-Tenant
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  tenant   Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  issuedBy User?    @relation("CertificateIssuer", fields: [issuedById], references: [id])
+  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issuedBy User?   @relation("CertificateIssuer", fields: [issuedById], references: [id])
 
   @@index([studentId])
-  @@index([tenantId])
   @@map("certificates")
 }
 
@@ -458,16 +394,13 @@ model Notification {
   type          NotificationType @default(INFO)
   isRead        Boolean          @default(false)
   examSessionId String?
-  tenantId      String? // Multi-Tenant
   createdAt     DateTime         @default(now())
 
-  tenant      Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user        User?         @relation(fields: [userId], references: [id])
-  examSession ExamSession?  @relation(fields: [examSessionId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
+  examSession ExamSession? @relation(fields: [examSessionId], references: [id])
 
   @@index([userId])
   @@index([isRead])
-  @@index([tenantId])
   @@map("notifications")
 }
 
@@ -500,15 +433,12 @@ model AuditLog {
   userId    String?
   action    AuditAction
   details   Json?
-  tenantId  String? // Multi-Tenant
   timestamp DateTime    @default(now())
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User?   @relation("UserAuditLogs", fields: [userId], references: [id])
+  user User? @relation("UserAuditLogs", fields: [userId], references: [id])
 
   @@index([userId])
   @@index([timestamp])
-  @@index([tenantId])
   @@map("audit_logs")
 }
 
