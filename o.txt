@@ -1,540 +1,630 @@
-انت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، PostgreSQL (Neon)، NextAuth v5، Windows PowerShell.
+نت الآن وكيل برمجي خبير ومُنفّذ صارم، تعمل في بيئة:
+- Next.js 14 (App Router) + TypeScript strict
+- Prisma + PostgreSQL (Neon — Pooler)
+- NextAuth v5 (JWT)
+- Windows PowerShell
+- مدير الحزم: pnpm
 
-📌 سياق المهمة:
-هذه الجلسة 3 من 4 لتحويل المنصة إلى Multi-Tenant SaaS.
-- الجلسة 1: Schema + Migration ✅
-- الجلسة 2: Tenant + ربط البيانات + tenantId NOT NULL ✅
+مهمتك الوحيدة: إغلاق المشروع نهائياً بتنفيذ:
+(1) SUPER_ADMIN UI الكامل مع تحكم مطلق بالمؤسسات.
+(2) أداء جاهز لـ5000 طالب و10+ مؤسسات.
+(3) أمان ثلاثي الطبقات مع تنبيهات فورية.
+(4) توثيق كامل + جاهزية اختبار اختراق.
 
-🎯 ستنجز في هذه الجلسة (بالترتيب الصارم):
-1. ترقية `ossamaamr50436@gmail.com` إلى `SUPER_ADMIN` + `tenantId = NULL`.
-2. إنشاء `lib/tenancy.ts` (helpers للعزل).
-3. تحديث `auth.config.ts` (routing حسب الدور).
-4. إضافة **فلاتر tenantId** إلى جميع Server Actions للقراءة/التحديث/الحذف.
-5. تحديث `User.tenantId` → يبقى nullable.
-6. تحديث `getCurrentUser`/`requireUser` ليشمل `tenantId` (تأكيد).
-7. Migration صغيرة: `promote_owner_to_super_admin`.
-8. typecheck + build.
-9. توثيق في `MULTI_TENANT_MIGRATION.md`.
+========================================================================
+⛔ القواعد السيادية (Non-Negotiable) — تُطبَّق فوق كل شيء
+========================================================================
 
-🚨 قواعد حرجة:
-1. **`ossamaamr50436@gmail.com` يبقى قادراً على الدخول** بكلمة مروره الحالية.
-2. **لا تحذف أي بيانات** — فقط ترقية دور.
-3. **لا تعدّل منطق الأعمال** — فقط أضف فلاتر `tenantId` للقراءة.
-4. **snapshot محلي قبل البدء**.
-5. **جميع الأوامر PowerShell**.
+1. `ossamaamr50436@gmail.com` يبقى SUPER_ADMIN. لا تعدّل دوره إطلاقاً.
+2. لا تحذف أي بيانات موجودة. ممنوع لمس Tenant `madina-quran` أو 100 نموذجها.
+3. `User.tenantId` يبقى nullable. لا تُجبره على NOT NULL.
+4. ممنوع استخدام `any` أو `as unknown as` في أي ملف TypeScript.
+5. ممنوع `git push` — commit محلي فقط.
+6. كل أوامر التنفيذ PowerShell حصراً.
+7. كل تعديل يمرّ بـ`pnpm typecheck` (0 errors) ثم `pnpm build` (success).
+8. لا تُعطّل أي طبقة أمان بسبب التعقيد. إن اضطررت، وثّق السبب في SECURITY_ARCHITECTURE.md.
+9. عند نقص معلومة أو تعارض أوامر: توقّف، اذكر الفجوة بدقة، واطلب قراراً واحداً محدداً.
+10. الأولوية عند التعارض: السلامة ← الدقة ← المهمة ← التنسيق.
+11. إن اقترب حجم العمل من حد الجلسة، أوقف عند نهاية مرحلة كاملة واكتب تقريراً موجزاً.
 
----
+========================================================================
+📌 السياق
+========================================================================
 
-📜 التعليمات الصارمة:
-1. اقرأ `prisma/schema.prisma` و `lib/security.ts` و `lib/actions/*` و `auth.config.ts` أولاً.
-2. لا تستخدم `any` أو `as unknown as`.
-3. **لا ترفع على GitHub** — commit محلي فقط.
-4. عند كل مرحلة: تحقق قبل الانتقال.
+- الجلسة 1 ✅: Schema + Migration
+- الجلسة 2 ✅: Tenant + ربط البيانات + NOT NULL
+- الجلسة 3 ✅: tenancy isolation + SUPER_ADMIN promotion
+- الجلسة 4 (هذه): SUPER_ADMIN UI + تحكم مطلق + أداء + أمان ثلاثي + توثيق
 
----
+========================================================================
+🔴 المرحلة 0 — Pre-flight (إلزامية)
+========================================================================
 
-🔴 المرحلة 1: نقطة رجوع + Snapshot
+0.1) اقرأ هذه الملفات بالترتيب قبل أي تعديل:
+    - lib/tenancy.ts, lib/security.ts, lib/prisma.ts, lib/rate-limit.ts
+    - prisma/schema.prisma
+    - auth.ts, auth.config.ts
+    - components/providers/settings-provider.tsx
+    - components/dashboard/dashboard-sidebar.tsx
+    - app/api/pusher/auth/route.ts
 
+0.2) Snapshot + نقطة رجوع:
 ```powershell
-# 1. احفظ نقطة رجوع
 git add -A
-git commit -m "checkpoint: before tenancy isolation layer"
-
-# 2. Snapshot Schema
-Copy-Item "prisma\schema.prisma" "snapshots\schema_before_tenancy.prisma" -Force
-
-# 3. Snapshot البيانات الحساسة
-Copy-Item "snapshots\data_export\pre_migration.json" "snapshots\data_export\post_session2.json" -Force
-التحقق:
+git commit -m "checkpoint: before super-admin UI + hardening"
+New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null
+Copy-Item "prisma\schema.prisma" "snapshots\schema_before_super_admin_ui.prisma" -Force
+0.3) سجّل الحالة الأولية:
 
 powershell
-Get-ChildItem "snapshots" | Select-Object -ExpandProperty Name
-# يجب أن ترى: schema_before_tenancy.prisma + schema_before_data_linking.prisma + schema_before_multi_tenant.prisma
-🔴 المرحلة 2: ترقية ossamaamr50436@gmail.com إلى SUPER_ADMIN
-
-السكربت scripts/promote-owner-to-super-admin.ts:
-
-typescript
-import { PrismaClient, Role } from "@prisma/client";
-
-const p = new PrismaClient();
-
-async function main() {
-  const OWNER_EMAIL = "ossamaamr50436@gmail.com";
-
-  const owner = await p.user.findUnique({
-    where: { email: OWNER_EMAIL },
-    select: { id: true, email: true, role: true, tenantId: true },
-  });
-
-  if (!owner) {
-    throw new Error(`❌ لم أجد: ${OWNER_EMAIL}`);
-  }
-
-  console.log("الحالة قبل الترقية:");
-  console.log("  Role:", owner.role);
-  console.log("  tenantId:", owner.tenantId);
-
-  // تحقق أن الحساب ليس مرتبطاً بمؤسسة (سيصبح SUPER_ADMIN)
-  const updated = await p.user.update({
-    where: { id: owner.id },
-    data: {
-      role: Role.SUPER_ADMIN,
-      tenantId: null, // SUPER_ADMIN ليس له tenant
-    },
-    select: { id: true, email: true, role: true, tenantId: true },
-  });
-
-  console.log("\n✅ بعد الترقية:");
-  console.log("  ID:", updated.id);
-  console.log("  Email:", updated.email);
-  console.log("  Role:", updated.role);
-  console.log("  tenantId:", updated.tenantId);
-
-  // التحقق النهائي
-  const finalUsers = await p.user.findMany({
-    select: { email: true, role: true, tenantId: true },
-    orderBy: { createdAt: "asc" },
-  });
-  console.log("\n📋 المستخدمون الحاليون:");
-  finalUsers.forEach((u) =>
-    console.log(`  - ${u.email} | ${u.role} | tenant: ${u.tenantId || "none"}`)
-  );
-}
-
-main()
-  .catch((e) => {
-    console.error("❌", e);
-    process.exitCode = 1;
-  })
-  .finally(() => p.$disconnect());
-التشغيل:
-
-powershell
-pnpm tsx scripts/promote-owner-to-super-admin.ts
-✅ التوقع:
-
-يظهر تفاصيل الترقية.
-
-المستخدم الوحيد: ossamaamr50436@gmail.com | SUPER_ADMIN | tenant: none.
-
-🔴 المرحلة 3: إنشاء lib/tenancy.ts
-
-الملف الجديد:
-
-typescript
-import "server-only";
-import type { SessionUser } from "@/lib/security";
-import { Role } from "@prisma/client";
-
-// ============================================================
-// Multi-Tenant Isolation Helpers
-// ============================================================
-
-/**
- * يعيد فلتر Prisma حسب دور المستخدم.
- *
- * SUPER_ADMIN → {} (بدون فلتر — يرى كل شيء)
- * غيره → { tenantId: user.tenantId }
- *
- * @example
- * const filter = getTenantFilter(user);
- * const users = await prisma.user.findMany({ where: { ...filter, role: "EXAMINER" } });
- */
-export function getTenantFilter(user: SessionUser): { tenantId?: string } {
-  if (user.role === Role.SUPER_ADMIN) {
-    return {};
-  }
-  if (!user.tenantId) {
-    throw new Error("غير مصرح: المستخدم غير مرتبط بمؤسسة");
-  }
-  return { tenantId: user.tenantId };
-}
-
-/**
- * يتطلب أن يكون المستخدم ضمن tenant (يرمي خطأ إذا SUPER_ADMIN أو بلا tenantId).
- * استخدمه في كل عملية تحتاج كتابة داخل tenant.
- */
-export function requireTenant(user: SessionUser): string {
-  if (user.role === Role.SUPER_ADMIN) {
-    throw new Error("غير مصرح: هذه العملية مخصصة للمؤسسات");
-  }
-  if (!user.tenantId) {
-    throw new Error("غير مصرح: المستخدم غير مرتبط بمؤسسة");
-  }
-  return user.tenantId;
-}
-
-/**
- * يتطلب أن يكون المستخدم SUPER_ADMIN.
- */
-export function requireSuperAdmin(user: SessionUser): void {
-  if (user.role !== Role.SUPER_ADMIN) {
-    throw new Error("غير مصرح: هذه العملية مخصصة لمالك المنصة");
-  }
-}
-
-/**
- * تحقق أن كائن ينتمي لـ tenant المستخدم.
- * يرمي خطأ إذا حاول الوصول لبيانات tenant آخر.
- *
- * SUPER_ADMIN يمكنه الوصول لأي tenant.
- */
-export function assertSameTenant<T extends { tenantId?: string | null }>(
-  sessionUser: SessionUser,
-  resource: T
-): void {
-  if (sessionUser.role === Role.SUPER_ADMIN) {
-    return; // SUPER_ADMIN يرى كل شيء
-  }
-  if (resource.tenantId !== sessionUser.tenantId) {
-    throw new Error("غير مصرح: هذا السجل ينتمي لمؤسسة أخرى");
-  }
-}
-
-/**
- * تحقق أن دور المستخدم في قائمة مسموحة.
- */
-export function assertHasRole(user: SessionUser, allowed: Role[]): void {
-  if (!allowed.includes(user.role)) {
-    throw new Error(`غير مصرح: تتطلب أحد الأدوار: ${allowed.join(", ")}`);
-  }
-}
-🔴 المرحلة 4: تحديث auth.config.ts (routing)
-
-الملف: auth.config.ts
-
-أضف منطق التوجيه حسب الدور:
-
-ابحث عن دالة authorized أو منطق middleware. أضف:
-
-typescript
-// SUPER_ADMIN → /super-admin
-if (user.role === "SUPER_ADMIN") {
-  if (!pathname.startsWith("/super-admin")) {
-    return Response.redirect(new URL("/super-admin", nextUrl));
-  }
-  return true;
-}
-
-// TENANT_ADMIN (ADMIN سابقاً) → /admin
-if (user.role === "ADMIN") {
-  if (!pathname.startsWith("/admin")) {
-    return Response.redirect(new URL("/admin", nextUrl));
-  }
-  return true;
-}
-
-// باقي الأدوار — كما هي حالياً
-⚠️ ملاحظة: لا تحذف منطق الأدوار الأخرى. فقط أضف SUPER_ADMIN + تأكيد ADMIN.
-
-🔴 المرحلة 5: إنشاء صفحة /super-admin مبدئية
-
-الملف: app/(dashboard)/super-admin/page.tsx (جديد)
-
-محتوى بسيط (UI كامل في الجلسة 4):
-
-typescript
-import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/actions/auth-actions";
-import { requireSuperAdmin } from "@/lib/tenancy";
-import { prisma } from "@/lib/prisma";
-
-export const metadata: Metadata = { title: "لوحة المالك" };
-
-export default async function SuperAdminPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  requireSuperAdmin(user);
-
-  const tenantCount = await prisma.tenant.count();
-  const userCount = await prisma.user.count();
-
-  return (
-    <div className="space-y-6 p-6">
-      <h1 className="text-3xl font-bold">لوحة المالك</h1>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">إجمالي المؤسسات</p>
-          <p className="mt-2 text-3xl font-bold">{tenantCount}</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">إجمالي المستخدمين</p>
-          <p className="mt-2 text-3xl font-bold">{userCount}</p>
-        </div>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        🚧 الواجهة الكاملة ستُبنى في الجلسة القادمة.
-      </p>
-    </div>
-  );
-}
-🔴 المرحلة 6: إضافة فلاتر tenantId إلى Server Actions (الأهم أمنياً)
-
-هذه المرحلة هي جوهر الجلسة. راجع كل ملف في lib/actions/ وطبّق:
-
-6.1 النمط العام
-قبل:
-
-typescript
-export async function getInstitutions() {
-  const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
-  return prisma.institution.findMany({
-    select: { id: true, name: true },
-  });
-}
-بعد:
-
-typescript
-import { getTenantFilter, requireTenant, assertSameTenant } from "@/lib/tenancy";
-
-export async function getInstitutions() {
-  const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
-
-  return prisma.institution.findMany({
-    where: { ...getTenantFilter(user) },  // ← فلتر أساسي
-    select: { id: true, name: true },
-  });
-}
-6.2 الملفات المطلوبة والفحوصات
-لكل ملف، تأكد من:
-
-الملف	READ	UPDATE/DELETE
-admin-panel-actions.ts	where: { ...getTenantFilter(user) }	assertSameTenant(user, existing)
-entity-actions.ts	نفس الفلتر	نفس التحقق
-examiner-actions.ts	نفس الفلتر	نفس التحقق
-committee-actions.ts	نفس الفلتر	نفس التحقق
-student-actions.ts	نفس الفلتر	نفس التحقق
-model-actions.ts	نفس الفلتر	نفس التحقق
-season-actions.ts	نفس الفلتر	نفس التحقق
-assessment-actions.ts	نفس الفلتر	نفس التحقق
-assessment-settings-actions.ts	where: { tenantId: requireTenant(user) }	نفس التحقق
-certificate-actions.ts	نفس الفلتر	نفس التحقق
-audit-actions.ts	نفس الفلتر	(لا يوجد UPDATE)
-6.3 التعديلات الدقيقة
-في كل دالة READ:
-
-قبل:
-
-typescript
-return prisma.student.findMany({
-  where: { status: "PENDING" },
-});
-بعد:
-
-typescript
-return prisma.student.findMany({
-  where: {
-    ...getTenantFilter(user),
-    status: "PENDING",
-  },
-});
-في كل دالة UPDATE/DELETE:
-
-قبل:
-
-typescript
-await prisma.committee.delete({ where: { id: committeeId } });
-بعد:
-
-typescript
-const existing = await prisma.committee.findUniqueOrThrow({
-  where: { id: committeeId },
-});
-assertSameTenant(user, existing);
-await prisma.committee.delete({ where: { id: committeeId } });
-⚠️ تنبيه: إذا كانت الدالة تعمل بالفعل مع tenantId (من الجلسة 2)، تحقق فقط ولا تُعدّل.
-
-6.4 حالات خاصة
-getPlatformSettings (settings-actions.ts): تبقى global (لا فلتر).
-getAssessmentSettings: يعيد إعدادات الـ tenant الخاص بالمستخدم.
-
-typescript
-export async function getAssessmentSettings() {
-  const user = await requireUser();
-  const tenantId = requireTenant(user);
-
-  const settings = await prisma.assessmentSettings.findUnique({
-    where: { tenantId },
-  });
-  return {
-    errorDeduction: settings?.errorDeduction ?? 2.0,
-    doubtDeduction: settings?.doubtDeduction ?? 1.0,
-    tajweedDeduction: settings?.tajweedDeduction ?? 0.5,
-  };
-}
-6.5 تحقق نهائي
-powershell
-# ابحث عن أي findMany/create/update/delete بدون getTenantFilter في lib/actions
-Select-String -Path "lib\actions\*.ts" -Pattern "prisma\.\w+\.findMany" | Select-Object -First 30
-راجع كل نتيجة يدوياً وتأكد من وجود فلتر tenantId.
-
-🔴 المرحلة 7: Migration صغيرة
-
-الملف: prisma/schema.prisma
-
-لا تعديل Schema مطلوب — الترقية تمت عبر script.
-
-لكن، إذا حصل تغيير في User أو أي جدول أثناء الترقية، شغّل:
-
-powershell
-pnpm prisma format
-pnpm prisma validate
-pnpm prisma generate
-🔴 المرحلة 8: typecheck + build
-
-powershell
+pnpm prisma migrate status
 pnpm typecheck
-# ✅ 0 errors
-
 pnpm build
-# ✅ success
-⚠️ إذا فشل:
+وثّق النتائج (يجب أن تكون نظيفة قبل البدء).
 
-قد يكون بسبب Role.SUPER_ADMIN غير معالج في Record<Role, X>.
+========================================================================
+🟢 المرحلة A — SUPER_ADMIN UI + تحكم مطلق بالمؤسسات
+========================================================================
 
-صحّح في lib/roles.ts وأي مكان مشابه.
+A.1) Server Actions — lib/actions/super-admin-actions.ts (جديد)
+نفّذ الدوال التالية بدقة:
 
-لا تعدّل منطق الأعمال.
+المجموعة 1: قراءة
+getSuperAdminDashboardStats() — إحصائيات + recentTenants + recentAlerts.
 
-🔴 المرحلة 9: اختبار يدوي للعزل
+getTenantsList() — قائمة كل المؤسسات.
 
+getTenantDetails(tenantId) — تفاصيل مؤسسة + users.
+
+getTenantAuditLog(tenantId, filters?) — سجل تدقيق مؤسسة.
+
+getTenantSessions(tenantId) — جلسات اختبار مؤسسة.
+
+getMyTenantColors() — ألوان Tenant المستخدم الحالي.
+
+المجموعة 2: إنشاء/تحديث
+createTenant(input) — إنشاء مؤسسة جديدة.
+
+createTenantAdmin(input) — إنشاء مشرف (ADMIN) لمؤسسة.
+
+updateTenant(tenantId, input) — تحديث بيانات مؤسسة.
+
+المجموعة 3: تحكم مطلق (جديد)
+deactivateTenant(tenantId, reason) — تعطيل مؤقت.
+
+activateTenant(tenantId) — تفعيل.
+
+deleteTenant(tenantId) — حذف آمن (فقط إذا خالٍ من البيانات).
+
+forceDeleteTenant(tenantId, confirmToken) — حذف قسري (يتطلب token تطابق اسم المؤسسة).
+
+resetTenantAdminPassword(tenantId, adminUserId, newPassword) — إعادة تعيين كلمة مرور مشرف مؤسسة.
+
+deleteTenantAdmin(tenantId, adminUserId) — حذف مشرف من مؤسسة.
+
+المجموعة 4: إشعارات مطلقة (جديد)
+notifyTenantAdmins(tenantId, message, type?) — إشعار لمشرفي مؤسسة.
+
+notifyAllTenantUsers(tenantId, message, type?) — بث لكل مستخدمي مؤسسة.
+
+notifyAllAdmins(message, type?) — إشعار لكل مشرفي المنصة.
+
+broadcastToAllUsers(message, type?) — بث لكل مستخدمي المنصة.
+
+المتطلبات الصارمة لكل دالة:
+"use server" في الأعلى.
+
+استخدم Zod للتحقق.
+
+requireUser() + requireSuperAdmin(user) في كل دالة.
+
+checkRateLimit لكل عملية كتابة.
+
+auditLog.create({ tenantId: null, ... }) — سجّل كل شيء على مستوى المنصة.
+
+revalidatePath بعد كل كتابة.
+
+أعد ActionResult موحّد: { success: true, ... } | { success: false, error: string }.
+
+ممنوع any. استخدم unknown + Zod parsing.
+
+bcrypt.hash(password, 12) لإنشاء مشرفي المؤسسات.
+
+قواعد الحذف:
+deleteTenant: يرفض إذا _count.users + _count.institutions + _count.students > 0.
+
+forceDeleteTenant: يتطلب confirmToken === tenant.slug. يحذف بـonDelete: Cascade. يسجل في AuditLog بقيمة تحذيرية.
+
+deleteTenantAdmin: يمنع حذف آخر ADMIN في المؤسسة.
+
+A.2) الصفحات (App Router)
+app/(dashboard)/super-admin/page.tsx — Dashboard (stats + recent tenants + recent alerts).
+
+app/(dashboard)/super-admin/tenants/page.tsx — قائمة المؤسسات.
+
+app/(dashboard)/super-admin/tenants/new/page.tsx — إنشاء مؤسسة.
+
+app/(dashboard)/super-admin/tenants/[id]/page.tsx — تفاصيل + تحكم كامل + إشعارات.
+
+app/(dashboard)/super-admin/alerts/page.tsx — (جديد) قائمة التنبيهات الأمنية.
+
+كل الصفحات:
+
+Server Components + export const dynamic = "force-dynamic".
+
+getCurrentUser() ثم redirect("/login") إن لم يوجد.
+
+requireSuperAdmin(user) قبل العرض.
+
+A.3) المكونات (Client)
+components/super-admin/create-tenant-form.tsx
+
+components/super-admin/tenant-details-client.tsx
+
+components/super-admin/tenant-controls.tsx (جديد — أزرار التحكم المطلق)
+
+components/super-admin/tenant-notifications.tsx (جديد — إرسال إشعارات)
+
+components/super-admin/security-alerts-list.tsx (جديد)
+
+استخدم useTransition + useState + useRouter. لا مكتبات نماذج إضافية.
+
+A.4) الألوان الديناميكية
+lib/colors.ts (جديد) — دالة hexToHsl(hex: string): string.
+
+components/providers/settings-provider.tsx:
+
+استدعِ getMyTenantColors().
+
+إذا null (SUPER_ADMIN): لا تُعدّل CSS variables.
+
+وإلا: document.documentElement.style.setProperty("--primary", hexToHsl(colors.primaryColor)).
+
+A.5) Sidebar لـSUPER_ADMIN
+في components/dashboard/dashboard-sidebar.tsx أضف قائمة SUPER_ADMIN:
+
+/super-admin — لوحة المالك
+
+/super-admin/tenants — المؤسسات
+
+/super-admin/tenants/new — إنشاء مؤسسة
+
+/super-admin/alerts — التنبيهات الأمنية
+
+/notifications — الإشعارات (badge)
+
+/settings/tutorial — التعليم والدور
+
+لا تكسر قوائم بقية الأدوار.
+
+A.6) اختبار E2E للعزل
+سكربت scripts/test-tenant-isolation.ts:
+
+ينشئ Tenant اختباري + Admin A.
+
+يأخذ Admin B من madina-quran.
+
+يتحقق أن كل Admin لا يرى إلا بيانات Tenant الخاص به.
+
+ينظف نفسه (deleteMany + delete).
+
+شغّله: pnpm tsx scripts/test-tenant-isolation.ts — يجب أن ينجح.
+
+🚨 نقطة تفكير إلزامية — نهاية Phase A
+بعد إتمام Phase A بالكامل:
+
+شغّل pnpm typecheck + pnpm build.
+
+إذا اقترب حجم العمل من حد الجلسة:
+
+أوقف التنفيذ.
+
+اكتب تقرير "Phase A مكتمل" بالنتائج.
+
+انتظر تعليمات صريحة قبل Phase B.
+
+========================================================================
+🟡 المرحلة B — الأداء (5K طالب + 10 مؤسسات)
+========================================================================
+
+B.1) تحليل الأداء
+scripts/analyze-performance.ts:
+
+يقيس زمن 5 استعلامات أساسية (students all, students paginated, examModels, dashboard stats, tenant config).
+
+شغّله وسجّل النتائج.
+
+الهدف: كل استعلام < 100ms بعد التحسين.
+
+B.2) الفهارس المركّبة — prisma/schema.prisma
+الجدول	الفهارس
+Student	[tenantId, status], [tenantId, institutionId], [tenantId, committeeId], [tenantId, createdAt]
+ExamModel	[tenantId, branch, seasonId], [tenantId, seasonId]
+ExamSession	[tenantId, status], [tenantId, examDate], [tenantId, teacher1Id], [tenantId, teacher2Id]
+Assessment	[tenantId, status], [tenantId, examSessionId]
+Certificate	[tenantId, status]
+Notification	[userId, isRead, tenantId]
+AuditLog	[tenantId, timestamp], [tenantId, action]
+Migration واحدة: add_performance_indexes.
+
+B.3) Pagination إلزامي
+أي findMany بدون take = خلل.
+
+أضف take: 100 كحد أقصى افتراضي.
+
+استخدم PAGE_SIZE = 20 في الواجهات.
+
+راجع كل findMany في lib/actions/ وapp/api/.
+
+B.4) Caching
+في lib/cache.ts أضف:
+
+typescript
+export const getCachedTenantConfig = unstable_cache(
+  async (tenantId: string) => { /* ... */ },
+  ["tenant-config"],
+  { revalidate: 300, tags: ["tenant-config"] }
+);
+
+export const getCachedPlatformSettings = unstable_cache(
+  async () => prisma.appSettings.findUnique({ where: { id: "singleton" } }),
+  ["platform-settings"],
+  { revalidate: 60, tags: ["platform-settings"] }
+);
+B.5) Batch Operations
+استبدل أي for ... await prisma.X.create بـcreateMany({ data, skipDuplicates: true }).
+
+B.6) وثّق النتائج
+في PERFORMANCE_BENCHMARKS.md:
+
+البيئة + بيانات الاختبار.
+
+جدول قبل/بعد.
+
+التحسينات المُطبَّقة.
+
+========================================================================
+🔵 المرحلة C — الأمان: 3 طبقات
+========================================================================
+
+🛡️ C.1 — الطبقة 1: Authentication + Isolation (تعزيز)
+
+أضف في lib/security.ts:
+
+typescript
+export async function requireUserWithTenant(): Promise<SessionUser & { tenantId: string }> {
+  const user = await requireUser();
+  if (!user.tenantId) throw new Error("غير مصرح: الحساب غير مرتبط بمؤسسة");
+  return { ...user, tenantId: user.tenantId };
+}
+Session Hardening في auth.config.ts:
+
+strategy: "jwt", maxAge: 8h, updateAge: 1h.
+
+Cookie: __Secure-next-auth.session-token مع httpOnly + sameSite=lax + secure (في الإنتاج).
+
+Account Lockout في auth.ts:
+
+5 محاولات فاشلة → قفل 15 دقيقة.
+
+يُفحص قبل التحقق من كلمة المرور.
+
+يُسجَّل في AuditLog كـFAILED_LOGIN.
+
+🛡️ C.2 — الطبقة 2: Row Level Security (PostgreSQL)
+
+⚠️ ملاحظات معمارية إلزامية:
+
+(أ) RLS + Neon Pooler:
+
+أنشئ lib/tenancy-db.ts بدالة withTenantContext.
+
+استخدم Prisma.TransactionClient كـtype parameter.
+
+ممنوع تحويل tx إلى typeof prisma (لا as any، لا as unknown as).
+
+استخدم set_config('app.current_tenant_id', ${tenantId}, true) عبر $executeRaw (parameterized).
+
+ممنوع SET LOCAL كنص خام (خطر SQL Injection).
+
+typescript
+import type { Prisma } from "@prisma/client";
+
+export async function withTenantContext<T>(
+  user: SessionUser,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    if (user.role !== "SUPER_ADMIN" && user.tenantId) {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${user.tenantId}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.current_user_role', ${user.role}, true)`;
+    } else if (user.role === "SUPER_ADMIN") {
+      await tx.$executeRaw`SELECT set_config('app.current_user_role', 'SUPER_ADMIN', true)`;
+    }
+    return fn(tx);
+  });
+}
+(ب) قرار تفعيل RLS:
+
+Migration enable_row_level_security:
+
+فعّل RLS على: students, exam_models, exam_seasons, committees, exam_sessions, assessments, certificates, notifications, audit_logs, institutions, assessment_settings.
+
+Policies باسم tenant_isolation_<table>.
+
+إذا طبّقت withTenantContext على كل Server Action في هذه الجلسة → نفّذ pnpm prisma migrate deploy.
+
+إذا لم يمكن → أنشئ Migration بـ--create-only ولا تُطبّقها.
+
+وثّق القرار + السبب في SECURITY_ARCHITECTURE.md.
+
+(ج) تحذير:
+
+RLS معقد. لا تُشغّله إلا بعد اختبار withTenantContext على Server Action واحد على الأقل.
+
+🛡️ C.3 — الطبقة 3: Intrusion Detection + Alerting
+
+Enum جديد في prisma/schema.prisma:
+
+prisma
+enum AuditAction {
+  // ... القيم الموجودة
+  SUSPICIOUS_ACCESS
+  RATE_LIMIT_HIT
+  CROSS_TENANT_ATTEMPT
+  FAILED_LOGIN
+}
+Migration: add_security_audit_actions.
+
+⚠️ ملاحظة قانونية: PostgreSQL لا يدعم DROP VALUE من enum. هذه Migration غير قابلة للتراجع. لا تُشغّلها قبل التأكد من الحاجة.
+
+ملف جديد lib/security-alerts.ts:
+
+typescript
+export async function raiseSecurityAlert(payload: SecurityAlertPayload): Promise<void> {
+  try {
+    // 1. AuditLog (tenantId: null — platform-level)
+    await prisma.auditLog.create({ /* ... */ });
+    // 2. Pusher channel: private-super-admin-alerts
+    if (pusherServer) await pusherServer.trigger("private-super-admin-alerts", "security-alert", { /* ... */ });
+    // 3. Notifications لكل SUPER_ADMIN
+    const superAdmins = await prisma.user.findMany({ where: { role: "SUPER_ADMIN" }, select: { id: true } });
+    if (superAdmins.length > 0) await prisma.notification.createMany({ /* ... */ });
+  } catch (err) {
+    // لا نُفشل الطلب الأصلي
+    console.error("Security alert failed:", err);
+  }
+}
+حقن التنبيهات:
+
+lib/tenancy.ts → assertSameTenant → CROSS_TENANT_ATTEMPT.
+
+lib/rate-limit.ts عند الرفض → RATE_LIMIT_HIT.
+
+auth.ts عند فشل تسجيل الدخول → FAILED_LOGIN.
+
+Pusher auth في app/api/pusher/auth/route.ts:
+
+private-super-admin-alerts حصري لـSUPER_ADMIN.
+
+عرض في /super-admin: قسم "آخر التنبيهات الأمنية" (آخر 10 من AuditLog).
+
+🛡️ C.4 — Hardening إضافي
+
+Rate Limiting متعدد المستويات في lib/rate-limit.ts:
+
+typescript
+export async function checkMultiLevelRateLimit(
+  user: SessionUser | null,
+  ipAddress: string,
+  action: string
+): Promise<void> {
+  await checkRateLimit(`ip:${ipAddress}:${action}`, 100);
+  if (user) await checkRateLimit(`user:${user.id}:${action}`, 50);
+  if (user?.tenantId) await checkRateLimit(`tenant:${user.tenantId}:${action}`, 500);
+}
+Security Headers في next.config.mjs:
+
+X-Frame-Options: DENY
+
+X-Content-Type-Options: nosniff
+
+Referrer-Policy: strict-origin-when-cross-origin
+
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+
+X-DNS-Prefetch-Control: off
+
+X-Download-Options: noopen
+
+X-Permitted-Cross-Domain-Policies: none
+
+pnpm audit --audit-level=moderate — شجرة قرار إلزامية:
+
+المستوى	الإجراء
+Critical في حزمة مباشرة	حدّث فوراً.
+Critical في حزمة transitive	وثّق + استخدم pnpm.overrides إن أمكن.
+High (نفس المستويين)	نفس الإجراء.
+Moderate	وثّق فقط. لا تتوقف.
+توقّف فقط إذا لم يمكن حل Critical/High بعد المحاولة. وثّق السبب.
+
+========================================================================
+🟣 المرحلة D — التوثيق الإلزامي (4 ملفات)
+========================================================================
+
+D.1) MULTI_TENANT_MIGRATION.md — قسم جديد:
+"Session 4/4 — SUPER_ADMIN UI + Absolute Control + Hardening"
+
+D.2) SECURITY_ARCHITECTURE.md — شامل:
+الطبقات الثلاث (تفصيل).
+
+جدول التهديدات (12+ تهديد) → الطبقة المُعالِجة.
+
+قرار RLS + السبب.
+
+قسم "Limitations الصريحة" (إلزامي):
+
+"الاستحالة المطلقة للاختراق غير قابلة للتحقيق في أي نظام."
+
+"الأمان الحقيقي = طبقات + مراقبة مستمرة + تحديث دوري."
+
+"بعد النشر: تنبيهات + AuditLog + اختبار اختراق دوري."
+
+"أي اختراق → مراجعة خلال 24 ساعة → تصحيح → نشر."
+
+إجراءات ما بعد الاختراق (5 خطوات).
+
+D.3) PERFORMANCE_BENCHMARKS.md:
+البيئة + بيانات الاختبار.
+
+جدول قبل/بعد.
+
+التحسينات المُطبَّقة (8+ تحسين).
+
+D.4) PENETRATION_TEST_CHECKLIST.md:
+قائمة كاملة بـ8 أقسام:
+
+Authentication (4 اختبارات).
+
+Tenant Isolation (4).
+
+Privilege Escalation (3).
+
+Rate Limiting (2).
+
+Session (2).
+
+File Uploads (3).
+
+Tenant Bypass (2).
+
+Monitoring (2).
+
+========================================================================
+🟠 المرحلة E — التحقق النهائي والالتزام
+========================================================================
+
+E.1) التنظيف
 powershell
-pnpm dev
-افتح: http://localhost:3000
+Remove-Item "scripts\test-tenant-isolation.ts" -ErrorAction SilentlyContinue
+Remove-Item "scripts\analyze-performance.ts" -ErrorAction SilentlyContinue
+احتفظ بالسكربتات فقط إذا طُلب منك صراحةً.
 
-اختبر:
-
-تسجيل دخول ossamaamr50436@gmail.com:
-
-المتوقع: التوجيه إلى /super-admin.
-
-لا يمكن الوصول لـ/admin/users (سيُعاد توجيهك).
-
-محاولة الوصول المباشر إلى /admin:
-
-المتوقع: تحويل إلى /super-admin.
-
-/super-admin يعمل:
-
-يعرض الإحصائيات (1 tenant، 1 user).
-
-⚠️ ملاحظة: المنصة الآن بلا أي ADMIN tenant. إذا احتجت اختبار تدفقات ADMIN، أخبرني.
-
-🔴 المرحلة 10: التوثيق
-
-حدّث MULTI_TENANT_MIGRATION.md بقسم "الجلسة 3":
-
-markdown
-## Session 3/4 — Tenancy Isolation Layer
-
-### تاريخ التنفيذ
-[اليوم]
-
-### الحالة
-✅ مكتمل — طبقة عزل أمني جاهزة.
-
-### المنجز
-
-#### 1. ترقية المالك
-- `ossamaamr50436@gmail.com`: ADMIN → **SUPER_ADMIN** + tenantId → NULL.
-- الحساب الوحيد النشط على المنصة.
-
-#### 2. طبقة العزل
-- `lib/tenancy.ts` جديد مع:
-  - `getTenantFilter(user)` — فلتر للقراءة.
-  - `requireTenant(user)` — يتطلب tenant.
-  - `requireSuperAdmin(user)` — يتطلب SUPER_ADMIN.
-  - `assertSameTenant(user, resource)` — تحقق قبل UPDATE/DELETE.
-  - `assertHasRole(user, roles)` — تحقق من الأدوار.
-
-#### 3. Routing
-- `auth.config.ts`: SUPER_ADMIN → `/super-admin` قسرياً.
-- ADMIN → `/admin` (كما كان).
-
-#### 4. Server Actions — العزل
-- [عدد] ملف في `lib/actions/` حُدّث بـ`getTenantFilter` في READ.
-- [عدد] دالة UPDATE/DELETE أضيف لها `assertSameTenant`.
-- `getAssessmentSettings` يعيد إعدادات الـ tenant الحالي فقط.
-
-#### 5. صفحة SUPER_ADMIN مبدئية
-- `/super-admin` مع إحصائيات أساسية.
-- UI كامل في الجلسة 4.
-
-#### 6. Verification
-- ✅ `pnpm typecheck` — 0 errors
-- ✅ `pnpm build` — success
-- ✅ اختبار يدوي: تسجيل الدخول يوجّه إلى `/super-admin`.
-
-### المهام التالية (الجلسة 4)
-1. بناء `/super-admin/tenants` كاملاً (CRUD).
-2. إنشاء TENANT_ADMIN لكل مؤسسة.
-3. تحديث Sidebar حسب الدور.
-4. اختبار E2E كامل.
-5. Deployment.
-🔴 المرحلة 11: Git Commit
-
+E.2) التحقق النهائي
 powershell
-# احذف السكربت المؤقت
-Remove-Item "scripts\promote-owner-to-super-admin.ts" -ErrorAction SilentlyContinue
-
-# احفظ
+pnpm typecheck        # 0 errors
+pnpm build            # success
+pnpm audit --audit-level=moderate
+E.3) Commit محلي (بدون push)
+powershell
 git add -A
-git commit -m "phase 3: add tenancy isolation layer + promote owner to SUPER_ADMIN
+git commit -m "phase 4: SUPER_ADMIN UI + absolute control + Multi-Tenant SaaS hardening
 
-- Promote ossamaamr50436@gmail.com: ADMIN → SUPER_ADMIN (tenantId = null)
-- Add lib/tenancy.ts (getTenantFilter, requireTenant, requireSuperAdmin, assertSameTenant, assertHasRole)
-- Update auth.config.ts routing (SUPER_ADMIN → /super-admin)
-- Apply tenantId filters to all READ operations in lib/actions
-- Add assertSameTenant checks to UPDATE/DELETE operations
-- Add placeholder /super-admin dashboard
+- /super-admin dashboard + tenants CRUD + force delete + activate/deactivate
+- Tenant admin creation + password reset + delete
+- Custom notifications: notifyTenantAdmins / notifyAllTenantUsers / notifyAllAdmins / broadcastToAllUsers
+- Dynamic tenant colors (hexToHsl)
+- SUPER_ADMIN sidebar + alerts page
+- Composite indexes + pagination + caching
+- RLS policies + withTenantContext
+- Security alerts (Pusher + AuditLog + Notifications)
+- Session hardening + lockout + multi-level rate limit + 8 security headers
+- E2E isolation test passed
 - typecheck 0 errors + build success"
 
-git log --oneline -5
-✅ معايير النجاح النهائية:
+git log --oneline -6
+========================================================================
+✅ معايير النجاح النهائية (يجب تحقيقها كلها)
+========================================================================
 
 #	المعيار	المتوقع
-1	ossamaamr50436@gmail.com دوره	SUPER_ADMIN
-2	tenantId له	null
-3	lib/tenancy.ts	موجود بـ5 دوال
-4	Routing SUPER_ADMIN	يعمل
-5	Server Actions — READ	كلها فيها فلتر
-6	Server Actions — UPDATE/DELETE	كلها فيها assertSameTenant
-7	pnpm typecheck	0 errors
-8	pnpm build	success
-9	الدخول يعمل	✅
-10	التوجيه إلى /super-admin	✅
-🚫 ممنوع تماماً:
+1	/super-admin	Dashboard كامل
+2	/super-admin/tenants	قائمة + تحكم
+3	/super-admin/tenants/new	إنشاء
+4	/super-admin/tenants/[id]	تفاصيل + تحكم مطلق + إشعارات
+5	/super-admin/alerts	التنبيهات الأمنية
+6	super-admin-actions.ts	19+ دالة
+7	تعطيل/تفعيل مؤسسة	يعمل
+8	حذف آمن + قسري	يعمل
+9	إشعارات مطلقة	4 أنواع
+10	الألوان الديناميكية	تعمل
+11	Sidebar SUPER_ADMIN	مخصص
+12	اختبار العزل	ناجح
+13	فهارس مركّبة	مطبّقة
+14	Pagination إلزامي	مطبّق
+15	Caching	unstable_cache
+16	RLS Policies	11 جدول (مع قرار)
+17	withTenantContext	parameterized
+18	raiseSecurityAlert	4 أحداث
+19	Pusher channel	private-super-admin-alerts
+20	Security Headers	8 headers
+21	Session Hardening	8h + httpOnly + secure
+22	Account Lockout	5 محاولات / 15 د
+23	Rate Limiting	IP + User + Tenant
+24	pnpm audit	0 Critical / 0 High
+25	SECURITY_ARCHITECTURE.md	موجود + Limitations
+26	PERFORMANCE_BENCHMARKS.md	موجود
+27	PENETRATION_TEST_CHECKLIST.md	موجود
+28	pnpm typecheck	0 errors
+29	pnpm build	success
+30	Git commit	نظيف محلي
+========================================================================
+🚫 ممنوعات مطلقة
+========================================================================
 
-حذف ossamaamr50436@gmail.com.
+تعديل دور ossamaamr50436@gmail.com.
 
-تغيير كلمة مروره.
+حذف / تعديل بيانات Tenant madina-quran أو 100 نموذجها.
 
-تعديل منطق الأعمال في Server Actions.
+تعديل User.tenantId إلى NOT NULL.
 
-استخدام any.
+استخدام any أو as unknown as.
 
-الـpush إلى GitHub.
+تحويل Prisma.TransactionClient إلى typeof prisma.
 
-📝 عند الانتهاء، أرسل تقريراً يحتوي على:
+استخدام SET LOCAL كنص خام (استخدم set_config).
 
-تفاصيل ترقية المستخدم (Role قبل/بعد).
+git push إلى GitHub.
 
-عدد الملفات المُعدَّلة في lib/actions/.
+تعطيل طبقة أمان دون توثيق السبب.
 
-عدد دوال READ التي أُضيف لها فلتر.
+========================================================================
+📝 التقرير النهائي (إلزامي عند الانتهاء)
+========================================================================
 
-عدد دوال UPDATE/DELETE التي أُضيف لها assertSameTenant.
+أرسل تقريراً بالبنية التالية فقط، بلا حشو:
 
-نتيجة pnpm typecheck + pnpm build.
+عدد Tenants بعد التنفيذ.
 
-نتيجة اختبار تسجيل الدخول يدوياً.
+عدد المستخدمين بعد التنفيذ.
 
-git log --oneline -5.
+نتيجة اختبار العزل (نجح/فشل + التفاصيل).
 
-تأكيد أن ossamaamr50436@gmail.com لا يزال قادراً على الدخول.
+عدد الدوال المضافة في super-admin-actions.ts.
 
-ابدأ الآن. عند الانتهاء من كل مرحلة، تحقّق قبل الانتقال.
+قرار RLS: مفعّل / غير مفعّل + السبب.
+
+نتيجة pnpm audit (Critical/High/Moderate).
+
+مخرجات git log --oneline -6.
+
+قائمة الملفات المنشأة/المعدّلة (فرق بين new/modified).
+
+أي مشاكل واجهتها + القرار المعماري المتخذ.
+
+أي انحراف عن البرومبت الأصلي (إذا وُجد) + السبب.
+
+جاهزية الإطلاق: نعم / لا + السبب.
+
+قائمة اختبار يدوي موجزة للمستخدم (5 خطوات).
+
+========================================================================
+▶️ ابدأ الآن.
+
+نفّذ بالترتيب: 0 → A → B → C → D → E.
+لا تخرج عن هذا الترتيب.
+لا تتخطَّ خطوة.
+لا تفترض معلومة ناقصة — اسأل قبل التخمين.
+عند نهاية Phase A، تحقّق من حجم الجلسة قبل الانتقال.
