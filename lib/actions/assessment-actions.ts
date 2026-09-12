@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser, requireRole, assertExaminerInSession, requireTenantId } from "@/lib/security";
+import { getTenantFilter } from "@/lib/tenancy";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -39,6 +40,7 @@ async function resolveModelId(
   // محاولة العثور على نموذج للفرع في الموسم الحالي
   const model = await prisma.examModel.findFirst({
     where: {
+      tenantId,
       branch,
       ...(season ? { seasonId: season.id } : {}),
     },
@@ -100,7 +102,7 @@ export async function saveAssessment(input: AssessmentInput) {
   }
 
   const existing = await prisma.assessment.findFirst({
-    where: { examSessionId: session.id, evaluatorId: user.id },
+    where: { ...getTenantFilter(user), examSessionId: session.id, evaluatorId: user.id },
     select: { id: true, status: true },
   });
 
@@ -221,7 +223,7 @@ export async function approveAssessment(examSessionId: string) {
   }
 
   const assessment = await prisma.assessment.findFirst({
-    where: { examSessionId: session.id, evaluatorId: user.id },
+    where: { ...getTenantFilter(user), examSessionId: session.id, evaluatorId: user.id },
   });
   if (!assessment) {
     throw new Error("احفظ التقييم أولاً قبل الاعتماد");
@@ -245,7 +247,7 @@ export async function approveAssessment(examSessionId: string) {
 
     // إشعار الأخصائيين بمراجعة تقييم الطالب المعتمد
     const specialists = await tx.user.findMany({
-      where: { role: Role.TEST_SPECIALIST },
+      where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
       select: { id: true },
     });
     if (specialists.length > 0) {
@@ -279,7 +281,7 @@ export async function approveAssessment(examSessionId: string) {
 
   // بعد نجاح المعاملة الذرية: توزيع الإشعارات على القنوات الخارجية (دفع/بريد/SMS)
   const specialists = await prisma.user.findMany({
-    where: { role: Role.TEST_SPECIALIST },
+    where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
     select: { id: true },
   });
   await dispatchNotificationChannels({
@@ -309,7 +311,7 @@ export async function getAssessmentState(examSessionId: string) {
   }
 
   return prisma.assessment.findMany({
-    where: { examSessionId },
+    where: { ...getTenantFilter(user), examSessionId },
     select: {
       id: true,
       evaluatorId: true,

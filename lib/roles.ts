@@ -16,7 +16,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 // المسار الافتراضي لكل دور (يُستخدم في الـ Middleware للتوجيه)
 export const ROLE_DASHBOARD_PATHS: Record<Role, string> = {
-  SUPER_ADMIN: "/admin",
+  SUPER_ADMIN: "/super-admin",
   ADMIN: "/admin",
   HEAD_OF_AFFAIRS: "/head-of-affairs",
   CERTIFICATE_SOURCE: "/certificate-source",

@@ -3,6 +3,7 @@ import type { NextAuthConfig } from "next-auth";
 // مسارات الدور الافتراضية — مُعرّفة بمفاتيح نصية فقط ( ללא imports من Prisma)
 // لضمان التوافق مع Edge Runtime
 const ROLE_DASHBOARD_PATHS: Record<string, string> = {
+  SUPER_ADMIN: "/super-admin",
   ADMIN: "/admin",
   HEAD_OF_AFFAIRS: "/head-of-affairs",
   CERTIFICATE_SOURCE: "/certificate-source",
@@ -76,6 +77,14 @@ export const authConfig = {
       if ((auth.user as { mustChangePassword?: boolean } | undefined)?.mustChangePassword) {
         if (path !== "/change-password") {
           return Response.redirect(new URL("/change-password", nextUrl));
+        }
+        return true;
+      }
+
+      // SUPER_ADMIN → /super-admin قسرياً (عزل المالك عن مساحات المؤسسات)
+      if (role === "SUPER_ADMIN") {
+        if (!path.startsWith("/super-admin")) {
+          return Response.redirect(new URL("/super-admin", nextUrl));
         }
         return true;
       }

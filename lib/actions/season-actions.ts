@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { Role, AuditAction } from "@prisma/client";
 
 // ============================================================
@@ -16,9 +17,9 @@ import { Role, AuditAction } from "@prisma/client";
  * يتطلب مصادقة — إذ يُستدعى من إجراءات موثّقة فقط
  */
 export async function getCurrentSeason() {
-  await requireUser();
+  const user = await requireUser();
   const season = await prisma.examSeason.findFirst({
-    where: { isActive: true },
+    where: { ...getTenantFilter(user), isActive: true },
     orderBy: { startDate: "desc" },
   });
   return season;
@@ -52,10 +53,10 @@ export async function createExamSeason(input: {
     throw new Error("تاريخ نهاية الموسم يجب أن يكون بعد تاريخ بدايته");
   }
 
-  // منع إنشاء أكثر من موسم نشط واحد (بيزنس لوجيك)
+  // منع إنشاء أكثر من موسم نشط واحد (بيزنس لوجيك) — ضمن مستأجر المستخدم
   if (input.isActive) {
     await prisma.examSeason.updateMany({
-      where: { isActive: true },
+      where: { ...getTenantFilter(user), isActive: true },
       data: { isActive: false },
     });
   }
@@ -96,15 +97,16 @@ export async function setSeasonActive(seasonId: string, isActive: boolean) {
 
   const season = await prisma.examSeason.findUnique({
     where: { id: seasonId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, tenantId: true },
   });
   if (!season) {
     throw new Error("الموسم غير موجود");
   }
+  assertSameTenant(user, season);
 
   if (isActive) {
     await prisma.examSeason.updateMany({
-      where: { isActive: true },
+      where: { ...getTenantFilter(user), isActive: true },
       data: { isActive: false },
     });
   }
@@ -133,6 +135,7 @@ export async function getExamSeasons() {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST, Role.HEAD_OF_AFFAIRS]);
   return prisma.examSeason.findMany({
+    where: getTenantFilter(user),
     orderBy: { startDate: "desc" },
   });
 }

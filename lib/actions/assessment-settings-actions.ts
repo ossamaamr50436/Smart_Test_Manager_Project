@@ -1,18 +1,22 @@
 "use server";
 
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
+import { requireTenant } from "@/lib/tenancy";
 import { prisma } from "@/lib/prisma";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 // ============================================================
-// المهمة 6: إعدادات التقييم (Singleton)
+// المهمة 6: إعدادات التقييم (Singleton لكل مستأجر)
 // يضبطها الأخصائي فقط — تحكم خصومات الأخطاء والشك والتجويد
 // ============================================================
 
 export async function getAssessmentSettings() {
+  const user = await requireUser();
+  const tenantId = requireTenant(user);
+
   const settings = await prisma.assessmentSettings.findUnique({
-    where: { id: "singleton" },
+    where: { tenantId },
   });
   // القيم الافتراضية
   return {
@@ -42,7 +46,7 @@ export async function updateAssessmentSettings(input: {
 
   await prisma.$transaction(async (tx) => {
     await tx.assessmentSettings.upsert({
-      where: { id: "singleton" },
+      where: { tenantId: requireTenantId(user) },
       update: {
         errorDeduction: input.errorDeduction,
         doubtDeduction: input.doubtDeduction,

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole } from "@/lib/security";
+import { getTenantFilter } from "@/lib/tenancy";
 import { Role, AuditAction, Prisma } from "@prisma/client";
 
 // ============================================================
@@ -58,7 +59,7 @@ export async function getAuditLogs(
   const pageSize = rawPageSize;
   const skip = (page - 1) * pageSize;
 
-  const where: Prisma.AuditLogWhereInput = {};
+  const where: Prisma.AuditLogWhereInput = { ...getTenantFilter(user) };
 
   if (filters.action) {
     where.action = filters.action;
@@ -126,6 +127,7 @@ export async function getAuditLogStats() {
 
   const stats = await prisma.auditLog.groupBy({
     by: ["action"],
+    where: getTenantFilter(user),
     _count: { id: true },
   });
 
@@ -143,6 +145,7 @@ export async function getAuditLogUsers() {
   requireRole(user, [Role.ADMIN]);
 
   return prisma.user.findMany({
+    where: getTenantFilter(user),
     select: { id: true, name: true, email: true },
     orderBy: { name: "asc" },
   });

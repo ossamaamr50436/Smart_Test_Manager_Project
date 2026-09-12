@@ -8,6 +8,7 @@ import {
   type SessionUser,
 } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
@@ -71,6 +72,7 @@ export async function createExaminer(input: CreateExaminerInput): Promise<Create
         role: Role.EXAMINER,
         birthDate: data.birthDate,
         mustChangePassword: true,
+        tenantId: requireTenantId(user),
       },
       select: { id: true, name: true, email: true },
     });
@@ -126,9 +128,10 @@ export async function resetExaminerPassword(
 
   const examiner = await prisma.user.findUnique({
     where: { id: examinerId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, tenantId: true },
   });
   if (!examiner) return { success: false, error: "المعلم غير موجود" };
+  assertSameTenant(user, examiner);
   if (examiner.role !== Role.EXAMINER) {
     return { success: false, error: "هذا الحساب ليس حساب معلم" };
   }
@@ -181,6 +184,7 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
       id: true,
       name: true,
       role: true,
+      tenantId: true,
       _count: {
         select: {
           sessionsAsTeacher1: true,
@@ -193,6 +197,7 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
     },
   });
   if (!examiner) return { success: false, error: "المعلم غير موجود" };
+  assertSameTenant(user, examiner);
   if (examiner.role !== Role.EXAMINER) {
     return { success: false, error: "هذا الحساب ليس حساب معلم" };
   }
@@ -242,7 +247,7 @@ export async function getExaminersList() {
   assertRole(user);
 
   return prisma.user.findMany({
-    where: { role: Role.EXAMINER },
+    where: { ...getTenantFilter(user), role: Role.EXAMINER },
     select: {
       id: true,
       name: true,

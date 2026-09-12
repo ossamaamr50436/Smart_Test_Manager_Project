@@ -2,6 +2,7 @@
 
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
@@ -53,13 +54,14 @@ export async function createCommittee(input: {
   // التحقق من وجود الموسم
   const season = await prisma.examSeason.findUnique({
     where: { id: input.seasonId },
-    select: { id: true },
+    select: { id: true, tenantId: true },
   });
   if (!season) return { success: false, error: "الموسم غير موجود" };
+  assertSameTenant(user, season);
 
   // التحقق من وجود المعلمين
   const teachers = await prisma.user.findMany({
-    where: { id: { in: [input.teacher1Id, input.teacher2Id] } },
+    where: { ...getTenantFilter(user), id: { in: [input.teacher1Id, input.teacher2Id] } },
     select: { id: true, role: true },
   });
   if (teachers.length !== 2) return { success: false, error: "أحد المعلمين غير موجود" };
@@ -71,7 +73,7 @@ export async function createCommittee(input: {
 
   // منع التكرار
   const existing = await prisma.committee.findFirst({
-    where: { name, seasonId: input.seasonId },
+    where: { ...getTenantFilter(user), name, seasonId: input.seasonId },
     select: { id: true },
   });
   if (existing) return { success: false, error: "يوجد لجنة بنفس الاسم في هذا الموسم" };
@@ -148,10 +150,12 @@ export async function deleteCommittee(committeeId: string): Promise<CommitteeAct
     select: {
       id: true,
       name: true,
+      tenantId: true,
       _count: { select: { students: true } },
     },
   });
   if (!committee) return { success: false, error: "اللجنة غير موجودة" };
+  assertSameTenant(user, committee);
 
   if (committee._count.students > 0) {
     return { success: false, error: "لا يمكن حذف لجنة مرتبط بها طلاب — أزل الطلاب أولاً" };
@@ -198,18 +202,20 @@ export async function assignStudentToCommittee(input: {
 
   const student = await prisma.student.findUnique({
     where: { id: input.studentId },
-    select: { id: true, name: true, status: true, branch: true },
+    select: { id: true, name: true, status: true, branch: true, tenantId: true },
   });
   if (!student) return { success: false, error: "الطالب غير موجود" };
+  assertSameTenant(user, student);
   if (student.status !== "APPROVED") {
     return { success: false, error: "يجب أن يكون الطالب بحالة APPROVED قبل توزيعه على لجنة" };
   }
 
   const committee = await prisma.committee.findUnique({
     where: { id: input.committeeId },
-    select: { id: true, branch: true, name: true },
+    select: { id: true, branch: true, name: true, tenantId: true },
   });
   if (!committee) return { success: false, error: "اللجنة غير موجودة" };
+  assertSameTenant(user, committee);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -247,7 +253,7 @@ export async function getCommittees(seasonId?: string) {
   requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   return prisma.committee.findMany({
-    where: seasonId ? { seasonId } : undefined,
+    where: { ...getTenantFilter(user), ...(seasonId ? { seasonId } : {}) },
     include: {
       teacher1: { select: { id: true, name: true } },
       teacher2: { select: { id: true, name: true } },

@@ -6,6 +6,7 @@ import { AuthError } from "next-auth";
 import { Role, StudentStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
+import { getTenantFilter } from "@/lib/tenancy";
 
 // ------------------------------------------------------------
 // المصادقة
@@ -119,20 +120,22 @@ export async function getStudentsForCurrentUser(
       // عزل: الجهة ترى فقط طلاب جهتها
       const [students, total] = await Promise.all([
         prisma.student.findMany({
-          where: { institutionId: user.institutionId },
+          where: { ...getTenantFilter(user), institutionId: user.institutionId },
           select: { id: true, name: true, age: true, branch: true, status: true },
           orderBy: { createdAt: "desc" },
           skip,
           take: numericPageSize,
         }),
-        prisma.student.count({ where: { institutionId: user.institutionId } }),
+        prisma.student.count({ where: { ...getTenantFilter(user), institutionId: user.institutionId } }),
       ]);
       return { students, total, totalPages: Math.ceil(total / numericPageSize), page: numericPage };
     }
 
     case Role.EXAMINER: {
       // عزل: المختبر يرى فقط طلاب لجانه (teacher1/teacher2) ذوي الحالة ASSIGNED
+      const tenantFilter = getTenantFilter(user);
       const baseWhere: Prisma.ExamSessionWhereInput = {
+        ...tenantFilter,
         OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
         student: { status: StudentStatus.ASSIGNED },
       };
@@ -159,7 +162,10 @@ export async function getStudentsForCurrentUser(
 
     case Role.CERTIFICATE_SOURCE: {
       // عزل: مصدر الشهادات يرى المكتملين فقط
-      const where: Prisma.StudentWhereInput = { status: StudentStatus.COMPLETED };
+      const where: Prisma.StudentWhereInput = {
+        ...getTenantFilter(user),
+        status: StudentStatus.COMPLETED,
+      };
       const [students, total] = await Promise.all([
         prisma.student.findMany({
           where,
@@ -177,14 +183,16 @@ export async function getStudentsForCurrentUser(
     case Role.HEAD_OF_AFFAIRS:
     case Role.TEST_SPECIALIST:
     default: {
+      const where = getTenantFilter(user);
       const [students, total] = await Promise.all([
         prisma.student.findMany({
+          where,
           select: { id: true, name: true, age: true, branch: true, status: true },
           orderBy: { createdAt: "desc" },
           skip,
           take: numericPageSize,
         }),
-        prisma.student.count(),
+        prisma.student.count({ where }),
       ]);
       return { students, total, totalPages: Math.ceil(total / numericPageSize), page: numericPage };
     }

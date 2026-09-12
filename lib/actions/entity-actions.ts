@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs";
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
+import { getTenantFilter } from "@/lib/tenancy";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -125,6 +126,7 @@ export async function createInstitutionBySpecialist(input: {
           birthDate: new Date("1990-01-01"),
           institutionId: institution.id,
           mustChangePassword: true,
+          tenantId: requireTenantId(user),
         },
       });
 
@@ -169,6 +171,7 @@ export async function listInstitutions() {
   requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   const institutions = await prisma.institution.findMany({
+    where: getTenantFilter(user),
     select: {
       id: true,
       name: true,

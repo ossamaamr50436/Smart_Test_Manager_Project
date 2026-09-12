@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -38,6 +39,7 @@ async function recordAudit(
 export async function getAdminDashboardStats() {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN]);
+  const filter = getTenantFilter(user);
 
   const [
     totalUsers,
@@ -57,26 +59,27 @@ export async function getAdminDashboardStats() {
     totalNotifications,
     certificateIssuedStudents,
   ] = await Promise.all([
-    prisma.user.count(),
-    prisma.institution.count(),
-    prisma.student.count(),
-    prisma.user.count({ where: { role: Role.EXAMINER } }),
-    prisma.examSeason.count(),
-    prisma.examSession.count(),
-    prisma.examSession.count({ where: { examDate: { gte: new Date() } } }),
-    prisma.examSession.count({ where: { status: "COMPLETED" } }),
-    prisma.student.count({ where: { status: "PENDING" } }),
-    prisma.student.count({ where: { status: "APPROVED" } }),
-    prisma.student.count({ where: { status: "REJECTED" } }),
-    prisma.certificate.count(),
-    prisma.examModel.count(),
-    prisma.certificate.count({ where: { status: "PENDING" } }),
-    prisma.notification.count(),
-    prisma.student.count({ where: { status: "CERTIFICATE_ISSUED" } }),
+    prisma.user.count({ where: filter }),
+    prisma.institution.count({ where: filter }),
+    prisma.student.count({ where: filter }),
+    prisma.user.count({ where: { ...filter, role: Role.EXAMINER } }),
+    prisma.examSeason.count({ where: filter }),
+    prisma.examSession.count({ where: filter }),
+    prisma.examSession.count({ where: { ...filter, examDate: { gte: new Date() } } }),
+    prisma.examSession.count({ where: { ...filter, status: "COMPLETED" } }),
+    prisma.student.count({ where: { ...filter, status: "PENDING" } }),
+    prisma.student.count({ where: { ...filter, status: "APPROVED" } }),
+    prisma.student.count({ where: { ...filter, status: "REJECTED" } }),
+    prisma.certificate.count({ where: filter }),
+    prisma.examModel.count({ where: filter }),
+    prisma.certificate.count({ where: { ...filter, status: "PENDING" } }),
+    prisma.notification.count({ where: filter }),
+    prisma.student.count({ where: { ...filter, status: "CERTIFICATE_ISSUED" } }),
   ]);
 
   // آخر الأنشطة
   const recentActivity = await prisma.auditLog.findMany({
+    where: filter,
     orderBy: { timestamp: "desc" },
     take: 10,
     include: { user: { select: { name: true, email: true } } },
@@ -121,7 +124,7 @@ export async function getAdminUsers(params: {
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
-  const where: Prisma.UserWhereInput = {};
+  const where: Prisma.UserWhereInput = { ...getTenantFilter(user) };
   if (params.search && params.search.length > 0) {
     if (params.search.length > 100) throw new Error("نص البحث طويل جداً");
     where.OR = [
@@ -221,6 +224,7 @@ export async function createAdminUser(input: {
   if (institutionId) {
     const inst = await prisma.institution.findUnique({ where: { id: institutionId } });
     if (!inst) return { success: false, error: "المؤسسة غير موجودة" };
+    assertSameTenant(user, inst);
   }
 
   // منع التكرار (فحص مسبق ودّي + درع P2002 عند التسابق)
@@ -240,6 +244,7 @@ export async function createAdminUser(input: {
         birthDate: data.birthDate,
         institutionId,
         mustChangePassword: input.forcePasswordChange === true, // الافتراضي false
+        tenantId: requireTenantId(user),
       },
     });
   } catch (error) {
@@ -298,6 +303,7 @@ export async function updateAdminUser(
 
   const existing = await prisma.user.findUnique({ where: { id: userId } });
   if (!existing) return { success: false, error: "المستخدم غير موجود" };
+  assertSameTenant(user, existing);
 
   const data: Prisma.UserUncheckedUpdateInput = {};
 
@@ -325,6 +331,7 @@ export async function updateAdminUser(
     if (newInstitutionId) {
       const inst = await prisma.institution.findUnique({ where: { id: newInstitutionId } });
       if (!inst) return { success: false, error: "المؤسسة غير موجودة" };
+      assertSameTenant(user, inst);
     }
     data.role = input.role as Role;
     data.institutionId = newInstitutionId;
@@ -393,6 +400,7 @@ export async function resetAdminUserPassword(
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { success: false, error: "المستخدم غير موجود" };
+  assertSameTenant(user, target);
 
   const hashed = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
@@ -426,7 +434,7 @@ export async function getAdminInstitutions(params: {
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
-  const where: Prisma.InstitutionWhereInput = {};
+  const where: Prisma.InstitutionWhereInput = { ...getTenantFilter(user) };
   if (params.search && params.search.length > 0) {
     if (params.search.length > 100) throw new Error("نص البحث طويل جداً");
     where.OR = [
@@ -501,7 +509,7 @@ export async function createAdminInstitution(input: {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("البريد الإلكتروني غير صالح");
 
   const dupName = await prisma.institution.findFirst({
-    where: { name: { equals: name, mode: "insensitive" } },
+    where: { ...getTenantFilter(user), name: { equals: name, mode: "insensitive" } },
   });
   if (dupName) throw new Error("توجد جهة بنفس الاسم");
   const dupLicense = await prisma.institution.findUnique({ where: { licenseNumber } });
@@ -535,6 +543,7 @@ export async function createAdminInstitution(input: {
           birthDate: new Date("1990-01-01"),
           institutionId: institution.id,
           mustChangePassword: true,
+          tenantId: requireTenantId(user),
         },
       });
 
@@ -584,6 +593,7 @@ export async function updateAdminInstitution(
   }
   const existing = await prisma.institution.findUnique({ where: { id: institutionId } });
   if (!existing) throw new Error("الجهة غير موجودة");
+  assertSameTenant(user, existing);
 
   const data: Prisma.InstitutionUpdateInput = {};
   if (input.name !== undefined) {
@@ -626,6 +636,7 @@ export async function getAdminSeasons() {
   requireRole(user, [Role.ADMIN]);
 
   const seasons = await prisma.examSeason.findMany({
+    where: getTenantFilter(user),
     orderBy: { startDate: "desc" },
     include: {
       _count: { select: { sessions: true, models: true } },
@@ -656,7 +667,10 @@ export async function createAdminSeason(input: {
   if (endDate <= startDate) throw new Error("تاريخ النهاية يجب أن يكون بعد البداية");
 
   if (input.isActive) {
-    await prisma.examSeason.updateMany({ where: { isActive: true }, data: { isActive: false } });
+    await prisma.examSeason.updateMany({
+      where: { ...getTenantFilter(user), isActive: true },
+      data: { isActive: false },
+    });
   }
 
   const season = await prisma.examSeason.create({
@@ -691,6 +705,7 @@ export async function updateAdminSeason(
   }
   const existing = await prisma.examSeason.findUnique({ where: { id: seasonId } });
   if (!existing) throw new Error("الموسم غير موجود");
+  assertSameTenant(user, existing);
 
   const data: Prisma.ExamSeasonUpdateInput = {};
   if (input.name !== undefined) {
@@ -711,7 +726,11 @@ export async function updateAdminSeason(
     // تفعيل موسم يُلغي تفعيل باقي المواسم
     if (input.isActive) {
       await prisma.examSeason.updateMany({
-        where: { id: { not: seasonId }, isActive: true },
+        where: {
+          ...getTenantFilter(user),
+          id: { not: seasonId },
+          isActive: true,
+        },
         data: { isActive: false },
       });
     }
@@ -747,7 +766,7 @@ export async function getAdminModels(params: {
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
-  const where: Prisma.ExamModelWhereInput = {};
+  const where: Prisma.ExamModelWhereInput = { ...getTenantFilter(user) };
   if (params.institutionId && params.institutionId !== "ALL") {
     where.institutionId = params.institutionId;
   }
@@ -796,7 +815,7 @@ export async function getAdminStudents(params: {
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
-  const where: Prisma.StudentWhereInput = {};
+  const where: Prisma.StudentWhereInput = { ...getTenantFilter(user) };
   if (params.status && params.status !== "ALL") {
     const validStatuses = Object.values(StudentStatus);
     if (!validStatuses.includes(params.status as StudentStatus)) {
@@ -853,7 +872,7 @@ export async function getAdminSessions(params: {
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
-  const where: Prisma.ExamSessionWhereInput = {};
+  const where: Prisma.ExamSessionWhereInput = { ...getTenantFilter(user) };
   if (params.status && params.status !== "ALL") {
     const validStatuses = Object.values(ExamSessionStatus);
     if (!validStatuses.includes(params.status as ExamSessionStatus)) {
@@ -903,7 +922,7 @@ export async function getAdminCertificates(params: {
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
-  const where: Prisma.CertificateWhereInput = {};
+  const where: Prisma.CertificateWhereInput = { ...getTenantFilter(user) };
   if (params.status && params.status !== "ALL") {
     const validStatuses = Object.values(CertificateStatus);
     if (!validStatuses.includes(params.status as CertificateStatus)) {
@@ -945,6 +964,7 @@ export async function getInstitutionsOptions() {
   requireRole(user, [Role.ADMIN]);
 
   return prisma.institution.findMany({
+    where: getTenantFilter(user),
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -958,7 +978,7 @@ export async function getExaminersOptions() {
   requireRole(user, [Role.ADMIN]);
 
   return prisma.user.findMany({
-    where: { role: Role.EXAMINER },
+    where: { ...getTenantFilter(user), role: Role.EXAMINER },
     select: { id: true, name: true, institutionId: true },
     orderBy: { name: "asc" },
   });
@@ -975,6 +995,7 @@ export async function adminDeleteInstitution(institutionId: string) {
   }
   const existing = await prisma.institution.findUnique({ where: { id: institutionId } });
   if (!existing) throw new Error("المؤسسة غير موجودة");
+  assertSameTenant(user, existing);
 
   const { _count } = await prisma.institution.findUniqueOrThrow({
     where: { id: institutionId },
@@ -1023,9 +1044,10 @@ export async function adminDeleteUser(userId: string): Promise<UpdateUserResult>
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { success: false, error: "المستخدم غير موجود" };
+  assertSameTenant(user, target);
 
   const activeSessions = await prisma.examSession.count({
-    where: { OR: [{ teacher1Id: userId }, { teacher2Id: userId }] },
+    where: { ...getTenantFilter(user), OR: [{ teacher1Id: userId }, { teacher2Id: userId }] },
   });
   if (activeSessions > 0) {
     return { success: false, error: "لا يمكن حذف مستخدم لديه جلسات اختبار مرتبطة" };

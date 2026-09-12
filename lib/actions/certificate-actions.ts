@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -96,6 +97,7 @@ export async function generateCertificate(studentId: string) {
       name: true,
       status: true,
       institutionId: true,
+      tenantId: true,
       institution: { select: { name: true } },
     },
   });
@@ -103,6 +105,7 @@ export async function generateCertificate(studentId: string) {
   if (!student) {
     throw new Error("الطالب غير موجود");
   }
+  assertSameTenant(user, student);
 
   // التحقق من أن هناك موسم اختبارات نشط (لا إصدار خارج الموسم)
   const { getCurrentSeason } = await import("./season-actions");
@@ -120,7 +123,7 @@ export async function generateCertificate(studentId: string) {
 
   // منع التكرار: لا يوجد سوى شهادة نشطة واحدة لكل طالب
   const existing = await prisma.certificate.findFirst({
-    where: { studentId },
+    where: { ...getTenantFilter(user), studentId },
     select: { id: true },
   });
   if (existing) {
@@ -137,7 +140,9 @@ export async function generateCertificate(studentId: string) {
   let serialNumber = "";
   let created = false;
   for (let attempt = 0; attempt < 20; attempt++) {
-    const count = await prisma.certificate.count();
+    const count = await prisma.certificate.count({
+      where: getTenantFilter(user),
+    });
     serialNumber = buildSerialNumber(count + 1 + attempt);
     const exists = await prisma.certificate.findUnique({
       where: { serialNumber },
@@ -271,7 +276,7 @@ export async function getCertificateDriveLink(studentId: string) {
   await assertCanAccessStudent(user, studentId);
 
   const certificate = await prisma.certificate.findFirst({
-    where: { studentId },
+    where: { ...getTenantFilter(user), studentId },
     select: { fileUrl: true },
     orderBy: { createdAt: "desc" },
   });
@@ -287,7 +292,7 @@ export async function getPendingCertificatesForSignature() {
   requireRole(user, [Role.CERTIFICATE_SOURCE]);
 
   return prisma.certificate.findMany({
-    where: { status: CertificateStatus.PENDING },
+    where: { ...getTenantFilter(user), status: CertificateStatus.PENDING },
     orderBy: { createdAt: "desc" },
     include: {
       student: { select: { name: true, branch: true } },
@@ -341,11 +346,12 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
 
   const certificate = await prisma.certificate.findUnique({
     where: { id: certificateId },
-    select: { id: true, serialNumber: true, status: true },
+    select: { id: true, serialNumber: true, status: true, tenantId: true },
   });
   if (!certificate) {
     throw new Error("الشهادة غير موجودة");
   }
+  assertSameTenant(user, certificate);
   if (certificate.status === CertificateStatus.SIGNED) {
     throw new Error("الشهادة موقّعة بالفعل");
   }
@@ -403,12 +409,14 @@ export async function sendCertificateToInstitution(certificateId: string) {
       id: true,
       serialNumber: true,
       status: true,
+      tenantId: true,
       student: { select: { id: true, name: true, institutionId: true } },
     },
   });
   if (!certificate) {
     throw new Error("الشهادة غير موجودة");
   }
+  assertSameTenant(user, certificate);
   if (certificate.status === CertificateStatus.SENT) {
     throw new Error("الشهادة أُرسلت للجهة من قبل");
   }

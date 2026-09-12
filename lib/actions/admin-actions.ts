@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -39,11 +40,12 @@ export async function specialistFinalApprove(studentId: string) {
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { id: true, name: true, status: true, institutionId: true },
+    select: { id: true, name: true, status: true, institutionId: true, tenantId: true },
   });
   if (!student) {
     throw new Error("الطالب غير موجود");
   }
+  assertSameTenant(user, student);
   if (student.status !== StudentStatus.COMPLETED) {
     throw new Error("الطالب لم يُقيَّم من قبل أي مختبر بعد");
   }
@@ -68,7 +70,7 @@ export async function specialistFinalApprove(studentId: string) {
 
   // إشعار لجميع مستخدمي رئاسة الشؤون التعليمية
   const heads = await prisma.user.findMany({
-    where: { role: Role.HEAD_OF_AFFAIRS },
+    where: { ...getTenantFilter(user), role: Role.HEAD_OF_AFFAIRS },
     select: { id: true },
   });
   if (heads.length > 0) {
@@ -112,11 +114,12 @@ export async function headOfAffairsFinalApprove(studentId: string) {
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, tenantId: true },
   });
   if (!student) {
     throw new Error("الطالب غير موجود");
   }
+  assertSameTenant(user, student);
   if (student.status !== StudentStatus.NOTIFIED) {
     throw new Error("الطالب لم يعتمد من قبل أخصائي الاختبارات بعد");
   }
@@ -141,7 +144,7 @@ export async function headOfAffairsFinalApprove(studentId: string) {
 
   // إشعار لمصدر الشهادات
   const sources = await prisma.user.findMany({
-    where: { role: Role.CERTIFICATE_SOURCE },
+    where: { ...getTenantFilter(user), role: Role.CERTIFICATE_SOURCE },
     select: { id: true },
   });
   if (sources.length > 0) {

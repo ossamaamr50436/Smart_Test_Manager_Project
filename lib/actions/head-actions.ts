@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -53,7 +54,7 @@ export async function getStudentsForHeadReview(
     throw new Error("حجم الصفحة غير صالح (الحد الأقصى 100)");
   }
 
-  const where = { status: StudentStatus.NOTIFIED };
+  const where = { ...getTenantFilter(user), status: StudentStatus.NOTIFIED };
   const skip = (numericPage - 1) * numericPageSize;
 
   const [students, total] = await Promise.all([
@@ -90,11 +91,12 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { id: true, name: true, status: true, institutionId: true },
+    select: { id: true, name: true, status: true, institutionId: true, tenantId: true },
   });
   if (!student) {
     throw new Error("الطالب غير موجود");
   }
+  assertSameTenant(user, student);
   if (student.status !== StudentStatus.NOTIFIED) {
     throw new Error("الطالب ليس بانتظار مراجعة رئيس الشؤون");
   }
@@ -121,7 +123,7 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
 
   // إشعار لأخصائيي الاختبارات (المسؤولين عن هذه المرحلة)
   const specialists = await prisma.user.findMany({
-    where: { role: Role.TEST_SPECIALIST },
+    where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
     select: { id: true },
   });
   if (specialists.length > 0) {

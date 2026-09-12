@@ -128,3 +128,77 @@
 
 ## ملاحظات
 - لم يُرفع شيء إلى GitHub بعد (commits محلية فقط).
+
+---
+
+# Session 3 — طبقة عزل المستأجرين (Tenancy Isolation Layer)
+
+## الحالة
+✅ **مكتمل** — تمت ترقية المالك إلى SUPER_ADMIN، أُنشئت أدوات العزل المنطقية،
+وأضيفت فلاتر `tenantId` على قراءات وكتابات جميع Server Actions الخاصة ببيانات المستأجر.
+`npx tsc --noEmit` = 0 أخطاء، و `npm run build` = نجاح.
+
+## المنجز
+
+### 1) ترقية المالك إلى SUPER_ADMIN
+- ✅ `ossamaamr50436@gmail.com` → `Role.SUPER_ADMIN` و `tenantId = null`
+  (المعرّف: `cmtvkn4oz00009ydxsukscep9`).
+- ✅ نُفّذت عبر سكربت مؤقت `scripts/promote-owner-to-super-admin.ts` (npx tsx)
+  **بدلاً من** هجرة Prisma مسمّاة `promote_owner_to_super_admin` — لم يطرأ أي تغيير على
+  المخطط (Schema)، التغيير بيانات فقط، فلا حاجة لهجرة. (انحراف موثّق عن o.txt القسم 7)
+
+### 2) `lib/tenancy.ts` — أدوات العزل (Server-only)
+- `getTenantFilter(user)` → `{}` لـ SUPER_ADMIN، والا `{ tenantId }` (يرمي إن لم يكن مربوطاً).
+- `requireTenant(user)` → يعيد `tenantId` أو يرمي (ممنوع على SUPER_ADMIN).
+- `requireSuperAdmin(user)` → يمنع غير المالك.
+- `assertSameTenant(user, resource)` → يتحقق أن السجل في tenant المستخدم (SUPER_ADMIN يمر دائماً).
+- `assertHasRole(user, allowed)`.
+
+### 3) التوجيه حسب الدور (Routing)
+- ✅ `auth.config.ts`: `SUPER_ADMIN → "/super-admin"` في `ROLE_DASHBOARD_PATHS`
+  + كتلة إعادة توجيه إجبارية (بعد فحص `mustChangePassword`).
+- ✅ `lib/roles.ts`: `SUPER_ADMIN: "/super-admin"`.
+- ✅ صفحة جديدة `app/(dashboard)/super-admin/page.tsx` (لوحة مالك المنصة، `requireSuperAdmin`).
+- ⚠️ **قرار**: لم تُضَف إعادة توجيه إجبارية صريحة لـ ADMIN (المنطق الحالي يوجّهه إلى
+  `/admin` ويحافظ على وصوله إلى `/audit-log` و `/admin/reports`) — تجنّباً لكسر تلك المسارات.
+
+### 4) فلاتر `tenantId` على Server Actions (ملف بعد ملف)
+- ✅ `assessment-settings-actions` | `audit-actions` | `season-actions`
+- ✅ `head-actions` | `examiner-actions` | `entity-actions` | `committee-actions`
+- ✅ `model-actions` | `certificate-actions` | `student-actions` | `assessment-actions`
+- ✅ `admin-actions` | `admin-panel-actions` | `auth-actions` (`getStudentsForCurrentUser` بكل فروعه)
+- النمط الموحّد: `getTenantFilter(user)` في `where` القراءات و `findFirst`/`findMany`
+  والتهم؛ `assertSameTenant` بعد `findUnique` لكل UPDATE/DELETE على سجل.
+- كُتبات الإنشاء: `tenantId: requireTenantId(user)` على `user.create` / `institution.create`
+  (examiner-actions، entity-actions، admin-panel-actions).
+- تحقق فقط (لا تعديل): `notification-actions` (نطاقها `userId` الخاص)،
+  `change-password-actions` (مستخدمه)، `settings-actions` (AppSettings **global** — متعمّد)،
+  `unique-guard.ts` (لا استعلامات).
+
+## Keep `User.tenantId` اختيارياً
+- ✅ يظل `User.tenantId String?` — SUPER_ADMIN بلا tenant.
+- ✅ الدخول يعمل بكلمة المرور الحالية (لم تُمسّ).
+
+## فرسان من Session 2 (تم التأكيد)
+- ✅ `getCurrentUser` يختار `tenantId` فعلاً (و `SessionUser` في `lib/security.ts` مشتق منه).
+
+## التحقّق
+- ✅ `npx prisma format` + `prisma validate` + `prisma generate` — OK
+- ✅ `npx tsc --noEmit` — **0 أخطاء**
+- ✅ `npm run build` — **نجاح** (الطريق `/super-admin` مُسجَّل)
+
+## نقاط رجوع / Snapshots
+- Checkpoint قبل الجلسة: `f8bb0ad checkpoint: before tenancy isolation layer`.
+- Snapshots: `snapshots/schema_before_tenancy.prisma` + `snapshots/data_export/post_session2.json`.
+
+## ملاحظات (Session 3)
+- قاعدة البيانات حالياً تحتوي مستخدماً واحداً (SUPER_ADMIN) — عمليات الأدوار المتعددة
+  غير قابلة للوصول عملياً حتى إنشاء مستخدمين جدد، والفلاتر جاهزة للمستقبل.
+- `getTenantFilter` صُمم ليُمرَّر للمستخدم القادم من `getCurrentUser()` (نفس نوع `SessionUser`).
+
+## المهام التالية (الجلسة 4)
+- حقول العرض العامة للمستأجر (Branding) في الواجهة مع `UseTenant`.
+- وثائق واستكمال أي تسريبات متبقية (إن وُجدت).
+
+## ملاحظات
+- لم يُرفع شيء إلى GitHub (commits محلية فقط).

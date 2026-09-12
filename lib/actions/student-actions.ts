@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser, requireRole, assertInstitutionOwnsStudent, getActorTenantId, requireTenantId } from "@/lib/security";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus, NotificationType, AuditAction } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -159,7 +160,7 @@ export async function createStudentApplication(
   // إشعار بالأخصائي (قد يكون أكثر من أخصائي) — فشل الإشعار لا يمنع حفظ الطلب
   try {
     const specialists = await prisma.user.findMany({
-      where: { role: Role.TEST_SPECIALIST },
+      where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
       select: { id: true },
     });
 
@@ -204,12 +205,13 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { id: true, name: true, institutionId: true, status: true },
+    select: { id: true, name: true, institutionId: true, status: true, tenantId: true },
   });
 
   if (!student) {
     throw new Error("الطالب غير موجود");
   }
+  assertSameTenant(user, student);
 
   // منع مراجعة طالب تم مراجعته مسبقاً (يجب أن يكون بحالة PENDING فقط)
   if (student.status !== StudentStatus.PENDING) {
@@ -283,7 +285,7 @@ export async function assignCommittee(input: CommitteeInput) {
 
   // التحقق من أن المعلمين موجودان
   const teachers = await prisma.user.findMany({
-    where: { id: { in: [data.teacher1Id, data.teacher2Id] } },
+    where: { ...getTenantFilter(user), id: { in: [data.teacher1Id, data.teacher2Id] } },
     select: { id: true, role: true },
   });
 
@@ -299,12 +301,13 @@ export async function assignCommittee(input: CommitteeInput) {
 
   const student = await prisma.student.findUnique({
     where: { id: data.studentId },
-    select: { id: true, name: true, status: true, institutionId: true },
+    select: { id: true, name: true, status: true, institutionId: true, tenantId: true },
   });
 
   if (!student) {
     throw new Error("الطالب غير موجود");
   }
+  assertSameTenant(user, student);
   if (student.status !== StudentStatus.APPROVED) {
     throw new Error("يجب أن يكون الطالب بحالة APPROVED قبل توزيعه على لجنة");
   }
@@ -323,6 +326,7 @@ export async function assignCommittee(input: CommitteeInput) {
   // التحقق من عدم تضارب مواعيد المعلمين (نفس المعلم في لجنتين بنفس الوقت)
   const conflicting = await prisma.examSession.findFirst({
     where: {
+      ...getTenantFilter(user),
       examDate,
       OR: [
         { teacher1Id: data.teacher1Id },

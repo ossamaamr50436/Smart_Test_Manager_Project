@@ -2,6 +2,7 @@
 
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
@@ -33,13 +34,15 @@ export async function createExamModel(input: ExamModelInput) {
   // التحقق من وجود الموسم
   const season = await prisma.examSeason.findUnique({
     where: { id: data.seasonId },
-    select: { id: true },
+    select: { id: true, tenantId: true },
   });
   if (!season) throw new Error("الموسم غير موجود");
+  assertSameTenant(user, season);
 
   // منع تكرار (رقم النموذج، الموسم، الفرع)
   const existing = await prisma.examModel.findFirst({
     where: {
+      ...getTenantFilter(user),
       modelNumber: data.modelNumber,
       seasonId: data.seasonId,
       branch: data.branch,
@@ -128,9 +131,10 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
 
   const existing = await prisma.examModel.findUnique({
     where: { id: modelId },
-    select: { id: true },
+    select: { id: true, tenantId: true },
   });
   if (!existing) throw new Error("النموذج غير موجود");
+  assertSameTenant(user, existing);
 
   const segments = [...data.segments].sort((a, b) => a.number - b.number);
   const segmentsCount = data.segmentsCount ?? segments.length;
@@ -196,10 +200,12 @@ export async function deleteExamModel(modelId: string) {
       id: true,
       modelNumber: true,
       branch: true,
+      tenantId: true,
       _count: { select: { assessments: true, sessions: true } },
     },
   });
   if (!model) throw new Error("النموذج غير موجود");
+  assertSameTenant(user, model);
 
   // منع حذف نموذج مستخدم في تقييمات أو جلسات
   if (model._count.assessments > 0 || model._count.sessions > 0) {
@@ -267,9 +273,10 @@ export async function allocateCommitteeModelRange(input: {
   // التحقق من وجود اللجنة وجلب موسمها
   const committee = await prisma.committee.findUnique({
     where: { id: input.committeeId },
-    select: { id: true, seasonId: true },
+    select: { id: true, seasonId: true, tenantId: true },
   });
   if (!committee) throw new Error("اللجنة غير موجودة");
+  assertSameTenant(user, committee);
 
   // التحقق من عدم تكرار نطاق متداخل لنفس الفرع على لجان أخرى
   const overlapping = await prisma.committeeModelAllocation.findFirst({
@@ -335,7 +342,7 @@ export async function getCommitteeModelAllocations(seasonId?: string) {
   requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   return prisma.committeeModelAllocation.findMany({
-    where: seasonId ? { seasonId } : undefined,
+    where: { ...getTenantFilter(user), ...(seasonId ? { seasonId } : {}) },
     include: {
       committee: {
         select: {
