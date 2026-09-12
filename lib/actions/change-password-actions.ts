@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { requireUser } from "@/lib/security";
+import { requireUser, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { AuditAction } from "@prisma/client";
 import { passwordSchema } from "@/lib/validations/user";
@@ -90,6 +90,7 @@ export async function changeMyPassword(
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.UPDATE,
         details: JSON.stringify({
           entity: "User",

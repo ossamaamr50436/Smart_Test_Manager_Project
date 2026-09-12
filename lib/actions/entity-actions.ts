@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -112,6 +112,7 @@ export async function createInstitutionBySpecialist(input: {
           supervisorPhone,
           licenseNumber,
           district,
+          tenantId: requireTenantId(user),
         },
       });
 
@@ -130,6 +131,7 @@ export async function createInstitutionBySpecialist(input: {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          tenantId: requireTenantId(user),
           action: AuditAction.CREATE,
           details: JSON.stringify({
             entity: "Institution",

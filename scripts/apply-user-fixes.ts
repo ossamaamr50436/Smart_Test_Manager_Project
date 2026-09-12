@@ -59,6 +59,13 @@ const TARGET_USERS: TargetUser[] = [
 const TARGET_EMAILS = TARGET_USERS.map((u) => u.email);
 
 async function main() {
+  const tenant = await prisma.tenant.findUnique({
+    where: { slug: "madina-quran" },
+  });
+  if (!tenant) {
+    throw new Error("❌ الـ Tenant الافتراضي (madina-quran) غير موجود");
+  }
+
   const allUsers = await prisma.user.findMany({
     select: { id: true, email: true, role: true },
   });
@@ -111,6 +118,7 @@ async function main() {
         licenseNumber: "LIC-0001",
         district: "الحي العام",
         contactInfo: "0590000000",
+        tenantId: tenant.id,
       },
     });
     console.log("✅ إنشاء الجهة الرسمية:", created.id);

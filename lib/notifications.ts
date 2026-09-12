@@ -131,8 +131,16 @@ async function sendSms(toPhone: string, text: string): Promise<boolean> {
  * السجل الداخلي إلزامي؛ القنوات الخارجية تُحاول وتُتجاهل عند فشلها.
  */
 export async function notifyOne({ userId, message, type, examSessionId }: NotificationPayload) {
+  const recipient = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tenantId: true },
+  });
+  if (!recipient?.tenantId) {
+    throw new Error("المستخدم غير موجود");
+  }
+
   const record = await prisma.notification.create({
-    data: { userId, message, type, examSessionId },
+    data: { userId, message, type, examSessionId, tenantId: recipient.tenantId },
     select: { id: true, userId: true },
   });
 
@@ -186,12 +194,25 @@ export async function notifyMany(
   const unique = [...new Set(userIds)];
   if (unique.length === 0) return { sent: 0 };
 
-  const data = unique.map((userId) => ({
-    userId,
-    message: payload.message,
-    type: payload.type,
-    examSessionId: payload.examSessionId,
-  }));
+  const recipients = await prisma.user.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, tenantId: true },
+  });
+  const tenantByUser = new Map(recipients.map((r) => [r.id, r.tenantId] as const));
+
+  const data = unique.map((userId) => {
+    const tenantId = tenantByUser.get(userId);
+    if (!tenantId) {
+      throw new Error("المستخدم غير موجود");
+    }
+    return {
+      userId,
+      message: payload.message,
+      type: payload.type,
+      examSessionId: payload.examSessionId,
+      tenantId,
+    };
+  });
 
   const result = await prisma.notification.createMany({ data });
 

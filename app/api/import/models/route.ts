@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { uploadExamModelFile } from "@/lib/google-drive";
@@ -129,6 +129,7 @@ export async function POST(req: Request) {
             detailsJSON,
             institutionId,
             seasonId,
+            tenantId: requireTenantId(user),
           },
         });
 

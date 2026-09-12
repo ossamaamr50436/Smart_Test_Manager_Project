@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -15,8 +15,9 @@ import { revalidatePath } from "next/cache";
  * تسجيل حدث في Audit Log (شفافية كل قرار)
  */
 async function recordAudit(userId: string, action: AuditAction, details: unknown) {
+  const tenantId = await getActorTenantId(userId);
   await prisma.auditLog.create({
-    data: { userId, action, details: JSON.stringify(details) },
+    data: { userId, action, details: JSON.stringify(details), tenantId },
   });
 }
 
@@ -76,6 +77,7 @@ export async function specialistFinalApprove(studentId: string) {
         userId: h.id,
         message: `الطالب «${student.name}» بانتظار اعتمادك النهائي`,
         type: NotificationType.APPROVAL,
+        tenantId: requireTenantId(user),
       })),
     });
   }
@@ -148,6 +150,7 @@ export async function headOfAffairsFinalApprove(studentId: string) {
         userId: s.id,
         message: `الطالب «${student.name}» جاهز لإصدار الشهادة`,
         type: NotificationType.CERTIFICATE,
+        tenantId: requireTenantId(user),
       })),
     });
   }

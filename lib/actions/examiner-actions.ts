@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import {
   requireUser,
   requireRole,
+  requireTenantId,
   type SessionUser,
 } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
@@ -84,6 +85,7 @@ export async function createExaminer(input: CreateExaminerInput): Promise<Create
     await prisma.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.CREATE,
         details: JSON.stringify({
           entity: "User",
@@ -142,6 +144,7 @@ export async function resetExaminerPassword(
       await tx.auditLog.create({
         data: {
           userId: user.id,
+        tenantId: requireTenantId(user),
           action: AuditAction.UPDATE,
           details: JSON.stringify({
             entity: "User",
@@ -214,6 +217,7 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
       await tx.auditLog.create({
         data: {
           userId: user.id,
+        tenantId: requireTenantId(user),
           action: AuditAction.DELETE,
           details: JSON.stringify({
             entity: "User",

@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole, assertInstitutionOwnsStudent } from "@/lib/security";
+import { requireUser, requireRole, assertInstitutionOwnsStudent, getActorTenantId, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus, NotificationType, AuditAction } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -23,11 +23,13 @@ import { validateFileUpload } from "@/lib/upload-security";
  * (تتبع الشفافية — كل قرار موثّق)
  */
 async function recordAudit(userId: string, action: AuditAction, details: unknown) {
+  const tenantId = await getActorTenantId(userId);
   await prisma.auditLog.create({
     data: {
       userId,
       action,
       details: JSON.stringify(details),
+      tenantId,
     },
   });
 }
@@ -147,6 +149,7 @@ export async function createStudentApplication(
         institutionId: user.institutionId,
         applicationFileId,
         applicationFileUrl,
+        tenantId: requireTenantId(user),
       },
     });
   } catch {
@@ -166,6 +169,7 @@ export async function createStudentApplication(
           userId: s.id,
           message: `طلب ترشيح جديد للطالب «${student.name}» بانتظار المراجعة`,
           type: NotificationType.RECRUITMENT,
+          tenantId: requireTenantId(user),
         })),
       });
     }
@@ -240,6 +244,7 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
             ? `تم قبول ترشيح الطالب «${student.name}»`
             : `تم رفض ترشيح الطالب «${student.name}». السبب: ${reason}`,
         type: NotificationType.APPROVAL,
+        tenantId: requireTenantId(user),
       })),
     });
   }
@@ -360,6 +365,7 @@ export async function assignCommittee(input: CommitteeInput) {
         period: data.period,
         status: "SCHEDULED",
         seasonId,
+        tenantId: requireTenantId(user),
       },
     });
   });
@@ -387,6 +393,7 @@ export async function assignCommittee(input: CommitteeInput) {
       message,
       type: NotificationType.SCHEDULE,
       examSessionId: session.id,
+      tenantId: requireTenantId(user),
     })),
   });
 

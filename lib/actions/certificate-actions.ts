@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -33,8 +33,9 @@ import { validateFileUpload } from "@/lib/upload-security";
 
 /** تسجيل حدث في Audit Log */
 async function recordAudit(userId: string, action: AuditAction, details: unknown) {
+  const tenantId = await getActorTenantId(userId);
   await prisma.auditLog.create({
-    data: { userId, action, details: JSON.stringify(details) },
+    data: { userId, action, details: JSON.stringify(details), tenantId },
   });
 }
 
@@ -208,6 +209,7 @@ export async function generateCertificate(studentId: string) {
         issuedDate: new Date(),
         status: CertificateStatus.PENDING,
         issuedById: user.id,
+        tenantId: requireTenantId(user),
       },
     });
   } catch (error) {
@@ -232,6 +234,7 @@ export async function generateCertificate(studentId: string) {
         userId: u.id,
         message: `صدرت شهادة الطالب «${student.name}» وتم رفعها على Google Drive`,
         type: NotificationType.CERTIFICATE,
+        tenantId: requireTenantId(user),
       })),
     });
   }
@@ -430,6 +433,7 @@ export async function sendCertificateToInstitution(certificateId: string) {
           userId: u.id,
           message: `الشهادة جاهزة للتحميل للطالب «${certificate.student.name}»`,
           type: NotificationType.CERTIFICATE,
+          tenantId: requireTenantId(user),
         })),
       });
     }

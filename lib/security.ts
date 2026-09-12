@@ -32,6 +32,32 @@ export function requireRole(user: SessionUser, roles: Role[]) {
 }
 
 /**
+ * يرجع معرّف الـ Tenant للمستخدم الحالي.
+ * لا يجوز أن يكون null إلا لمستخدم SUPER_ADMIN (لا رابط له بعد).
+ */
+export function requireTenantId(user: SessionUser): string {
+  if (!user.tenantId) {
+    throw new Error("غير مصرح: المستخدم غير مرتبط بجهة");
+  }
+  return user.tenantId;
+}
+
+/**
+ * يرجع معرّف الـ Tenant للمستخدم عبر معرّفه في قاعدة البيانات
+ * (يُستخدم داخل أدوات التسجيل المساعدة التي تستقبل userId فقط).
+ */
+export async function getActorTenantId(userId: string): Promise<string> {
+  const actor = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tenantId: true },
+  });
+  if (!actor?.tenantId) {
+    throw new Error("غير مصرح: لا يمكن تسجيل العملية بدون ارتباط بجهة");
+  }
+  return actor.tenantId;
+}
+
+/**
  * التحقق من صلاحية الجهة التعليمية على طالب معيّن
  * (المادة 8/1): الجهة ترى طلاب جهتها فقط.
  */

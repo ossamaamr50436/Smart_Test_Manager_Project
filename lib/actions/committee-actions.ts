@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -89,6 +89,7 @@ export async function createCommittee(input: {
           seasonId: input.seasonId,
           teacher1Id: input.teacher1Id,
           teacher2Id: input.teacher2Id,
+          tenantId: requireTenantId(user),
         },
       });
 
@@ -106,6 +107,7 @@ export async function createCommittee(input: {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          tenantId: requireTenantId(user),
           action: AuditAction.CREATE,
           details: JSON.stringify({
             entity: "Committee",
@@ -164,6 +166,7 @@ export async function deleteCommittee(committeeId: string): Promise<CommitteeAct
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          tenantId: requireTenantId(user),
           action: AuditAction.DELETE,
           details: JSON.stringify({
             entity: "Committee",
@@ -221,6 +224,7 @@ export async function assignStudentToCommittee(input: {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          tenantId: requireTenantId(user),
           action: AuditAction.UPDATE,
           details: JSON.stringify({
             entity: "Student",

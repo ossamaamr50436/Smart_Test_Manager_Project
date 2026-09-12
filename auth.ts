@@ -93,6 +93,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: true,
             password: true,
             mustChangePassword: true,
+            tenantId: true,
           },
         });
 
@@ -129,6 +130,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   method: "credentials",
                   success: false,
                 },
+                tenantId: user.tenantId!,
               },
             });
           } catch {
@@ -154,11 +156,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user }) {
       if (!user?.id) return;
       try {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { tenantId: true },
+        });
+        if (!dbUser?.tenantId) return;
         await prisma.auditLog.create({
           data: {
             userId: user.id,
             action: AuditAction.LOGIN,
             details: { method: "credentials", success: true },
+            tenantId: dbUser.tenantId,
           },
         });
       } catch {

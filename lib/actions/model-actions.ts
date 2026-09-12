@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -78,6 +78,7 @@ export async function createExamModel(input: ExamModelInput) {
           segmentsCount,
           institutionId: null,
           seasonId: data.seasonId,
+          tenantId: requireTenantId(user),
         },
       });
     } catch (error) {
@@ -87,6 +88,7 @@ export async function createExamModel(input: ExamModelInput) {
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.CREATE,
         details: JSON.stringify({
           entity: "ExamModel",
@@ -157,6 +159,7 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.UPDATE,
         details: JSON.stringify({
           entity: "ExamModel",
@@ -210,6 +213,7 @@ export async function deleteExamModel(modelId: string) {
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.DELETE,
         details: JSON.stringify({
           entity: "ExamModel",
@@ -302,6 +306,7 @@ export async function allocateCommitteeModelRange(input: {
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.UPDATE,
         details: JSON.stringify({
           entity: "CommitteeModelAllocation",

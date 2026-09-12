@@ -92,7 +92,7 @@ function extractModelBlocks(): Segment[][] {
   return blocks;
 }
 
-async function ensureSeason() {
+async function ensureSeason(tenantId: string) {
   const active = await prisma.examSeason.findFirst({ where: { isActive: true } });
   if (active) {
     console.log(`الموسم النشط الحالي: ${active.name} (${active.id})`);
@@ -107,6 +107,7 @@ async function ensureSeason() {
       startDate: start,
       endDate: end,
       isActive: true,
+      tenantId,
     },
   });
   console.log(`تم إنشاء موسم جديد نشط: ${created.name} (${created.id})`);
@@ -114,6 +115,13 @@ async function ensureSeason() {
 }
 
 async function main() {
+  const tenant = await prisma.tenant.findUnique({
+    where: { slug: "madina-quran" },
+  });
+  if (!tenant) {
+    throw new Error("❌ الـ Tenant الافتراضي (madina-quran) غير موجود");
+  }
+
   const blocks = extractModelBlocks();
   console.log(`عدد كتل النماذج الفعلية في الملف: ${blocks.length}`);
   blocks.forEach((b, i) => console.log(`- نموذج ${i + 1}: ${b.length} مقطع`));
@@ -128,7 +136,7 @@ async function main() {
   });
   console.log(`حذف النماذج القديمة للفرع 30: ${existing.count}`);
 
-  const season = await ensureSeason();
+  const season = await ensureSeason(tenant.id);
 
   const segments: Segment[][] = [];
   for (let n = 1; n <= TARGET_MODEL_COUNT; n++) {
@@ -143,6 +151,7 @@ async function main() {
     institutionId: null,
     segmentsCount: segList.length,
     detailsJSON: { segments: segList },
+    tenantId: tenant.id,
   }));
 
   // إنشاء جماعي ذرّي
@@ -150,6 +159,8 @@ async function main() {
     prisma.examModel.createMany({ data }),
     prisma.auditLog.create({
       data: {
+        userId: "system",
+        tenantId: tenant.id,
         action: "CREATE",
         details: JSON.stringify({
           entity: "ExamModel",

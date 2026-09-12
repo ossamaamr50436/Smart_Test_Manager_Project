@@ -62,6 +62,7 @@ export async function getCurrentUser() {
       role: true,
       birthDate: true,
       institutionId: true,
+      tenantId: true,
       createdAt: true,
     },
   });

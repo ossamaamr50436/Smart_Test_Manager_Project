@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
 
 // ============================================================
@@ -66,12 +66,14 @@ export async function createExamSeason(input: {
       startDate,
       endDate,
       isActive: input.isActive ?? false,
+      tenantId: requireTenantId(user),
     },
   });
 
   await prisma.auditLog.create({
     data: {
       userId: user.id,
+      tenantId: requireTenantId(user),
       action: AuditAction.CREATE,
       details: JSON.stringify({ entity: "ExamSeason", seasonId: season.id, name: season.name }),
     },
@@ -115,6 +117,7 @@ export async function setSeasonActive(seasonId: string, isActive: boolean) {
   await prisma.auditLog.create({
     data: {
       userId: user.id,
+      tenantId: requireTenantId(user),
       action: AuditAction.UPDATE,
       details: JSON.stringify({ entity: "ExamSeason", seasonId, isActive, name: season.name }),
     },

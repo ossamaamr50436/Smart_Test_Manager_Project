@@ -2,7 +2,7 @@
 
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { uploadFileToDrive } from "@/lib/google-drive";
@@ -128,6 +128,7 @@ export async function updatePlatformSettings(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
+      tenantId: requireTenantId(user),
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -195,6 +196,7 @@ export async function updateTemplateSettings(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
+      tenantId: requireTenantId(user),
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -259,6 +261,7 @@ export async function updateAppearanceSettings(input: {
   await prisma.auditLog.create({
     data: {
       userId: user.id,
+      tenantId: requireTenantId(user),
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -299,6 +302,7 @@ export async function updateStudentApplicationFileSetting(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
+      tenantId: requireTenantId(user),
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -333,6 +337,7 @@ export async function updateTutorialSectionSetting(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
+      tenantId: requireTenantId(user),
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",

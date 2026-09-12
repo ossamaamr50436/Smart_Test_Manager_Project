@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -21,8 +21,9 @@ async function recordAudit(
   action: AuditAction,
   details: Prisma.InputJsonValue
 ) {
+  const tenantId = await getActorTenantId(userId);
   await prisma.auditLog.create({
-    data: { userId, action, details },
+    data: { userId, action, details, tenantId },
   });
 }
 
@@ -129,6 +130,7 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
         userId: s.id,
         message: `رُفض اعتماد الطالب «${student.name}» من رئيس الشؤون التعليمية.${reasonText}`,
         type: NotificationType.APPROVAL,
+        tenantId: requireTenantId(user),
       })),
     });
   }
@@ -145,6 +147,7 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
           userId: u.id,
           message: `رُفض اعتماد الطالب «${student.name}» من رئيس الشؤون التعليمية.${reasonText}`,
           type: NotificationType.APPROVAL,
+          tenantId: requireTenantId(user),
         })),
       });
     }

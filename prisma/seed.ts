@@ -314,6 +314,15 @@ function calculateAge(birthDate: Date): number {
 }
 
 async function main() {
+  // ===== 0) الـ Tenant الافتراضي (Multi-Tenant) =====
+  const defaultTenant = await prisma.tenant.findUnique({
+    where: { slug: "madina-quran" },
+  });
+  if (!defaultTenant) {
+    console.error("❌ الـ Tenant الافتراضي (madina-quran) غير موجود — أوقِف البذر");
+    process.exit(1);
+  }
+
   // ===== 0) المسؤول العام (من بيئة التشغيل) =====
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
     console.error(
@@ -354,6 +363,7 @@ async function main() {
       startDate,
       endDate,
       isActive: true,
+      tenantId: defaultTenant.id,
     },
   });
   console.log("✅ الموسم النشط:", season.name);
@@ -378,6 +388,7 @@ async function main() {
         district: "الحي العام",
         contactInfo: randomPhone(),
         createdAt: new Date(Date.now() - Math.floor(Math.random() * 180) * 86400000),
+        tenantId: defaultTenant.id,
       },
     });
     createdInstitutions.push(inst.id);
@@ -463,6 +474,7 @@ async function main() {
           segmentsCount: 10,
           institutionId: modelInstitutionId,
           seasonId: season.id,
+          tenantId: defaultTenant.id,
         },
       });
       modelCount++;
@@ -495,6 +507,7 @@ async function main() {
         phone: randomPhone(),
         status: i % 5 === 0 ? StudentStatus.PENDING : StudentStatus.APPROVED,
         institutionId: instId,
+        tenantId: defaultTenant.id,
       },
     });
     createdStudents.push({ id: student.id, name: student.name, branch: student.branch, institutionId: instId });
@@ -543,6 +556,7 @@ async function main() {
           period: i % 2 === 0 ? "صباحي" : "مسائي",
           status: "SCHEDULED",
           seasonId: season.id,
+          tenantId: defaultTenant.id,
         },
       });
       // تحديث حالة الطالب إلى ASSIGNED (لأننا كوّنا له لجنة)

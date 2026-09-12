@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole, assertExaminerInSession } from "@/lib/security";
+import { requireUser, requireRole, assertExaminerInSession, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -31,7 +31,8 @@ import { dispatchNotificationChannels } from "@/lib/notifications";
  */
 async function resolveModelId(
   sessionId: string,
-  branch: string
+  branch: string,
+  tenantId: string
 ): Promise<string | null> {
   const season = await getCurrentSeason();
 
@@ -58,6 +59,7 @@ async function resolveModelId(
           branch,
           detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
           seasonId: season.id,
+          tenantId,
         },
       });
       return created.id;
@@ -91,7 +93,7 @@ export async function saveAssessment(input: AssessmentInput) {
 
   const totals = computeTotals(data);
 
-  const modelId = await resolveModelId(session.id, session.student.branch);
+  const modelId = await resolveModelId(session.id, session.student.branch, requireTenantId(user));
 
   if (!modelId) {
     throw new Error("لا يوجد نموذج اختباري مرتبط بهذه الجهة في الموسم الحالي");
@@ -114,6 +116,7 @@ export async function saveAssessment(input: AssessmentInput) {
         examSessionId: session.id,
         evaluatorId: user.id,
         modelId,
+        tenantId: requireTenantId(user),
         wordErrors: data.wordErrors,
         letterErrors: data.letterErrors,
         diacriticErrors: data.diacriticErrors,
@@ -149,6 +152,7 @@ export async function saveAssessment(input: AssessmentInput) {
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.ASSESS,
         details: JSON.stringify({
           examSessionId: session.id,
@@ -251,6 +255,7 @@ export async function approveAssessment(examSessionId: string) {
           message: `اعتمد المختبر تقييم الطالب «${session.student.name}» — بانتظار مراجعتك`,
           type: NotificationType.ASSESSMENT,
           examSessionId: session.id,
+          tenantId: requireTenantId(user),
         })),
       });
     }
@@ -258,6 +263,7 @@ export async function approveAssessment(examSessionId: string) {
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.APPROVE,
         details: JSON.stringify({
           examSessionId: session.id,

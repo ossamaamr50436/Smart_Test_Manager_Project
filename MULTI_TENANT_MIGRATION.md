@@ -1,4 +1,4 @@
-# Multi-Tenant Migration — Session 1/4
+# Multi-Tenant Migration — Session 1/4 (Session 2 مكتملة)
 
 ## تاريخ التنفيذ
 2026-09-12
@@ -64,3 +64,67 @@
 
 - السكربتات المؤقتة (إن وُجدت) — احذفها بعد الانتهاء.
 - لم يُرفع شيء إلى GitHub (commit محلي فقط).
+
+---
+
+# Session 2 — ربط البيانات بالمستأجر الافتراضي
+
+## الحالة
+✅ **مكتمل** — `tenantId` الآن NOT NULL في كل الجداول التابعة للمستأجر، والمنصة تبني بنجاح.
+
+## المنجز
+
+### 1) المستأجر الافتراضي
+- ✅ حُذفت بيانات التمرين/السكربتات (Session 1 transformer) — اكتُشفت أشخاص بـ 1@3.sa,
+  1@1.sa (olehta5@gmail.com) قبل التأكيد التنفيذي (لم تُستخدم).
+- ✅ أُنشئ `Tenant`: slug `madina-quran`، الاسم "جمعية تعليم القرآن وعلومه - فرع المدينة المنورة"
+  (المعرّف: `cmtyqsflq0000bught6ds9gqv`).
+
+### 2) بيانات مرتبطة بالمستأجر (قبل حذف المستخدمين)
+- ✅ 5 مستخدمين، موسمان، 100 نموذج امتحان، 50 سجل Audit → رُبطت.
+- ✅ تحقق انتهائي: `null-check = 0` في كل الجداول المرتبطة.
+
+### 3) حذف المستخدمين غير المطلوبين
+- ✅ حُذف: 1@3.sa (HEAD_OF_AFFAIRS)، 1@4.sa (CERTIFICATE_SOURCE)،
+  1@2.sa (TEST_SPECIALIST)، mr.hema95373@gmail.com (ADMIN).
+- ✅ 15 سجل Audit أصبحت `userId = null` (عمداً — لا يوجد مستخدم مرتبط).
+- ✅ الباقي: `ossamaamr50436@gmail.com` (ADMIN، `tenantId` = المستأجر الافتراضي).
+
+### 4) تعديلات المخطط (NOT NULL + @unique)
+- ✅ `tenantId String` NOT NULL على 11 جدول (الكل ما عدا `User` يبقى اختيارياً).
+- ✅ `Committee` → `@@unique([tenantId, name, seasonId])`.
+- ✅ `ExamModel` → `@@unique([tenantId, modelNumber, seasonId, branch])`.
+- ✅ `AssessmentSettings` → `tenantId String @unique` (تحويل العلاقة إلى one-to-one فعلية).
+- ✅ `prisma format` + `prisma validate` — OK.
+
+### 5) الهجرة
+- ⚠️ `migrate dev` غير قابل للاستخدام في هذه البيئة (تشغيل غير تفاعلي + تحذيرات فكّ فحص).
+- ✅ بديل: `prisma migrate diff --from-url <DATABASE_URL> --to-schema-datamodel prisma/schema.prisma --script`
+  → صيغ SQL ثم `prisma migrate deploy` (مطبّقة بنجاح، 12 هجرة).
+- ⚠️ تحذيرات فكّ الفحص (آمنة — لا تكرار في البيانات):
+  `assessment_settings_tenantId_key`، `committees_tenantId_name_seasonId_key`،
+  `exam_models_tenantId_modelNumber_seasonId_branch_key`.
+
+### 6) الإبقاء على الترجمة بعد جعل `tenantId` إلزامياً
+- ✅ أُضيفت `tenantId` في مسار TSC للـ create/upsert في كافة Server Actions، `auth.ts`
+  (سجلات Audit نجاح/فشل تسجيل الدخول)، `lib/notifications.ts`، `/api/import/models`،
+  `prisma/seed.ts`، وسكربتي `apply-user-fixes` و `import-quran-models`.
+- ✅ مُساعدان جديدان في `lib/security.ts`:
+  - `requireTenantId(user)` — يرمي خطأً إن كان `user.tenantId` فارغاً.
+  - `getActorTenantId(userId)` — يحلّ Tenant الـ Actor من قاعدة البيانات (لـ Audit).
+- ✅ حُذفت السكربتات المؤقتة: `export-current-data.ts`, `create-default-tenant.ts`,
+  `link-data-to-tenant.ts`, `delete-non-super-admin-users.ts`.
+- ✅ `npx tsc --noEmit` — **0 أخطاء**، و `npm run build` — **نجاح**.
+
+## نقاط رجوع Git
+- قبل الربط: `c9860e6 checkpoint: before multi-tenant data linking`.
+- Snapshot: `snapshots/schema_before_data_linking.prisma` + `snapshots/data_export/pre_migration.json`.
+
+## ملاحظات (Session 2)
+- `User.tenantId` يبقى اختيارياً (مستخدم واحد متبقٍ مربوط بالمستأجر).
+- التعديلات على Server Actions كانت الحد الأدنى المطلوب للترجمة فقط (لا تغيير في المنطق).
+- التعديل القادم في الجلسة 3 (حسب o.txt): حقول العرض العامة السمعية/البصرية في UI مع
+  `UseTenant` واستعلامات `tenantId` في Server Actions.
+
+## ملاحظات
+- لم يُرفع شيء إلى GitHub بعد (commits محلية فقط).

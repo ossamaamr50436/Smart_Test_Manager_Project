@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -53,12 +53,14 @@ export async function updateAssessmentSettings(input: {
         errorDeduction: input.errorDeduction,
         doubtDeduction: input.doubtDeduction,
         tajweedDeduction: input.tajweedDeduction,
+        tenantId: requireTenantId(user),
       },
     });
 
     await tx.auditLog.create({
       data: {
         userId: user.id,
+        tenantId: requireTenantId(user),
         action: AuditAction.UPDATE,
         details: JSON.stringify({
           entity: "AssessmentSettings",

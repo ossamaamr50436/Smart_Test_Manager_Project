@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import {
   Role,
@@ -26,8 +26,9 @@ async function recordAudit(
   action: AuditAction,
   details: Prisma.InputJsonValue
 ) {
+  const tenantId = await getActorTenantId(userId);
   await prisma.auditLog.create({
-    data: { userId, action, details },
+    data: { userId, action, details, tenantId },
   });
 }
 
@@ -521,6 +522,7 @@ export async function createAdminInstitution(input: {
           supervisorPhone,
           licenseNumber,
           district,
+          tenantId: requireTenantId(user),
         },
       });
 
@@ -539,6 +541,7 @@ export async function createAdminInstitution(input: {
       await tx.auditLog.create({
         data: {
           userId: user.id,
+          tenantId: requireTenantId(user),
           action: AuditAction.CREATE,
           details: JSON.stringify({
             entity: "Institution",
@@ -662,6 +665,7 @@ export async function createAdminSeason(input: {
       startDate,
       endDate,
       isActive: input.isActive ?? false,
+      tenantId: requireTenantId(user),
     },
   });
 
