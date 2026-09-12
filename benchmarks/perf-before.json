@@ -1,0 +1,20 @@
+{
+  "stage": "before",
+  "capturedAt": "2026-09-12T20:54:53.883Z",
+  "scale": {
+    "students": 5000,
+    "institutions": 10,
+    "sessions": 5000
+  },
+  "seqScanOnStudentsList": true,
+  "queries": {
+    "students_paged_list": 392.95820000000003,
+    "students_count_by_status": 95.55160000000069,
+    "sessions_paged_list": 180.7578999999996,
+    "certificates_pending_list": 178.5023000000001,
+    "institutions_search": 90.12870000000021,
+    "auditlog_tenant_list": 93.86099999999988,
+    "active_season": 95.58849999999984,
+    "user_notifications": 176.0073000000002
+  }
+}
