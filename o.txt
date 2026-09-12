@@ -1,478 +1,92 @@
-أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Tailwind CSS، Prisma، NextAuth v5، Zod.
+أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، NextAuth v5، Zod.
 
 📌 سياق المهمة:
-المنصة منشورة على Vercel: https://smart-test-manager-project.vercel.app
-تم فحصها بواسطة Seovix وظهرت مشاكل حرجة في:
-1. خطأ تغيير كلمة المرور الإلزامية (رسالة إنجليزية).
-2. الأداء بطيء (LCP 2.7s، TBT 278ms، TTI 4.0s، CLS 0.150، Mobile 86).
-3. SEO ضعيف جداً (0/100).
-4. توافق الجوال غير كافٍ (مساحة اللمس < 48px).
-5. وجود مفهوم "الأكبر/الأصغر سناً".
-6. عدم وجود قسم تعليمي.
-7. **زر تسجيل الدخول يحتاج ضغطات متعددة**.
-8. **يُجبَر المستخدم المُنشَأ من الأدمن على تغيير كلمة المرور**.
+تخفيف شروط كلمة المرور في المنصة. المطلوب الوحيد: **5 مدخلات على الأقل**.
+لا حاجة لحرف كبير، حرف صغير، رقم، أو رمز. أي مزيج من أي 5 رموز يكفي.
 
-🎯 المطلوب: 8 مهام شاملة، تنفَّذ بالترتيب.
+🎯 التغييرات المطلوبة:
 
----
-
-📜 التعليمات الصارمة:
-1. اقرأ `CONSTITUTION.txt` و `prisma/schema.prisma` أولاً.
-2. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm build`.
-3. لا تستخدم `any` أو `as unknown as`.
-4. **لا ترفع على GitHub** — سأراجع ثم أرفع بنفسي.
-5. وثّق كل شيء في `DEPLOYMENT_FIX_REPORT.md`.
-6. جميع رسائل الأخطاء بالعربية — لا استثناءات.
-
----
-
-🔴 المهمة 1 (الأهم): إصلاح زر تسجيل الدخول — يحتاج ضغطات متعددة
-
-**المشكلة الوصفية:**
-- المستخدم يضغط زر "دخول".
-- لا يحدث شيء.
-- يضغط مرة ثانية → يبدأ التحميل.
-- يضغط مرة ثالثة → يدخل.
-- **هذا يشمل زر الدخول وأي زر في النماذج.**
-
-**التشخيص المطلوب (تحليل شامل):**
-
-1.1 **في `components/auth/login-form.tsx` (أو ما يعادله):**
-- اقرأ الكود كاملاً.
-- ابحث عن:
-  - `useTransition` أو `useState(loading)` أو `useFormStatus`.
-  - `preventDefault()` في `onSubmit`.
-  - `disabled` على الزر.
-  - `signIn()` من `next-auth/react` أو Server Action.
-  - `router.push` بعد النجاح.
-
-1.2 **السبب الأكثر ترجيحاً (بناءً على التاريخ):**
-- **مشكلة Hydration** في Next.js 14: الزر لا يكون interactive حتى ينتهي Hydration.
-- الحل: **`useFormStatus` + `<form action={serverAction}>`** بدلاً من `onSubmit` اليدوي.
-- أو: **`useTransition` + Server Action مباشر**.
-
-1.3 **في `lib/actions/auth-actions.ts` (أو ما يعادله):**
-- إذا كان `signIn` يُستدعى من Server Action → تأكد أنه لا يُعيد التوجيه بطريقة خاطئة.
-- إذا كان من `next-auth/react` → استخدم `redirect: false` ثم `router.push` بنفسك.
-
-1.4 **في `app/(auth)/login/page.tsx`:**
-- تأكد أن الصفحة **Server Component**.
-- تأكد أن `LoginForm` هو **Client Component** فقط.
-- إذا كانت الصفحة بأكملها Client Component → هذا سبب مشكلة Hydration.
-
-1.5 **الحل المعتمد:**
-
+🔴 1. تبسيط `passwordSchema` في `lib/validations/user.ts`:
 ```typescript
-// components/auth/login-form.tsx
-"use client";
-
-import { useState, useTransition } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-export function LoginForm() {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState("");
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (isPending) return; // منع الضغط المزدوج
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-
-    startTransition(async () => {
-      setError("");
-      try {
-        const result = await signIn("credentials", {
-          email,
-          password,
-          redirect: false,
-        });
-        if (result?.error) {
-          setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
-        } else {
-          router.push("/");
-          router.refresh();
-        }
-      } catch {
-        setError("حدث خطأ — حاول لاحقاً");
-      }
-    });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="email">البريد الإلكتروني</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          disabled={isPending}
-        />
-      </div>
-      <div>
-        <Label htmlFor="password">كلمة المرور</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          disabled={isPending}
-        />
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={isPending} className="w-full">
-        {isPending ? "جارٍ الدخول..." : "دخول"}
-      </Button>
-    </form>
-  );
-}
-```
-
-**ملاحظات الحل:**
-- `disabled={isPending}` يمنع الضغط أثناء المعالجة.
-- `startTransition` يجعل الزر interactive قبل Hydration.
-- `redirect: false` + `router.push` يعطي تحكماً كاملاً.
-- لا يوجد `loading` state مزدوج.
-
-1.6 **تحقق إلزامي:**
-- افتح `/login` في متصفح نظيف.
-- اضغط "دخول" **مرة واحدة فقط**.
-- المتوقع: يبدأ التحميل فوراً → يدخل.
-- **لا يحتاج ضغطاً ثانياً**.
-
-1.7 **نفس المنهج طبّقه في:**
-- كل نماذج `components/**/*form*.tsx`.
-- كل نماذج `components/**/*manager*.tsx` (الأزرار النهائية).
-- تأكد أن كل `<Button type="submit">` له `disabled={isPending}`.
-
----
-
-🔴 المهمة 2: إلغاء إجبار تغيير كلمة المرور للمستخدمين المُنشَأين من الأدمن
-
-**المشكلة:**
-عندما ينشئ الأدمن مستخدماً جديداً، النظام يضبط `mustChangePassword: true` — فيُجبَر المستخدم على تغيير كلمة المرور عند أول دخول.
-
-**المطلوب:**
-- **إلغاء هذا السلوك** للمستخدمين المُنشَأين من الأدمن.
-- كلمة المرور التي يضعها الأدمن تبقى **فعالة دائماً**.
-- الأدمن يستطيع **التحكم يدوياً** بإجبار التغيير إن أراد (خيار في النموذج).
-
-**التنفيذ:**
-
-2.1 **في `lib/actions/admin-panel-actions.ts` (دالة `createAdminUser`):**
-- احذف `mustChangePassword: true`.
-- غيّره إلى `mustChangePassword: false` (افتراضياً).
-- أضف معاملاً اختيارياً `forcePasswordChange?: boolean` في `input`.
-- إذا `forcePasswordChange === true` → `mustChangePassword: true`، وإلا → `false`.
-
-```typescript
-export async function createAdminUser(input: {
-  name: string;
-  email: string;
-  password: string;
-  role: string;
-  birthDate?: string;
-  institutionId?: string;
-  forcePasswordChange?: boolean; // ← جديد
-}): Promise<CreateUserResult> {
-  // ...
-  created = await prisma.user.create({
-    data: {
-      // ...
-      mustChangePassword: input.forcePasswordChange === true, // ← الافتراضي false
-    },
-  });
-  // ...
-}
-```
-
-2.2 **في `components/admin/admin-users-manager.tsx`:**
-- في نموذج الإنشاء، أضف Switch اختياري:
-  ```
-  [ ] إجبار المستخدم على تغيير كلمة المرور عند أول دخول
-  ```
-- افتراضياً غير مفعّل.
-- أرسل `forcePasswordChange` في بيانات الإنشاء.
-
-2.3 **في `auth.config.ts` (منطق middleware):**
-- تأكد أن `mustChangePassword: false` **لا** يُوجّه إلى `/change-password`.
-- إذا كان المنطق يعتمد على قيمة أخرى، أصلحه.
-
-2.4 **اختبار إلزامي:**
-- كأدمن → أنشئ مستخدماً جديداً (بدون تفعيل Switch).
-- سجّل دخول بالحساب الجديد.
-- **المتوقع**: يدخل مباشرة إلى لوحة دوره — **لا يُوجَّه إلى `/change-password`**.
-- ثم كأدمن → أنشئ مستخدماً آخر مع تفعيل Switch.
-- سجّل دخول به → **يُوجَّه إلى `/change-password`**.
-
----
-
-🔴 المهمة 3: إصلاح خطأ تغيير كلمة المرور الإلزامية
-
-**المشكلة**: عند تغيير كلمة المرور، إذا:
-- المستخدم أدخل كلمة جديدة = الحالية
-- أو كلمتان غير متطابقتين
-- أو كلمة ضعيفة
-
-يظهر خطأ إنجليزي طويل.
-
-**المطلوب:**
-
-3.1 حوّل `changeMyPassword` في `lib/actions/change-password-actions.ts` إلى union:
-```typescript
-export type ChangePasswordResult =
-  | { success: true }
-  | { success: false; error: string; fieldErrors?: Record<string, string> };
-```
-
-3.2 التحققات بالترتيب:
-- كلمة المرور الحالية مطلوبة → "كلمة المرور الحالية مطلوبة"
-- الجديدة تطابق `passwordSchema` → "كلمة المرور ضعيفة"
-- الجديدة = الحالية → "كلمة المرور الجديدة يجب أن تختلف عن كلمة المرور الحالية"
-- الجديدة ≠ التأكيد → "كلمتا المرور غير متطابقتين"
-- كلمة المرور الحالية خاطئة → "كلمة المرور الحالية غير صحيحة"
-- نجاح → `{ success: true }`
-
-3.3 في `components/auth/change-password-form.tsx`:
-- اعرض `result.error` كنص عربي.
-- استخدم `useTransition`.
-- عطّل الزر أثناء `isPending`.
-
----
-
-🔴 المهمة 4: تحسين الأداء الجذري
-
-**المشاكل من Seovix:**
-- LCP: 2.7s (الهدف < 2.0s)
-- TBT: 278ms (الهدف < 200ms)
-- TTI: 4.0s (الهدف < 3.8s)
-- CLS: 0.150 (الهدف < 0.1)
-- Mobile Score: 86 (الهدف > 90)
-
-**المطلوب:**
-
-4.1 **تقليل JavaScript:**
-- استخدم `next/dynamic` مع `ssr: false` للمكونات الثقيلة (Lottie، recharts).
-
-4.2 **تحسين الصور:**
-- استبدل `<img>` بـ`next/image` في كل مكان.
-- `priority` للشعار في login فقط.
-- `width` و `height` لكل الصور.
-
-4.3 **تقليل CLS:**
-- أبعاد ثابتة للصور والأيقونات.
-- `min-height` للحاويات المتغيرة.
-- احفظ مساحة Sidebar/Topbar.
-
-4.4 **تحسين TBT:**
-- `React.memo` للمكونات الثقيلة.
-- `useMemo` و `useCallback` للحسابات.
-- تقليل الـInline scripts.
-
-4.5 **تحسين LCP:**
-- `<link rel="preload">` للخطوط.
-- `font-display: swap`.
-- شعار < 20KB.
-
-4.6 **Loading States:**
-- `loading.tsx` لكل مسار ثقيل.
-
-4.7 **`next.config.mjs`:**
-```javascript
-const nextConfig = {
-  compress: true,
-  poweredByHeader: false,
-  compiler: {
-    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
-  },
-  experimental: {
-    optimizePackageImports: [
-      "lucide-react", "@radix-ui/react-dialog", "@radix-ui/react-select",
-      "@radix-ui/react-dropdown-menu", "date-fns", "recharts",
-    ],
-  },
-  images: {
-    formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 60 * 60 * 24 * 30,
-  },
-};
-```
-
-4.8 **اختبر بـLighthouse Mobile → Score > 90**.
-
----
-
-🔴 المهمة 5: SEO شامل
-
-**المشاكل:** لا Title، Description، H1، Canonical، OG، Schema، robots.txt، sitemap.xml.
-
-**المطلوب:**
-
-5.1 **في `app/layout.tsx`:**
-```typescript
-export const metadata: Metadata = {
-  title: {
-    default: "منصة مدير الاختبارات الذكي | جمعية تعليم القرآن وعلومه",
-    template: "%s | منصة الاختبارات الذكي",
-  },
-  description: "منصة رقمية شاملة لإدارة اختبارات حفظ القرآن الكريم وفق لائحة الجمعية - فرع المدينة المنورة.",
-  keywords: ["اختبارات القرآن", "حفظ القرآن", "المدينة المنورة"],
-  metadataBase: new URL("https://smart-test-manager-project.vercel.app"),
-  openGraph: {
-    type: "website",
-    locale: "ar_SA",
-    title: "منصة مدير الاختبارات الذكي",
-    description: "إدارة اختبارات حفظ القرآن الكريم",
-    images: [{ url: "/logo.png", width: 512, height: 512 }],
-  },
-  robots: { index: true, follow: true },
-  alternates: { canonical: "https://smart-test-manager-project.vercel.app" },
-};
-```
-
-5.2 **في كل صفحة:** `export const metadata` + `<h1>` واحد.
-
-5.3 **Schema Markup (JSON-LD)** في `app/layout.tsx` كـ`EducationalOrganization`.
-
-5.4 **`app/robots.ts`** و **`app/sitemap.ts`**.
-
-5.5 **Security Headers في `next.config.mjs`:**
-```javascript
-async headers() {
-  return [{
-    source: "/(.*)",
-    headers: [
-      { key: "X-Frame-Options", value: "DENY" },
-      { key: "X-Content-Type-Options", value: "nosniff" },
-      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-    ],
-  }];
-}
-```
+export const passwordSchema = z
+  .string()
+  .min(5, "كلمة المرور يجب أن تكون 5 أحرف/رموز على الأقل")
+  .max(128, "كلمة المرور طويلة جداً");
+احذف كل .regex(...) الموجود (A-Z، a-z، 0-9).
 
-5.6 **`<html lang="ar" dir="rtl">`**.
+🔴 2. طبّق نفس التبسيط في كل مكان فيه تحقق يدوي:
 
----
-
-🔴 المهمة 6: توافق شامل + مساحة اللمس
-
-**الأحجام المستهدفة:** iPhone SE (375)، iPhone 14 (390)، iPhone 15 Pro Max (430)، Galaxy S23 (360)، iPad Mini (768)، Desktop (1280-1920).
-
-**المطلوب:**
-
-6.1 **`app/globals.css`:**
-```css
-@media (max-width: 640px) {
-  html { font-size: 14px; }
-  button, a, [role="button"], input, select, textarea { min-height: 48px; }
-  body { overflow-x: hidden; max-width: 100vw; }
-}
-```
-
-6.2 **Sidebar → Drawer على الجوال** مع hamburger في Topbar.
-
-6.3 **البطاقات:** `grid-cols-1` → `sm:grid-cols-2` → `lg:grid-cols-3`.
-
-6.4 **الجداول:** تحوّل إلى بطاقات على الجوال، أو `overflow-x-auto`.
-
-6.5 **النماذج:** `grid-cols-1` على الجوال، `sm:grid-cols-2`.
-
-6.6 **`<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">`**.
-
-6.7 **اختبر iPhone SE (375) و iPad Mini (768) و Desktop (1920)**.
-
----
-
-🔴 المهمة 7: إزالة مفهوم "الأكبر/الأصغر سناً"
-
-**المطلوب:**
-
-7.1 ابحث في كل الملفات عن: `senior`, `junior`, `الأكبر`, `الأصغر`, `seniorIsUser`.
-
-7.2 في `assessment-board.tsx`: احذف `seniorIsUser` وزرَي الاعتماد المزدوجين → زر واحد "اعتماد تقييمي".
-
-7.3 في `page.tsx`: احذف حساب الأكبر/الأصغر.
-
-7.4 في `assessment-actions.ts`: كل مختبر يعتمد مستقل.
-
-7.5 في صفحة الأخصائي: اعرض تقييمات كل مختبر منفصلة.
-
----
-
-🔴 المهمة 8: قسم "تعليم / دوري / حول" في الإعدادات
-
-**المطلوب:**
-
-8.1 **Schema جديد**: في `AppSettings`:
-```prisma
-showTutorialSection Boolean @default(true)
-```
-
-8.2 **Migration**: `pnpm prisma migrate dev --name add_tutorial_section`.
-
-8.3 **صفحة `/settings/tutorial`**: محتوى مخصص حسب كل دور.
-
-8.4 **في `settings/page.tsx`**: رابط إذا كان `showTutorialSection === true`.
-
-8.5 **في `admin/settings/page.tsx`**: Switch للتحكم.
-
-8.6 **في Sidebar**: رابط "التعليم والدور".
-
----
-
-✅ معايير النجاح النهائية:
-
-**زر الدخول (المهمة 1):**
-1. زر الدخول يعمل من **ضغطة واحدة** بدون أي تكرار.
-2. كل الأزرار في النماذج تعمل من **ضغطة واحدة**.
-
-**كلمة المرور الإدارية (المهمة 2):**
-3. مستخدم أُنشئ من الأدمن بدون Switch → يدخل مباشرة.
-4. مستخدم أُنشئ مع Switch → يُوجَّه إلى `/change-password`.
-
-**خطأ كلمة المرور (المهمة 3):**
-5. كل الأخطاء عربية واضحة.
-
-**الأداء (المهمة 4):**
-6. Lighthouse Mobile > 90، LCP < 2.0s، TBT < 200ms، CLS < 0.1.
-
-**SEO (المهمة 5):**
-7. Title، H1، OG، Schema، robots.txt، sitemap.xml موجودة.
-
-**التوافق (المهمة 6):**
-8. iPhone SE (375): لا overflow، أزرار ≥ 48px.
-
-**المختبرون (المهمة 7):**
-9. لا ذكر "الأكبر/الأصغر" في أي مكان.
-
-**التعليم (المهمة 8):**
-10. صفحة `/settings/tutorial` تعمل.
-
-**عامة:**
-11. `pnpm typecheck` ✅
-12. `pnpm build` ✅
-13. لا `any` أو `as unknown as`.
+lib/actions/admin-panel-actions.ts:
+
+createAdminUser: احذف التحقق من A-Z/a-z/0-9.
+
+resetAdminUserPassword: احذف التحقق من A-Z/a-z/0-9.
+
+اكتفِ بـ password.length >= 5.
+
+lib/actions/examiner-actions.ts:
+
+createExaminer و resetExaminerPassword — نفس المعالجة.
+
+lib/actions/entity-actions.ts:
+
+createInstitutionBySpecialist — كلمة المرور = رقم التصريح، لكن احذف أي regex صارم إن وُجد.
+
+lib/actions/change-password-actions.ts:
+
+changeMyPassword — احذف التحقق من A-Z/a-z/0-9.
+
+أبقِ التحققات المنطقية فقط: "كلمة المرور الحالية مطلوبة"، "الجديدة يجب أن تختلف عن الحالية"، "كلمتا المرور غير متطابقتين".
+
+auth.ts:
+
+credentialsSchema: تأكد أن حقل password لا يحتوي على min قيمي كثير — يكفي z.string().min(1).
+
+🔴 3. حدّث رسائل الواجهة (UI helpers):
+
+ابحث في كل ملفات .tsx عن أي نص يذكر "حرف كبير" أو "حرف صغير" أو "رقم" بجانب "كلمة المرور"، واستبدله بـ:
+"كلمة المرور: 5 أحرف/رموز على الأقل (لا شروط أخرى)."
+
+الملفات المتوقعة:
+
+components/admin/admin-users-manager.tsx
+
+components/specialist/teachers-manager.tsx
+
+components/specialist/entity-create-form.tsx
+
+components/auth/change-password-form.tsx
+
+أي نموذج آخر فيه كلمة مرور.
+
+🔴 4. حدّث الوثائق:
+
+ابحث في docs/ و README.md و DEPLOYMENT_FIX_REPORT.md و ACCOUNTS_REPORT.md عن أي نص يصف شروط كلمة المرور القديمة، وحدّثه.
+
+✅ معايير النجاح:
+
+pnpm typecheck + pnpm build ينجحان.
+
+إنشاء مستخدم بكلمة abcde → نجاح.
+
+إنشاء مستخدم بكلمة 12345 → نجاح.
+
+إنشاء مستخدم بكلمة !@#$% → نجاح.
+
+إنشاء مستخدم بكلمة abc (3 أحرف) → رفض مع رسالة عربية.
+
+تغيير كلمة المرور بنفس الشروط.
 
 📝 التوثيق:
-حدّث `DEPLOYMENT_FIX_REPORT.md` بأقسام لكل مهمة.
+
+حدّث DEPLOYMENT_FIX_REPORT.md بقسم صغير "الجزء الخامس: تخفيف شروط كلمة المرور".
 
 🚫 ممنوع:
-- استخدام `any`.
-- حذف ملفات قائمة.
-- رسالة خطأ إنجليزية.
-- `throw new Error` في Server Action جديد.
-- الـpush إلى GitHub.
 
-**ابدأ الآن. اتبع المهام بالترتيب. وثّق كل خطوة.**
+الـpush إلى GitHub.
+
+حذف ملفات.
+
+استخدام any.
+
+ابدأ الآن. عند الانتهاء، أرسل تقريراً موجزاً.

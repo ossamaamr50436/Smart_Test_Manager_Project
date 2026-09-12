@@ -387,10 +387,7 @@ export async function resetAdminUserPassword(
     return { success: false, error: "معرّف المستخدم غير صالح" };
   }
   if (!newPassword || newPassword.length < 5) {
-    return { success: false, error: "كلمة المرور الجديدة يجب ألا تقل عن 5 أحرف" };
-  }
-  if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-    return { success: false, error: "كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم" };
+    return { success: false, error: "كلمة المرور الجديدة يجب أن تكون 5 أحرف/رموز على الأقل" };
   }
 
   const target = await prisma.user.findUnique({ where: { id: userId } });

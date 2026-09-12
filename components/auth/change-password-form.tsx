@@ -49,7 +49,7 @@ export function ChangePasswordForm({ forced }: { forced?: boolean }) {
       <CardHeader>
         <CardTitle>{forced ? "إلزامي: غيّر كلمة مرورك" : "تغيير كلمة المرور"}</CardTitle>
         <CardDescription>
-          كلمة المرور لا تقل عن 5 أحرف وتحتوي على حرف كبير وحرف صغير ورقم واحد على الأقل
+          كلمة المرور: 5 أحرف/رموز على الأقل (لا شروط أخرى).
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -179,7 +179,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="exPassword">
-                كلمة المرور المؤقتة * (5 أحرف + حرف كبير وصغير ورقم)
+                كلمة المرور المؤقتة * (5 أحرف/رموز على الأقل — لا شروط أخرى)
               </Label>
               <Input
                 id="exPassword"
@@ -265,7 +265,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
           {resetId && (
             <div className="mt-4 rounded-lg border bg-muted/40 p-4">
               <Label htmlFor="resetPass">
-                كلمة مرور جديدة (5 أحرف + حرف كبير وصغير ورقم)
+                كلمة مرور جديدة (5 أحرف/رموز على الأقل — لا شروط أخرى)
               </Label>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Input

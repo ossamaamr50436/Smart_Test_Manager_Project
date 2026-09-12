@@ -280,7 +280,7 @@ export function AdminUsersManager() {
                   dir="ltr"
                 />
                 <p className="text-xs text-muted-foreground">
-                  كلمة المرور: 5 أحرف على الأقل، وتحتوي على حرف كبير وحرف صغير ورقم.
+                  كلمة المرور: 5 أحرف/رموز على الأقل (لا شروط أخرى).
                 </p>
               </div>
               <div className="space-y-1">
@@ -462,7 +462,7 @@ export function AdminUsersManager() {
                 dir="ltr"
               />
               <p className="text-xs text-muted-foreground">
-                كلمة المرور: 5 أحرف على الأقل، وتحتوي على حرف كبير وحرف صغير ورقم.
+                كلمة المرور: 5 أحرف/رموز على الأقل (لا شروط أخرى).
               </p>
             </div>
             <div className="mt-4 flex gap-2">
