@@ -1,92 +1,412 @@
-أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، NextAuth v5، Zod.
+أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، PostgreSQL (Neon)، Windows PowerShell.
 
 📌 سياق المهمة:
-تخفيف شروط كلمة المرور في المنصة. المطلوب الوحيد: **5 مدخلات على الأقل**.
-لا حاجة لحرف كبير، حرف صغير، رقم، أو رمز. أي مزيج من أي 5 رموز يكفي.
+هذه الجلسة 1 من 4 لتحويل المنصة إلى Multi-Tenant SaaS.
+الهدف الوحيد: تعديل Schema Prisma لدعم Multi-Tenant **بإضافة حقول nullable فقط**.
 
-🎯 التغييرات المطلوبة:
+🚨 قواعد حرجة (اقرأها مرتين):
+1. **لا تحذف أي مستخدم** في هذه الجلسة — المنصة تحتاج للعمل بوضعها الحالي.
+2. **لا تجعل `tenantId` NOT NULL** — سيصبح كذلك في الجلسة 2.
+3. **لا تعدّل أي Server Action** — سنفعل ذلك في الجلسة 3.
+4. **لا تغيّر `@@unique` الحالية** — سنعدّلها في الجلسة 2.
+5. **لا تُنشئ نموذج `TenantBranding`** — الألوان في `Tenant` مباشرة.
 
-🔴 1. تبسيط `passwordSchema` في `lib/validations/user.ts`:
-```typescript
-export const passwordSchema = z
-  .string()
-  .min(5, "كلمة المرور يجب أن تكون 5 أحرف/رموز على الأقل")
-  .max(128, "كلمة المرور طويلة جداً");
-احذف كل .regex(...) الموجود (A-Z، a-z، 0-9).
+🎯 ستنجز في هذه الجلسة فقط:
+1. إضافة `SUPER_ADMIN` إلى enum Role.
+2. إضافة نموذج `Tenant` واحد.
+3. إضافة `tenantId String?` إلى 12 جدول (User + 11).
+4. Migration واحدة: `add_tenant_support_phase1`.
+5. التحقق من typecheck + build.
+6. توثيق في `MULTI_TENANT_MIGRATION.md`.
+7. Snapshot محلي للـSchema (احتياطي بسيط).
 
-🔴 2. طبّق نفس التبسيط في كل مكان فيه تحقق يدوي:
+---
 
-lib/actions/admin-panel-actions.ts:
+📜 التعليمات الصارمة:
+1. اقرأ `prisma/schema.prisma` كاملاً قبل أي تعديل.
+2. **جميع الأوامر PowerShell** — لا تستخدم bash.
+3. لا تستخدم `any` أو `as unknown as`.
+4. **لا ترفع على GitHub** — فقط commit محلي.
+5. لا تحذف ملفات موجودة.
+6. اتبع Pattern موحّد لكل جدول.
+7. عند كل مرحلة: تحقق قبل الانتقال للمرحلة التالية.
 
-createAdminUser: احذف التحقق من A-Z/a-z/0-9.
+---
 
-resetAdminUserPassword: احذف التحقق من A-Z/a-z/0-9.
+🔴 المرحلة 1: نقطة رجوع Git
 
-اكتفِ بـ password.length >= 5.
+```powershell
+# 1. تحقق من الحالة
+git status
 
-lib/actions/examiner-actions.ts:
+# 2. احفظ نقطة رجوع
+git add -A
+git commit -m "checkpoint: before multi-tenant schema migration"
 
-createExaminer و resetExaminerPassword — نفس المعالجة.
+# 3. تحقق
+git log --oneline -5
+```
 
-lib/actions/entity-actions.ts:
+**✅ التوقع:**
+- آخر commit: `checkpoint: before multi-tenant schema migration`.
 
-createInstitutionBySpecialist — كلمة المرور = رقم التصريح، لكن احذف أي regex صارم إن وُجد.
+**⚠️ إذا كانت شجرة Git نظيفة ولا يوجد شيء للـcommit:**
+- تجاوز الخطوات وأكمل.
+- التقرير يجب أن يذكر ذلك.
 
-lib/actions/change-password-actions.ts:
+---
 
-changeMyPassword — احذف التحقق من A-Z/a-z/0-9.
+🔴 المرحلة 2: Snapshot محلي للـSchema (احتياطي بسيط)
 
-أبقِ التحققات المنطقية فقط: "كلمة المرور الحالية مطلوبة"، "الجديدة يجب أن تختلف عن الحالية"، "كلمتا المرور غير متطابقتين".
+هذه **بديل مبسّط** عن نسخة Neon الاحتياطية — لا يحتاج أي إعداد:
 
-auth.ts:
+```powershell
+# أنشئ مجلد snapshots
+New-Item -ItemType Directory -Path "snapshots" -Force | Out-Null
 
-credentialsSchema: تأكد أن حقل password لا يحتوي على min قيمي كثير — يكفي z.string().min(1).
+# احفظ نسخة من Schema الحالي
+Copy-Item "prisma\schema.prisma" "snapshots\schema_before_multi_tenant.prisma" -Force
 
-🔴 3. حدّث رسائل الواجهة (UI helpers):
+# تحقق
+Get-ChildItem "snapshots"
+# يجب أن ترى: schema_before_multi_tenant.prisma
+```
 
-ابحث في كل ملفات .tsx عن أي نص يذكر "حرف كبير" أو "حرف صغير" أو "رقم" بجانب "كلمة المرور"، واستبدله بـ:
-"كلمة المرور: 5 أحرف/رموز على الأقل (لا شروط أخرى)."
+**✅ الفائدة:**
+- إذا احتجت الرجوع: `Copy-Item "snapshots\schema_before_multi_tenant.prisma" "prisma\schema.prisma"`
+- **لا يحتاج أي إعداد سحابي**.
+- **آمن تماماً**.
 
-الملفات المتوقعة:
+**ملاحظة للوكيل:** لا تنشئ snapshots للبيانات — البيانات لا تُلمس في هذه الجلسة.
 
-components/admin/admin-users-manager.tsx
+---
 
-components/specialist/teachers-manager.tsx
+🔴 المرحلة 3: إضافة SUPER_ADMIN إلى enum Role
 
-components/specialist/entity-create-form.tsx
+**الملف:** `prisma/schema.prisma`
 
-components/auth/change-password-form.tsx
+**ابحث عن `enum Role`، واستبدله بـ:**
 
-أي نموذج آخر فيه كلمة مرور.
+```prisma
+enum Role {
+  SUPER_ADMIN        // جديد — مالك المنصة (بدون tenantId)
+  ADMIN              // admin المؤسسة (مع tenantId)
+  HEAD_OF_AFFAIRS
+  CERTIFICATE_SOURCE
+  TEST_SPECIALIST
+  EXAMINER
+  INSTITUTION
+}
+```
 
-🔴 4. حدّث الوثائق:
+**التحقق:**
+```powershell
+Select-String -Path "prisma\schema.prisma" -Pattern "SUPER_ADMIN"
+```
 
-ابحث في docs/ و README.md و DEPLOYMENT_FIX_REPORT.md و ACCOUNTS_REPORT.md عن أي نص يصف شروط كلمة المرور القديمة، وحدّثه.
+---
 
-✅ معايير النجاح:
+🔴 المرحلة 4: إضافة نموذج Tenant
 
-pnpm typecheck + pnpm build ينجحان.
+**الملف:** `prisma/schema.prisma`
 
-إنشاء مستخدم بكلمة abcde → نجاح.
+**أضف هذا قبل `model User {` مباشرة:**
 
-إنشاء مستخدم بكلمة 12345 → نجاح.
+```prisma
+// ============================================================
+// Multi-Tenant — المؤسسات/الجمعيات
+// ============================================================
+model Tenant {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  slug            String   @unique
+  driveFolderId   String?
+  driveFolderUrl  String?
+  primaryColor    String   @default("#015e63")
+  secondaryColor  String   @default("#d3bb8b")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-إنشاء مستخدم بكلمة !@#$% → نجاح.
+  // Relations
+  users               User[]
+  institutions        Institution[]
+  students            Student[]
+  examSeasons         ExamSeason[]
+  examModels          ExamModel[]
+  committees          Committee[]
+  examSessions        ExamSession[]
+  assessments         Assessment[]
+  certificates        Certificate[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  assessmentSettings  AssessmentSettings?
 
-إنشاء مستخدم بكلمة abc (3 أحرف) → رفض مع رسالة عربية.
+  @@map("tenants")
+}
+```
 
-تغيير كلمة المرور بنفس الشروط.
+**⚠️ تنبيه:**
+- **لا تُنشئ `TenantBranding`**.
+- **لا تلمس `AppSettings`** (تبقى global).
+- **لا تلمس `RateLimit`** (تبقى global).
 
-📝 التوثيق:
+**التحقق:**
+```powershell
+Select-String -Path "prisma\schema.prisma" -Pattern "model Tenant"
+```
 
-حدّث DEPLOYMENT_FIX_REPORT.md بقسم صغير "الجزء الخامس: تخفيف شروط كلمة المرور".
+---
 
-🚫 ممنوع:
+🔴 المرحلة 5: إضافة `tenantId` إلى `User`
 
-الـpush إلى GitHub.
+**الملف:** `prisma/schema.prisma`
 
-حذف ملفات.
+**داخل `model User`، أضف:**
 
-استخدام any.
+```prisma
+// Multi-Tenant — nullable لأن SUPER_ADMIN ليس له tenant
+tenantId  String?
 
-ابدأ الآن. عند الانتهاء، أرسل تقريراً موجزاً.
+// ... في قسم Relations:
+tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+// ... في قسم Indexes:
+@@index([tenantId])
+```
+
+**⚠️ لا تغيّر:**
+- `password` (اسم الحقل الحالي — لا تغيره إلى `passwordHash`).
+- أي حقل أو علاقة موجودة.
+
+**التحقق:**
+```powershell
+(Select-String -Path "prisma\schema.prisma" -Pattern "tenantId String\?").Count
+# المتوقع: 1 (User فقط)
+```
+
+---
+
+🔴 المرحلة 6: إضافة `tenantId` إلى 11 جدول آخر
+
+**الملف:** `prisma/schema.prisma`
+
+**طبّق النمط التالي على كل جدول:**
+
+```prisma
+// 1. الحقل:
+tenantId  String?
+
+// 2. العلاقة:
+tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+// 3. الـ Index:
+@@index([tenantId])
+```
+
+### الجداول المطلوبة (بالأسماء الفعلية):
+
+| # | النموذج | اسم `@@map` |
+| :-: | :--- | :--- |
+| 1 | `Institution` | `institutions` |
+| 2 | `Student` | `students` |
+| 3 | `ExamSeason` | `exam_seasons` |
+| 4 | `ExamModel` | `exam_models` |
+| 5 | `Committee` | `committees` |
+| 6 | `ExamSession` | `exam_sessions` |
+| 7 | `Assessment` | `assessments` |
+| 8 | `Certificate` | `certificates` |
+| 9 | `Notification` | `notifications` |
+| 10 | `AuditLog` | `audit_logs` |
+| 11 | `AssessmentSettings` | `assessment_settings` |
+
+**⚠️ تحذيرات:**
+- **`ExamSeason`** وليس `Season` (اسم فعلي).
+- **لا تغيّر** `@@unique` الموجودة في `ExamModel` أو `Committee`.
+- **لا تلمس** `AppSettings`, `RateLimit`, `CommitteeModelAllocation`.
+
+**التحقق:**
+```powershell
+(Select-String -Path "prisma\schema.prisma" -Pattern "tenantId String\?").Count
+# المتوقع: 12 (User + 11 جدول)
+```
+
+---
+
+🔴 المرحلة 7: Migration واحدة
+
+```powershell
+# 1. تنسيق Schema
+pnpm prisma format
+
+# 2. تحقق من الصحة
+pnpm prisma validate
+
+# 3. تحقق من حالة الاتصال
+pnpm prisma migrate status
+# المتوقع: "Database schema is up to date!"
+
+# 4. أنشئ Migration
+pnpm prisma migrate dev --name add_tenant_support_phase1
+```
+
+**✅ التوقع:**
+- Migration جديدة في `prisma/migrations/[timestamp]_add_tenant_support_phase1/`.
+- تطبيقها على Neon بنجاح.
+- توليد Prisma Client تلقائياً.
+
+**التحقق:**
+```powershell
+pnpm prisma migrate status
+# المتوقع: "Database schema is up to date!"
+
+Get-ChildItem "prisma\migrations" | Select-Object -Last 3
+# يجب أن ترى migration جديد
+```
+
+**🚨 إذا فشلت Migration:**
+- لا تحاول حلها بالتعديل العشوائي.
+- أعد Snapshot Schema من `snapshots/schema_before_multi_tenant.prisma`.
+- أرسل الخطأ كاملاً في التقرير.
+
+---
+
+🔴 المرحلة 8: التحقق النهائي
+
+```powershell
+# 1. TypeScript
+pnpm typecheck
+# ✅ المتوقع: Found 0 errors
+
+# 2. Build
+pnpm build
+# ✅ المتوقع: Compiled successfully
+```
+
+**⚠️ إذا فشل البناء:**
+- اقرأ الخطأ بعناية.
+- عادةً سيكون بسبب علاقات ناقصة في `Tenant`.
+- صحّحها ثم أعد البناء.
+
+---
+
+🔴 المرحلة 9: التوثيق
+
+**أنشئ ملف `MULTI_TENANT_MIGRATION.md`:**
+
+```markdown
+# Multi-Tenant Migration — Session 1/4
+
+## تاريخ التنفيذ
+[اليوم]
+
+## الحالة
+✅ **مكتمل** — لم تُمسّ أي بيانات.
+
+## المنجز
+
+### Schema Changes
+- ✅ إضافة `Role.SUPER_ADMIN`
+- ✅ إنشاء نموذج `Tenant` (بدون TenantBranding)
+- ✅ إضافة `tenantId String?` إلى 12 جدول:
+  User, Institution, Student, ExamSeason, ExamModel,
+  Committee, ExamSession, Assessment, Certificate,
+  Notification, AuditLog, AssessmentSettings
+
+### Migration
+- ✅ `add_tenant_support_phase1` مطبّقة على Neon
+
+### Verification
+- ✅ `pnpm prisma validate` — OK
+- ✅ `pnpm prisma migrate status` — up to date
+- ✅ `pnpm typecheck` — 0 errors
+- ✅ `pnpm build` — success
+- ✅ Snapshot محلي: `snapshots/schema_before_multi_tenant.prisma`
+
+## 🚨 تأكيدات مهمة
+
+1. **لم يُحذف أي مستخدم** — جميع المستخدمين الحاليين في أماكنهم.
+2. **لم تُحذف أي بيانات** — كل الجداول كما هي.
+3. **المنصة قابلة للاستخدام الآن** — لم تتأثر بأي شيء.
+4. `tenantId` بقيمة `null` حالياً في كل السجلات — سيُملأ في الجلسة 2.
+
+## القرارات المعمارية
+
+- `AppSettings` — **global** (اسم المنصة + الشعار موحّدان).
+- `RateLimit` — **global**.
+- `CommitteeModelAllocation` — **لم يُعدَّل بعد**.
+- `Tenant` يحوي الألوان مباشرة (بدون نموذج منفصل).
+
+## المهام التالية (الجلسة 2)
+
+1. إنشاء Tenant افتراضي "جمعية تعليم القرآن وعلومه - فرع المدينة المنورة"
+2. ربط جميع البيانات الموجودة به
+3. جعل `tenantId` NOT NULL
+4. **حذف جميع المستخدمين إلا `ossamaamr50436@gmail.com`** (الخطوة الأخيرة)
+5. تحديث `@@unique` ليشمل `tenantId`
+
+## ملاحظات
+
+- السكربتات المؤقتة (إن وُجدت) — احذفها بعد الانتهاء.
+- لم يُرفع شيء إلى GitHub.
+```
+
+---
+
+🔴 المرحلة 10: Git Commit
+
+```powershell
+git add -A
+git status
+# راجع التغييرات
+
+git commit -m "phase 1: add multi-tenant schema support
+
+- Add Role.SUPER_ADMIN
+- Add Tenant model (with colors + drive folder)
+- Add nullable tenantId to 12 tables
+- Create migration add_tenant_support_phase1
+- No user deletion, no data touch
+- All changes are additive (nullable only)"
+
+git log --oneline -5
+```
+
+---
+
+✅ معايير النجاح النهائية:
+
+| # | المعيار | المتوقع |
+| :-: | :--- | :--- |
+| 1 | `Role.SUPER_ADMIN` موجود | ✅ |
+| 2 | `model Tenant` موجود | ✅ |
+| 3 | `tenantId String?` في 12 جدول | ✅ |
+| 4 | Migration مطبّقة | ✅ |
+| 5 | `pnpm typecheck` | 0 errors |
+| 6 | `pnpm build` | success |
+| 7 | `MULTI_TENANT_MIGRATION.md` | موجود |
+| 8 | Snapshot محلي | موجود |
+| 9 | **لا حذف للمستخدمين** | ✅ |
+| 10 | **المنصة قابلة للاستخدام** | ✅ |
+
+🚫 ممنوع تماماً:
+- تعديل `tenantId` إلى NOT NULL.
+- حذف أي مستخدم.
+- تعديل Server Actions.
+- تغيير `@@unique` الحالية.
+- إنشاء `TenantBranding`.
+- استخدام `any`.
+- الـpush إلى GitHub.
+- حذف `o.txt` أو `snapshots/`.
+
+📝 عند الانتهاء، أرسل تقريراً يحتوي على:
+
+1. ✅ نتيجة `pnpm build` (نجح/فشل + المدة).
+2. ✅ نتيجة `git log --oneline -5`.
+3. ✅ `(Select-String -Path "prisma\schema.prisma" -Pattern "tenantId String\?").Count` — يجب أن يكون 12.
+4. ✅ تأكيد أن `pnpm prisma migrate status` يقول "up to date".
+5. ✅ عدد الجداول التي تم تعديلها.
+6. ✅ أي أخطاء واجهتها + كيف حللتها.
+7. ✅ تأكيد أن المنصة لا تزال تعمل (لا حذف للمستخدمين، لا مسّ بالبيانات).
+
+**ابدأ الآن. عند الانتهاء من كل مرحلة، تحقّق قبل الانتقال للمرحلة التالية.**
