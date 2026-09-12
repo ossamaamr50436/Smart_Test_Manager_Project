@@ -1,34 +1,35 @@
-أنت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، PostgreSQL (Neon)، Windows PowerShell.
+انت الآن وكيل برمجي خبير في Next.js 14 (App Router)، TypeScript، Prisma، PostgreSQL (Neon)، NextAuth v5، Windows PowerShell.
 
 📌 سياق المهمة:
-هذه الجلسة 2 من 4 لتحويل المنصة إلى Multi-Tenant SaaS.
-الجلسة 1 اكتملت: tenantId nullable في 12 جدول + Tenant model + SUPER_ADMIN.
+هذه الجلسة 3 من 4 لتحويل المنصة إلى Multi-Tenant SaaS.
+- الجلسة 1: Schema + Migration ✅
+- الجلسة 2: Tenant + ربط البيانات + tenantId NOT NULL ✅
 
 🎯 ستنجز في هذه الجلسة (بالترتيب الصارم):
-1. إنشاء Tenant افتراضي "جمعية تعليم القرآن وعلومه - فرع المدينة المنورة".
-2. ربط جميع البيانات الحالية (النماذج، المواسم، إلخ) به.
-3. جعل `tenantId` NOT NULL في 11 جدول (ليس User).
-4. تحديث `@@unique` المطلوبة.
-5. **الخطوة الأخيرة**: حذف جميع المستخدمين إلا `ossamaamr50436@gmail.com`.
-6. Migration واحدة: `link_data_to_default_tenant`.
-7. typecheck + build.
-8. توثيق في `MULTI_TENANT_MIGRATION.md`.
+1. ترقية `ossamaamr50436@gmail.com` إلى `SUPER_ADMIN` + `tenantId = NULL`.
+2. إنشاء `lib/tenancy.ts` (helpers للعزل).
+3. تحديث `auth.config.ts` (routing حسب الدور).
+4. إضافة **فلاتر tenantId** إلى جميع Server Actions للقراءة/التحديث/الحذف.
+5. تحديث `User.tenantId` → يبقى nullable.
+6. تحديث `getCurrentUser`/`requireUser` ليشمل `tenantId` (تأكيد).
+7. Migration صغيرة: `promote_owner_to_super_admin`.
+8. typecheck + build.
+9. توثيق في `MULTI_TENANT_MIGRATION.md`.
 
 🚨 قواعد حرجة:
-1. **حذف المستخدمين هو آخر خطوة** — المنصة تُعرض حالياً.
-2. **لا تلمس `User.tenantId`** — يبقى nullable (SUPER_ADMIN ليس له tenant).
-3. **لا تعدّل Server Actions** — ذلك في الجلسة 3.
-4. **معالجة Foreign Keys** قبل حذف المستخدمين بعناية.
-5. **snapshot محلي قبل البدء**.
+1. **`ossamaamr50436@gmail.com` يبقى قادراً على الدخول** بكلمة مروره الحالية.
+2. **لا تحذف أي بيانات** — فقط ترقية دور.
+3. **لا تعدّل منطق الأعمال** — فقط أضف فلاتر `tenantId` للقراءة.
+4. **snapshot محلي قبل البدء**.
+5. **جميع الأوامر PowerShell**.
 
 ---
 
 📜 التعليمات الصارمة:
-1. اقرأ `prisma/schema.prisma` و `MULTI_TENANT_MIGRATION.md` أولاً.
-2. **جميع الأوامر PowerShell**.
-3. لا تستخدم `any` أو `as unknown as`.
-4. **لا ترفع على GitHub**.
-5. عند كل مرحلة: تحقق قبل الانتقال.
+1. اقرأ `prisma/schema.prisma` و `lib/security.ts` و `lib/actions/*` و `auth.config.ts` أولاً.
+2. لا تستخدم `any` أو `as unknown as`.
+3. **لا ترفع على GitHub** — commit محلي فقط.
+4. عند كل مرحلة: تحقق قبل الانتقال.
 
 ---
 
@@ -37,485 +38,352 @@
 ```powershell
 # 1. احفظ نقطة رجوع
 git add -A
-git commit -m "checkpoint: before multi-tenant data linking"
+git commit -m "checkpoint: before tenancy isolation layer"
 
-# 2. احفظ نسخة من Schema
-Copy-Item "prisma\schema.prisma" "snapshots\schema_before_data_linking.prisma" -Force
+# 2. Snapshot Schema
+Copy-Item "prisma\schema.prisma" "snapshots\schema_before_tenancy.prisma" -Force
 
-# 3. احفظ نسخة من البيانات الحالية
-New-Item -ItemType Directory -Path "snapshots\data_export" -Force | Out-Null
-السكربت scripts/export-current-data.ts:
-
-typescript
-import { PrismaClient } from "@prisma/client";
-import { writeFileSync } from "fs";
-
-const p = new PrismaClient();
-
-async function main() {
-  const snapshot = {
-    users: await p.user.findMany(),
-    institutions: await p.institution.findMany(),
-    students: await p.student.findMany(),
-    examSeasons: await p.examSeason.findMany(),
-    examModels: await p.examModel.findMany(),
-    committees: await p.committee.findMany(),
-    examSessions: await p.examSession.findMany(),
-    assessments: await p.assessment.findMany(),
-    certificates: await p.certificate.findMany(),
-    notifications: await p.notification.findMany(),
-    auditLogs: await p.auditLog.findMany(),
-    assessmentSettings: await p.assessmentSettings.findMany(),
-    appSettings: await p.appSettings.findMany(),
-  };
-
-  writeFileSync(
-    "snapshots/data_export/pre_migration.json",
-    JSON.stringify(snapshot, null, 2),
-    "utf8"
-  );
-
-  console.log("✅ Snapshot saved:");
-  console.log("   Users:", snapshot.users.length);
-  console.log("   Institutions:", snapshot.institutions.length);
-  console.log("   Students:", snapshot.students.length);
-  console.log("   ExamModels:", snapshot.examModels.length);
-  console.log("   ExamSeasons:", snapshot.examSeasons.length);
-}
-
-main()
-  .catch(console.error)
-  .finally(() => p.$disconnect());
-التشغيل:
-
-powershell
-pnpm tsx scripts/export-current-data.ts
-🔴 المرحلة 2: إنشاء Tenant الافتراضي
-
-السكربت scripts/create-default-tenant.ts:
-
-typescript
-import { PrismaClient } from "@prisma/client";
-
-const p = new PrismaClient();
-
-async function main() {
-  const slug = "madina-quran";
-  const existing = await p.tenant.findUnique({ where: { slug } });
-
-  if (existing) {
-    console.log("✅ Tenant موجود:", existing.id);
-    console.log("   Name:", existing.name);
-    return;
-  }
-
-  const tenant = await p.tenant.create({
-    data: {
-      name: "جمعية تعليم القرآن وعلومه - فرع المدينة المنورة",
-      slug,
-      primaryColor: "#015e63",
-      secondaryColor: "#d3bb8b",
-      isActive: true,
-    },
-  });
-
-  console.log("✅ تم إنشاء Tenant:");
-  console.log("   ID:", tenant.id);
-  console.log("   Name:", tenant.name);
-  console.log("   Slug:", tenant.slug);
-}
-
-main()
-  .catch(console.error)
-  .finally(() => p.$disconnect());
-التشغيل:
-
-powershell
-pnpm tsx scripts/create-default-tenant.ts
-احفظ الـ Tenant ID (سنحتاجه في المرحلة التالية).
-
-🔴 المرحلة 3: ربط جميع البيانات بالـ Tenant
-
-السكربت scripts/link-data-to-tenant.ts:
-
-typescript
-import { PrismaClient, Role } from "@prisma/client";
-
-const p = new PrismaClient();
-
-async function main() {
-  const tenant = await p.tenant.findUnique({
-    where: { slug: "madina-quran" },
-  });
-
-  if (!tenant) {
-    throw new Error("❌ Tenant الافتراضي غير موجود — شغّل create-default-tenant أولاً");
-  }
-
-  const tenantId = tenant.id;
-  console.log("🔗 ربط البيانات بـ Tenant:", tenantId, "\n");
-
-  // 1. المستخدمون — كل من ليس SUPER_ADMIN يُربط بالـ Tenant
-  const users = await p.user.updateMany({
-    where: {
-      role: { not: Role.SUPER_ADMIN },
-      tenantId: null,
-    },
-    data: { tenantId },
-  });
-  console.log("✅ Users linked:", users.count);
-
-  // 2. Institutions
-  const institutions = await p.institution.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ Institutions linked:", institutions.count);
-
-  // 3. Students
-  const students = await p.student.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ Students linked:", students.count);
-
-  // 4. ExamSeasons
-  const seasons = await p.examSeason.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ ExamSeasons linked:", seasons.count);
-
-  // 5. ExamModels
-  const models = await p.examModel.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ ExamModels linked:", models.count);
-
-  // 6. Committees
-  const committees = await p.committee.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ Committees linked:", committees.count);
-
-  // 7. ExamSessions
-  const sessions = await p.examSession.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ ExamSessions linked:", sessions.count);
-
-  // 8. Assessments
-  const assessments = await p.assessment.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ Assessments linked:", assessments.count);
-
-  // 9. Certificates
-  const certificates = await p.certificate.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ Certificates linked:", certificates.count);
-
-  // 10. Notifications
-  const notifications = await p.notification.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ Notifications linked:", notifications.count);
-
-  // 11. AuditLogs
-  const auditLogs = await p.auditLog.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ AuditLogs linked:", auditLogs.count);
-
-  // 12. AssessmentSettings
-  const settings = await p.assessmentSettings.updateMany({
-    where: { tenantId: null },
-    data: { tenantId },
-  });
-  console.log("✅ AssessmentSettings linked:", settings.count);
-
-  // تحقق: هل بقي شيء بدون tenantId؟
-  console.log("\n🔍 التحقق من التكامل:");
-  const nullCheck = {
-    users: await p.user.count({ where: { tenantId: null, role: { not: Role.SUPER_ADMIN } } }),
-    institutions: await p.institution.count({ where: { tenantId: null } }),
-    students: await p.student.count({ where: { tenantId: null } }),
-    seasons: await p.examSeason.count({ where: { tenantId: null } }),
-    models: await p.examModel.count({ where: { tenantId: null } }),
-    committees: await p.committee.count({ where: { tenantId: null } }),
-    sessions: await p.examSession.count({ where: { tenantId: null } }),
-    assessments: await p.assessment.count({ where: { tenantId: null } }),
-    certificates: await p.certificate.count({ where: { tenantId: null } }),
-    notifications: await p.notification.count({ where: { tenantId: null } }),
-    auditLogs: await p.auditLog.count({ where: { tenantId: null } }),
-    assessmentSettings: await p.assessmentSettings.count({ where: { tenantId: null } }),
-  };
-
-  console.log(JSON.stringify(nullCheck, null, 2));
-
-  const totalNull = Object.values(nullCheck).reduce((a, b) => a + b, 0);
-  if (totalNull > 0) {
-    throw new Error(`❌ يوجد ${totalNull} سجل بدون tenantId — يجب إصلاحها قبل المتابعة`);
-  }
-  console.log("\n✅ كل السجلات مربوطة بالـ Tenant");
-}
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exitCode = 1;
-  })
-  .finally(() => p.$disconnect());
-التشغيل:
-
-powershell
-pnpm tsx scripts/link-data-to-tenant.ts
-✅ التوقع:
-
-كل الجداول: null_check = 0 في كل شيء.
-
-رسالة "كل السجلات مربوطة بالـ Tenant".
-
-🔴 المرحلة 4: حذف المستخدمين (الخطوة الأخيرة قبل NOT NULL)
-
-⚠️ هذه الخطوة معقدة بسبب Foreign Keys. اعمل بحذر:
-
-السكربت scripts/delete-non-super-admin-users.ts:
-
-typescript
-import { PrismaClient, Role } from "@prisma/client";
-
-const p = new PrismaClient();
-
-async function main() {
-  const KEEP_EMAIL = "ossamaamr50436@gmail.com";
-
-  console.log("🗑️  بدء عملية حذف المستخدمين...\n");
-
-  // 1. تحقق من وجود المستخدم الواجب الاحتفاظ به
-  const keepUser = await p.user.findUnique({
-    where: { email: KEEP_EMAIL },
-  });
-
-  if (!keepUser) {
-    throw new Error(`❌ لم أجد: ${KEEP_EMAIL}`);
-  }
-
-  console.log("✅ سيتم الاحتفاظ بـ:", keepUser.email, "| Role:", keepUser.role);
-
-  // 2. جلب المستخدمين المراد حذفهم
-  const usersToDelete = await p.user.findMany({
-    where: { email: { not: KEEP_EMAIL } },
-    select: { id: true, email: true, role: true },
-  });
-
-  if (usersToDelete.length === 0) {
-    console.log("ℹ️ لا يوجد مستخدمون للحذف");
-    return;
-  }
-
-  console.log(`\n📋 سيتم حذف ${usersToDelete.length} مستخدم:`);
-  usersToDelete.forEach((u) => console.log(`   - ${u.email} (${u.role})`));
-
-  const idsToDelete = usersToDelete.map((u) => u.id);
-
-  // 3. معالجة Foreign Keys
-
-  // 3.1 AuditLog.userId — nullable، نضبطه على null
-  const auditLogs = await p.auditLog.updateMany({
-    where: { userId: { in: idsToDelete } },
-    data: { userId: null },
-  });
-  console.log(`\n✅ AuditLogs.userId → null: ${auditLogs.count}`);
-
-  // 3.2 Notification.userId — غير nullable، نحذف الإشعارات
-  const notifications = await p.notification.deleteMany({
-    where: { userId: { in: idsToDelete } },
-  });
-  console.log(`✅ Notifications deleted: ${notifications.count}`);
-
-  // 3.3 Assessment.evaluatorId — نحذف التقييمات
-  const assessments = await p.assessment.deleteMany({
-    where: { evaluatorId: { in: idsToDelete } },
-  });
-  console.log(`✅ Assessments deleted: ${assessments.count}`);
-
-  // 3.4 ExamSession — نحذف الجلسات (teacher1Id أو teacher2Id)
-  const sessionsAsTeacher = await p.examSession.deleteMany({
-    where: {
-      OR: [
-        { teacher1Id: { in: idsToDelete } },
-        { teacher2Id: { in: idsToDelete } },
-      ],
-    },
-  });
-  console.log(`✅ ExamSessions deleted: ${sessionsAsTeacher.count}`);
-
-  // 3.5 Committee — نحذف اللجان (teacher1Id أو teacher2Id)
-  const committeesAsTeacher = await p.committee.deleteMany({
-    where: {
-      OR: [
-        { teacher1Id: { in: idsToDelete } },
-        { teacher2Id: { in: idsToDelete } },
-      ],
-    },
-  });
-  console.log(`✅ Committees deleted: ${committeesAsTeacher.count}`);
-
-  // 3.6 Certificate.issuedById — nullable، نضبطه على null
-  const certsIssued = await p.certificate.updateMany({
-    where: { issuedById: { in: idsToDelete } },
-    data: { issuedById: null, signedById: null },
-  });
-  console.log(`✅ Certificates.issuedById → null: ${certsIssued.count}`);
-
-  // 3.7 Institution.users — علاقة، لا نحتاج فعل شيء
-
-  // 4. الآن احذف المستخدمين
-  const deleted = await p.user.deleteMany({
-    where: { id: { in: idsToDelete } },
-  });
-  console.log(`\n🗑️  تم حذف ${deleted.count} مستخدم`);
-
-  // 5. التحقق النهائي
-  const remaining = await p.user.findMany({
-    select: { email: true, role: true, tenantId: true },
-  });
-  console.log("\n✅ المستخدمون المتبقون:");
-  remaining.forEach((u) =>
-    console.log(`   - ${u.email} (${u.role}) | tenantId: ${u.tenantId || "null"}`)
-  );
-}
-
-main()
-  .catch((e) => {
-    console.error("❌ خطأ:", e);
-    process.exitCode = 1;
-  })
-  .finally(() => p.$disconnect());
-التشغيل:
-
-powershell
-pnpm tsx scripts/delete-non-super-admin-users.ts
-✅ التوقع:
-
-يظهر تفاصيل ما يُحذف.
-
-في النهاية: مستخدم واحد فقط = ossamaamr50436@gmail.com مع role = ADMIN و tenantId = null.
-
-⚠️ إذا حدث خطأ في Foreign Key:
-
-اقرأ الخطأ.
-
-أضف معالجة للجدول المذكور.
-
-لا تحذف أي جدول بالكامل.
-
-🔴 المرحلة 5: تحديث Schema — tenantId NOT NULL في 11 جدول
-
-الملف: prisma/schema.prisma
-
-استبدل في كل جدول من الجداول التالية:
-
-tenantId String? → tenantId String
-
-tenant Tenant? @relation(...) → tenant Tenant @relation(...)
-
-الجداول (11):
-
-Institution
-
-Student
-
-ExamSeason
-
-ExamModel
-
-Committee
-
-ExamSession
-
-Assessment
-
-Certificate
-
-Notification
-
-AuditLog
-
-AssessmentSettings
-
-⚠️ لا تعدل User.tenantId — يبقى String? (SUPER_ADMIN ليس له tenant).
-
+# 3. Snapshot البيانات الحساسة
+Copy-Item "snapshots\data_export\pre_migration.json" "snapshots\data_export\post_session2.json" -Force
 التحقق:
 
 powershell
-# يجب أن يكون 1 (User فقط)
-(Select-String -Path "prisma\schema.prisma" -Pattern '^\s+tenantId\s+String\?').Count
+Get-ChildItem "snapshots" | Select-Object -ExpandProperty Name
+# يجب أن ترى: schema_before_tenancy.prisma + schema_before_data_linking.prisma + schema_before_multi_tenant.prisma
+🔴 المرحلة 2: ترقية ossamaamr50436@gmail.com إلى SUPER_ADMIN
 
-# يجب أن يكون 11
-(Select-String -Path "prisma\schema.prisma" -Pattern '^\s+tenantId\s+String$').Count
-⚠️ تنبيه: قد تحتاج مراجعة سطرية دقيقة، لأن المسافات مختلفة.
+السكربت scripts/promote-owner-to-super-admin.ts:
 
-🔴 المرحلة 6: تحديث @@unique المطلوبة
+typescript
+import { PrismaClient, Role } from "@prisma/client";
 
-في ExamModel:
+const p = new PrismaClient();
 
-prisma
-// قبل:
-@@unique([modelNumber, seasonId, branch])
+async function main() {
+  const OWNER_EMAIL = "ossamaamr50436@gmail.com";
 
-// بعد:
-@@unique([tenantId, modelNumber, seasonId, branch])
-في Committee:
+  const owner = await p.user.findUnique({
+    where: { email: OWNER_EMAIL },
+    select: { id: true, email: true, role: true, tenantId: true },
+  });
 
-prisma
-// قبل:
-@@unique([name, seasonId])
+  if (!owner) {
+    throw new Error(`❌ لم أجد: ${OWNER_EMAIL}`);
+  }
 
-// بعد:
-@@unique([tenantId, name, seasonId])
-في AssessmentSettings:
+  console.log("الحالة قبل الترقية:");
+  console.log("  Role:", owner.role);
+  console.log("  tenantId:", owner.tenantId);
 
-prisma
-// قبل:
-id String @id @default("singleton")
+  // تحقق أن الحساب ليس مرتبطاً بمؤسسة (سيصبح SUPER_ADMIN)
+  const updated = await p.user.update({
+    where: { id: owner.id },
+    data: {
+      role: Role.SUPER_ADMIN,
+      tenantId: null, // SUPER_ADMIN ليس له tenant
+    },
+    select: { id: true, email: true, role: true, tenantId: true },
+  });
 
-// بعد: (tenantId @unique موجود)
-// لا تحتاج تغيير - فقط تأكد أن tenantId عليه @unique
-tenantId String @unique
-🔴 المرحلة 7: Migration
+  console.log("\n✅ بعد الترقية:");
+  console.log("  ID:", updated.id);
+  console.log("  Email:", updated.email);
+  console.log("  Role:", updated.role);
+  console.log("  tenantId:", updated.tenantId);
+
+  // التحقق النهائي
+  const finalUsers = await p.user.findMany({
+    select: { email: true, role: true, tenantId: true },
+    orderBy: { createdAt: "asc" },
+  });
+  console.log("\n📋 المستخدمون الحاليون:");
+  finalUsers.forEach((u) =>
+    console.log(`  - ${u.email} | ${u.role} | tenant: ${u.tenantId || "none"}`)
+  );
+}
+
+main()
+  .catch((e) => {
+    console.error("❌", e);
+    process.exitCode = 1;
+  })
+  .finally(() => p.$disconnect());
+التشغيل:
 
 powershell
-# 1. تنسيق وتحقق
-pnpm prisma format
-pnpm prisma validate
-
-# 2. التحقق من حالة الاتصال
-pnpm prisma migrate status
-
-# 3. إنشاء Migration
-pnpm prisma migrate dev --name link_data_to_default_tenant
+pnpm tsx scripts/promote-owner-to-super-admin.ts
 ✅ التوقع:
 
-Migration جديدة مطبّقة.
+يظهر تفاصيل الترقية.
 
-pnpm prisma migrate status: up to date.
+المستخدم الوحيد: ossamaamr50436@gmail.com | SUPER_ADMIN | tenant: none.
 
-⚠️ إذا فشلت Migration بسبب NOT NULL:
+🔴 المرحلة 3: إنشاء lib/tenancy.ts
 
-يعني أن هناك سجلات بدون tenantId.
+الملف الجديد:
 
-ارجع للمرحلة 3 وأعد التحقق.
+typescript
+import "server-only";
+import type { SessionUser } from "@/lib/security";
+import { Role } from "@prisma/client";
 
+// ============================================================
+// Multi-Tenant Isolation Helpers
+// ============================================================
+
+/**
+ * يعيد فلتر Prisma حسب دور المستخدم.
+ *
+ * SUPER_ADMIN → {} (بدون فلتر — يرى كل شيء)
+ * غيره → { tenantId: user.tenantId }
+ *
+ * @example
+ * const filter = getTenantFilter(user);
+ * const users = await prisma.user.findMany({ where: { ...filter, role: "EXAMINER" } });
+ */
+export function getTenantFilter(user: SessionUser): { tenantId?: string } {
+  if (user.role === Role.SUPER_ADMIN) {
+    return {};
+  }
+  if (!user.tenantId) {
+    throw new Error("غير مصرح: المستخدم غير مرتبط بمؤسسة");
+  }
+  return { tenantId: user.tenantId };
+}
+
+/**
+ * يتطلب أن يكون المستخدم ضمن tenant (يرمي خطأ إذا SUPER_ADMIN أو بلا tenantId).
+ * استخدمه في كل عملية تحتاج كتابة داخل tenant.
+ */
+export function requireTenant(user: SessionUser): string {
+  if (user.role === Role.SUPER_ADMIN) {
+    throw new Error("غير مصرح: هذه العملية مخصصة للمؤسسات");
+  }
+  if (!user.tenantId) {
+    throw new Error("غير مصرح: المستخدم غير مرتبط بمؤسسة");
+  }
+  return user.tenantId;
+}
+
+/**
+ * يتطلب أن يكون المستخدم SUPER_ADMIN.
+ */
+export function requireSuperAdmin(user: SessionUser): void {
+  if (user.role !== Role.SUPER_ADMIN) {
+    throw new Error("غير مصرح: هذه العملية مخصصة لمالك المنصة");
+  }
+}
+
+/**
+ * تحقق أن كائن ينتمي لـ tenant المستخدم.
+ * يرمي خطأ إذا حاول الوصول لبيانات tenant آخر.
+ *
+ * SUPER_ADMIN يمكنه الوصول لأي tenant.
+ */
+export function assertSameTenant<T extends { tenantId?: string | null }>(
+  sessionUser: SessionUser,
+  resource: T
+): void {
+  if (sessionUser.role === Role.SUPER_ADMIN) {
+    return; // SUPER_ADMIN يرى كل شيء
+  }
+  if (resource.tenantId !== sessionUser.tenantId) {
+    throw new Error("غير مصرح: هذا السجل ينتمي لمؤسسة أخرى");
+  }
+}
+
+/**
+ * تحقق أن دور المستخدم في قائمة مسموحة.
+ */
+export function assertHasRole(user: SessionUser, allowed: Role[]): void {
+  if (!allowed.includes(user.role)) {
+    throw new Error(`غير مصرح: تتطلب أحد الأدوار: ${allowed.join(", ")}`);
+  }
+}
+🔴 المرحلة 4: تحديث auth.config.ts (routing)
+
+الملف: auth.config.ts
+
+أضف منطق التوجيه حسب الدور:
+
+ابحث عن دالة authorized أو منطق middleware. أضف:
+
+typescript
+// SUPER_ADMIN → /super-admin
+if (user.role === "SUPER_ADMIN") {
+  if (!pathname.startsWith("/super-admin")) {
+    return Response.redirect(new URL("/super-admin", nextUrl));
+  }
+  return true;
+}
+
+// TENANT_ADMIN (ADMIN سابقاً) → /admin
+if (user.role === "ADMIN") {
+  if (!pathname.startsWith("/admin")) {
+    return Response.redirect(new URL("/admin", nextUrl));
+  }
+  return true;
+}
+
+// باقي الأدوار — كما هي حالياً
+⚠️ ملاحظة: لا تحذف منطق الأدوار الأخرى. فقط أضف SUPER_ADMIN + تأكيد ADMIN.
+
+🔴 المرحلة 5: إنشاء صفحة /super-admin مبدئية
+
+الملف: app/(dashboard)/super-admin/page.tsx (جديد)
+
+محتوى بسيط (UI كامل في الجلسة 4):
+
+typescript
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/actions/auth-actions";
+import { requireSuperAdmin } from "@/lib/tenancy";
+import { prisma } from "@/lib/prisma";
+
+export const metadata: Metadata = { title: "لوحة المالك" };
+
+export default async function SuperAdminPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  requireSuperAdmin(user);
+
+  const tenantCount = await prisma.tenant.count();
+  const userCount = await prisma.user.count();
+
+  return (
+    <div className="space-y-6 p-6">
+      <h1 className="text-3xl font-bold">لوحة المالك</h1>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">إجمالي المؤسسات</p>
+          <p className="mt-2 text-3xl font-bold">{tenantCount}</p>
+        </div>
+        <div className="rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">إجمالي المستخدمين</p>
+          <p className="mt-2 text-3xl font-bold">{userCount}</p>
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        🚧 الواجهة الكاملة ستُبنى في الجلسة القادمة.
+      </p>
+    </div>
+  );
+}
+🔴 المرحلة 6: إضافة فلاتر tenantId إلى Server Actions (الأهم أمنياً)
+
+هذه المرحلة هي جوهر الجلسة. راجع كل ملف في lib/actions/ وطبّق:
+
+6.1 النمط العام
+قبل:
+
+typescript
+export async function getInstitutions() {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+  return prisma.institution.findMany({
+    select: { id: true, name: true },
+  });
+}
+بعد:
+
+typescript
+import { getTenantFilter, requireTenant, assertSameTenant } from "@/lib/tenancy";
+
+export async function getInstitutions() {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+
+  return prisma.institution.findMany({
+    where: { ...getTenantFilter(user) },  // ← فلتر أساسي
+    select: { id: true, name: true },
+  });
+}
+6.2 الملفات المطلوبة والفحوصات
+لكل ملف، تأكد من:
+
+الملف	READ	UPDATE/DELETE
+admin-panel-actions.ts	where: { ...getTenantFilter(user) }	assertSameTenant(user, existing)
+entity-actions.ts	نفس الفلتر	نفس التحقق
+examiner-actions.ts	نفس الفلتر	نفس التحقق
+committee-actions.ts	نفس الفلتر	نفس التحقق
+student-actions.ts	نفس الفلتر	نفس التحقق
+model-actions.ts	نفس الفلتر	نفس التحقق
+season-actions.ts	نفس الفلتر	نفس التحقق
+assessment-actions.ts	نفس الفلتر	نفس التحقق
+assessment-settings-actions.ts	where: { tenantId: requireTenant(user) }	نفس التحقق
+certificate-actions.ts	نفس الفلتر	نفس التحقق
+audit-actions.ts	نفس الفلتر	(لا يوجد UPDATE)
+6.3 التعديلات الدقيقة
+في كل دالة READ:
+
+قبل:
+
+typescript
+return prisma.student.findMany({
+  where: { status: "PENDING" },
+});
+بعد:
+
+typescript
+return prisma.student.findMany({
+  where: {
+    ...getTenantFilter(user),
+    status: "PENDING",
+  },
+});
+في كل دالة UPDATE/DELETE:
+
+قبل:
+
+typescript
+await prisma.committee.delete({ where: { id: committeeId } });
+بعد:
+
+typescript
+const existing = await prisma.committee.findUniqueOrThrow({
+  where: { id: committeeId },
+});
+assertSameTenant(user, existing);
+await prisma.committee.delete({ where: { id: committeeId } });
+⚠️ تنبيه: إذا كانت الدالة تعمل بالفعل مع tenantId (من الجلسة 2)، تحقق فقط ولا تُعدّل.
+
+6.4 حالات خاصة
+getPlatformSettings (settings-actions.ts): تبقى global (لا فلتر).
+getAssessmentSettings: يعيد إعدادات الـ tenant الخاص بالمستخدم.
+
+typescript
+export async function getAssessmentSettings() {
+  const user = await requireUser();
+  const tenantId = requireTenant(user);
+
+  const settings = await prisma.assessmentSettings.findUnique({
+    where: { tenantId },
+  });
+  return {
+    errorDeduction: settings?.errorDeduction ?? 2.0,
+    doubtDeduction: settings?.doubtDeduction ?? 1.0,
+    tajweedDeduction: settings?.tajweedDeduction ?? 0.5,
+  };
+}
+6.5 تحقق نهائي
+powershell
+# ابحث عن أي findMany/create/update/delete بدون getTenantFilter في lib/actions
+Select-String -Path "lib\actions\*.ts" -Pattern "prisma\.\w+\.findMany" | Select-Object -First 30
+راجع كل نتيجة يدوياً وتأكد من وجود فلتر tenantId.
+
+🔴 المرحلة 7: Migration صغيرة
+
+الملف: prisma/schema.prisma
+
+لا تعديل Schema مطلوب — الترقية تمت عبر script.
+
+لكن، إذا حصل تغيير في User أو أي جدول أثناء الترقية، شغّل:
+
+powershell
+pnpm prisma format
+pnpm prisma validate
+pnpm prisma generate
 🔴 المرحلة 8: typecheck + build
 
 powershell
@@ -523,144 +391,147 @@ pnpm typecheck
 # ✅ 0 errors
 
 pnpm build
-# ✅ Compiled successfully
-⚠️ إذا فشل TypeScript:
+# ✅ success
+⚠️ إذا فشل:
 
-قد يكون بسبب tenantId أصبح غير nullable و TypeScript يشتكي.
+قد يكون بسبب Role.SUPER_ADMIN غير معالج في Record<Role, X>.
 
-اقرأ الخطأ بعناية، ولكن لا تعدّل Server Actions — إذا احتجت ذلك، ضع // TODO: fix in session 3.
+صحّح في lib/roles.ts وأي مكان مشابه.
 
-⚠️ إذا فشل البناء بسبب Prisma Client:
+لا تعدّل منطق الأعمال.
 
-شغّل: pnpm prisma generate.
+🔴 المرحلة 9: اختبار يدوي للعزل
 
-ثم أعد البناء.
+powershell
+pnpm dev
+افتح: http://localhost:3000
 
-🔴 المرحلة 9: التوثيق
+اختبر:
 
-حدّث MULTI_TENANT_MIGRATION.md بقسم "الجلسة 2":
+تسجيل دخول ossamaamr50436@gmail.com:
+
+المتوقع: التوجيه إلى /super-admin.
+
+لا يمكن الوصول لـ/admin/users (سيُعاد توجيهك).
+
+محاولة الوصول المباشر إلى /admin:
+
+المتوقع: تحويل إلى /super-admin.
+
+/super-admin يعمل:
+
+يعرض الإحصائيات (1 tenant، 1 user).
+
+⚠️ ملاحظة: المنصة الآن بلا أي ADMIN tenant. إذا احتجت اختبار تدفقات ADMIN، أخبرني.
+
+🔴 المرحلة 10: التوثيق
+
+حدّث MULTI_TENANT_MIGRATION.md بقسم "الجلسة 3":
 
 markdown
-## Session 2/4 — Tenant Creation + Data Linking
+## Session 3/4 — Tenancy Isolation Layer
 
 ### تاريخ التنفيذ
 [اليوم]
 
 ### الحالة
-✅ مكتمل — البيانات مربوطة، المستخدمون مُنظَّفون.
+✅ مكتمل — طبقة عزل أمني جاهزة.
 
 ### المنجز
 
-#### 1. Tenant الافتراضي
-- **ID**: [اكتب الـ ID]
-- **Name**: جمعية تعليم القرآن وعلومه - فرع المدينة المنورة
-- **Slug**: madina-quran
+#### 1. ترقية المالك
+- `ossamaamr50436@gmail.com`: ADMIN → **SUPER_ADMIN** + tenantId → NULL.
+- الحساب الوحيد النشط على المنصة.
 
-#### 2. ربط البيانات
-- Users (غير SUPER_ADMIN): [عدد]
-- Institutions: [عدد]
-- Students: [عدد]
-- ExamSeasons: [عدد]
-- ExamModels: [عدد]
-- Committees: [عدد]
-- ExamSessions: [عدد]
-- Assessments: [عدد]
-- Certificates: [عدد]
-- Notifications: [عدد]
-- AuditLogs: [عدد]
-- AssessmentSettings: [عدد]
+#### 2. طبقة العزل
+- `lib/tenancy.ts` جديد مع:
+  - `getTenantFilter(user)` — فلتر للقراءة.
+  - `requireTenant(user)` — يتطلب tenant.
+  - `requireSuperAdmin(user)` — يتطلب SUPER_ADMIN.
+  - `assertSameTenant(user, resource)` — تحقق قبل UPDATE/DELETE.
+  - `assertHasRole(user, roles)` — تحقق من الأدوار.
 
-#### 3. حذف المستخدمين
-- تم حذف [عدد] مستخدم
-- المُتبقي: `ossamaamr50436@gmail.com` (role: ADMIN, tenantId: null)
-- ملاحظة: هذا المستخدم سيرقّى إلى `SUPER_ADMIN` في جلسة لاحقة (لكن يمكن تركه كـ ADMIN مؤقتاً).
+#### 3. Routing
+- `auth.config.ts`: SUPER_ADMIN → `/super-admin` قسرياً.
+- ADMIN → `/admin` (كما كان).
 
-#### 4. Schema Updates
-- `tenantId` أصبح NOT NULL في 11 جدول
-- `User.tenantId` بقي nullable
-- تحديث `@@unique` في ExamModel و Committee
+#### 4. Server Actions — العزل
+- [عدد] ملف في `lib/actions/` حُدّث بـ`getTenantFilter` في READ.
+- [عدد] دالة UPDATE/DELETE أضيف لها `assertSameTenant`.
+- `getAssessmentSettings` يعيد إعدادات الـ tenant الحالي فقط.
 
-#### 5. Migration
-- `link_data_to_default_tenant` مطبّقة
+#### 5. صفحة SUPER_ADMIN مبدئية
+- `/super-admin` مع إحصائيات أساسية.
+- UI كامل في الجلسة 4.
 
 #### 6. Verification
 - ✅ `pnpm typecheck` — 0 errors
 - ✅ `pnpm build` — success
-- ✅ `pnpm prisma migrate status` — up to date
-- ✅ كل السجلات لها tenantId
+- ✅ اختبار يدوي: تسجيل الدخول يوجّه إلى `/super-admin`.
 
-### ملاحظات مهمة
-- المستخدم الحالي (`ossamaamr50436@gmail.com`) لا يزال بدور `ADMIN`.
-- سيتم ترقيته إلى `SUPER_ADMIN` في الجلسة 3.
-- المنصة الآن "Tenant-aware" على مستوى قاعدة البيانات.
-
-### المهام التالية (الجلسة 3)
-1. إنشاء `lib/tenancy.ts`
-2. تحديث `SessionUser` ليشمل `tenantId`
-3. تحديث `auth.ts` + `auth.config.ts`
-4. تحديث جميع Server Actions للعزل
-5. ترقية `ossamaamr50436@gmail.com` إلى `SUPER_ADMIN`
-🔴 المرحلة 10: Git Commit
+### المهام التالية (الجلسة 4)
+1. بناء `/super-admin/tenants` كاملاً (CRUD).
+2. إنشاء TENANT_ADMIN لكل مؤسسة.
+3. تحديث Sidebar حسب الدور.
+4. اختبار E2E كامل.
+5. Deployment.
+🔴 المرحلة 11: Git Commit
 
 powershell
-# 1. احذف السكربتات المؤقتة
-Remove-Item "scripts\export-current-data.ts" -ErrorAction SilentlyContinue
-Remove-Item "scripts\create-default-tenant.ts" -ErrorAction SilentlyContinue
-Remove-Item "scripts\link-data-to-tenant.ts" -ErrorAction SilentlyContinue
-Remove-Item "scripts\delete-non-super-admin-users.ts" -ErrorAction SilentlyContinue
+# احذف السكربت المؤقت
+Remove-Item "scripts\promote-owner-to-super-admin.ts" -ErrorAction SilentlyContinue
 
-# 2. احفظ
+# احفظ
 git add -A
-git status
+git commit -m "phase 3: add tenancy isolation layer + promote owner to SUPER_ADMIN
 
-git commit -m "phase 2: create default tenant and link all data
-
-- Create tenant: madina-quran
-- Link all data to tenant
-- Delete all users except ossamaamr50436@gmail.com
-- Make tenantId NOT NULL in 11 tables (User stays nullable)
-- Update @@unique constraints in ExamModel and Committee
-- Migration: link_data_to_default_tenant"
+- Promote ossamaamr50436@gmail.com: ADMIN → SUPER_ADMIN (tenantId = null)
+- Add lib/tenancy.ts (getTenantFilter, requireTenant, requireSuperAdmin, assertSameTenant, assertHasRole)
+- Update auth.config.ts routing (SUPER_ADMIN → /super-admin)
+- Apply tenantId filters to all READ operations in lib/actions
+- Add assertSameTenant checks to UPDATE/DELETE operations
+- Add placeholder /super-admin dashboard
+- typecheck 0 errors + build success"
 
 git log --oneline -5
 ✅ معايير النجاح النهائية:
 
 #	المعيار	المتوقع
-1	Tenant موجود	✅ 1
-2	كل السجلات مربوطة	✅ 0 null
-3	المستخدمون	1 (ossamaamr50436@gmail.com)
-4	tenantId NOT NULL	11 جدول
-5	User.tenantId nullable	✅
-6	Migration	✅
+1	ossamaamr50436@gmail.com دوره	SUPER_ADMIN
+2	tenantId له	null
+3	lib/tenancy.ts	موجود بـ5 دوال
+4	Routing SUPER_ADMIN	يعمل
+5	Server Actions — READ	كلها فيها فلتر
+6	Server Actions — UPDATE/DELETE	كلها فيها assertSameTenant
 7	pnpm typecheck	0 errors
 8	pnpm build	success
-9	المنصة تعمل	✅ (الدخول ينجح)
-10	MULTI_TENANT_MIGRATION.md	محدّث
+9	الدخول يعمل	✅
+10	التوجيه إلى /super-admin	✅
 🚫 ممنوع تماماً:
 
 حذف ossamaamr50436@gmail.com.
 
-تعديل User.tenantId إلى NOT NULL.
+تغيير كلمة مروره.
 
-تعديل Server Actions.
+تعديل منطق الأعمال في Server Actions.
 
 استخدام any.
 
 الـpush إلى GitHub.
 
-كسر الدخول.
-
 📝 عند الانتهاء، أرسل تقريراً يحتوي على:
 
-Tenant ID (للتوثيق).
+تفاصيل ترقية المستخدم (Role قبل/بعد).
 
-عدد السجلات المربوطة في كل جدول.
+عدد الملفات المُعدَّلة في lib/actions/.
 
-عدد المستخدمين قبل وبعد الحذف.
+عدد دوال READ التي أُضيف لها فلتر.
+
+عدد دوال UPDATE/DELETE التي أُضيف لها assertSameTenant.
 
 نتيجة pnpm typecheck + pnpm build.
 
-نتيجة pnpm prisma migrate status.
+نتيجة اختبار تسجيل الدخول يدوياً.
 
 git log --oneline -5.
 
