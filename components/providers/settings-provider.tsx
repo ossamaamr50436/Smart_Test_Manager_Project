@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import type { PlatformSettings } from "@/lib/actions/settings-actions";
+import { getMyTenantColors } from "@/lib/actions/super-admin-actions";
+import { hexToHsl } from "@/lib/colors";
 
 // ============================================================
 // سياق إعدادات المنصة (لل.'/'.$吉林省/$$ CLIENT Components)
@@ -52,7 +54,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     fetchSettings();
+    applyTenantColors();
   }, []);
+
+  // الألوان الديناميكية لكل Tenant (Multi-Tenant Branding):
+  // مستخدم ضمن مؤسسة → تُطبَّق ألوان مؤسسته على المتغيرات العامة.
+  // SUPER_ADMIN أو بلا مؤسسة → null → لا تُعدَّل المتغيرات.
+  async function applyTenantColors() {
+    try {
+      const colors = await getMyTenantColors();
+      if (!colors) return;
+      document.documentElement.style.setProperty("--primary", hexToHsl(colors.primaryColor));
+      document.documentElement.style.setProperty("--secondary", hexToHsl(colors.secondaryColor));
+    } catch {
+      // في حالة الخطأ نستخدم الألوان الافتراضية
+    }
+  }
 
   return (
     <SettingsContext.Provider value={{ settings, refreshSettings: fetchSettings }}>

@@ -19,6 +19,12 @@ type NavLink = {
 // روابط التنقل لكل دور (عزل الصلاحيات — كل دور يرى مساراته فقط)
 // الترتيب وفق المادة 12 (متسلسلة منطقياً)، والجهات للأخصائي فقط (المادة 14)
 const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
+  SUPER_ADMIN: [
+    { href: "/super-admin", label: "لوحة المالك" },
+    { href: "/super-admin/tenants", label: "المؤسسات" },
+    { href: "/super-admin/tenants/new", label: "إنشاء مؤسسة" },
+    { href: "/super-admin/alerts", label: "التنبيهات الأمنية" },
+  ],
   ADMIN: [
     { href: "/admin", label: "لوحة التحكم" },
     { href: "/admin/users", label: "المستخدمون" },

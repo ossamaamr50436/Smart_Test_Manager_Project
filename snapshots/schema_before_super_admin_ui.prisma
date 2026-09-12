@@ -458,10 +458,10 @@ model Notification {
   type          NotificationType @default(INFO)
   isRead        Boolean          @default(false)
   examSessionId String?
-  tenantId      String? // Multi-Tenant — nullable لسجلات مستوى المنصة (SUPER_ADMIN)
+  tenantId      String // Multi-Tenant
   createdAt     DateTime         @default(now())
 
-  tenant      Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user        User?        @relation(fields: [userId], references: [id])
   examSession ExamSession? @relation(fields: [examSessionId], references: [id])
 
@@ -500,10 +500,10 @@ model AuditLog {
   userId    String?
   action    AuditAction
   details   Json?
-  tenantId  String? // Multi-Tenant — nullable لسجلات مستوى المنصة (SUPER_ADMIN/تنبيهات أمنية)
+  tenantId  String // Multi-Tenant
   timestamp DateTime    @default(now())
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User?  @relation("UserAuditLogs", fields: [userId], references: [id])
 
   @@index([userId])
