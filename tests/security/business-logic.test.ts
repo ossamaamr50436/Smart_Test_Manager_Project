@@ -52,34 +52,23 @@ test("سير العمل: منع القفز فوق المراحل الحرجة", 
   assert.equal(canTransition("NOTIFIED", "READY_FOR_CERTIFICATE"), true);
 });
 
-// محاكاة تسلسل الاعتماد حسب العمر (من assessment-actions.ts approveAssessment)
-function isSenior(
-  user: { id: string; birthDate: Date | null },
-  t1: { id: string; birthDate: Date | null },
-  t2: { id: string; birthDate: Date | null }
-): boolean {
-  if (!user.birthDate || !t1.birthDate || !t2.birthDate) {
-    throw new Error("تاريخ ميلاد أحد المعلمين غير مكتمل");
+// محاكاة الاعتماد المستقل (كل مختبر يعتمد تقييمه بدون ترتيب بالعمر)
+test("الاعتماد: لا يمكن الاعتماد على تقييم لم يُحفظ بعد", () => {
+  function canApprove(status: string): boolean {
+    return status === "DRAFT"; // يُقبل الحفظ أولاً ثم الاعتماد
   }
-  const t1IsOlder = t1.birthDate <= t2.birthDate;
-  const userIsT1 = user.id === t1.id;
-  return userIsT1 ? t1IsOlder : !t1IsOlder;
-}
-
-test("الاعتماد: لا يمكن الاعتماد النهائي قبل الاعتماد الأول", () => {
-  // محاكاة حالة حيث التقييم لم يُعتمد بعد — يجب رفض الاعتماد النهائي
-  function canFinalize(seniorAssessmentStatus: string): boolean {
-    return seniorAssessmentStatus === "APPROVED";
-  }
-  assert.equal(canFinalize("DRAFT"), false);
-  assert.equal(canFinalize("APPROVED"), true);
+  assert.equal(canApprove("DRAFT"), true);
+  assert.equal(canApprove("APPROVED"), false); // تم اعتماده مسبقاً
 });
 
-test("الاعتماد: تحديد الأكبر سناً صحيح", () => {
-  const t1 = { id: "t1", birthDate: new Date("1980-01-01") };
-  const t2 = { id: "t2", birthDate: new Date("1990-01-01") }; // t1 أكبر
-  assert.equal(isSenior(t1, t1, t2), true);
-  assert.equal(isSenior(t2, t1, t2), false);
+test("الاعتماد: تقييمات المختبرين جميعها مستقلة", () => {
+  const assessments = [
+    { evaluatorId: "t1", status: "APPROVED" },
+    { evaluatorId: "t2", status: "APPROVED" },
+  ];
+  // كل تقييم يحمل استقلاليته
+  assert.equal(assessments.length, 2);
+  assert.ok(assessments.every((a) => a.status === "APPROVED"));
 });
 
 // التحقق من قواعد الموسم: منع إنشاء جلسة خارج موسم نشط

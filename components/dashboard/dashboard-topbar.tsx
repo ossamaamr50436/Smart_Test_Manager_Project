@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, Menu, Settings, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
 
-export function DashboardTopBar() {
+export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { data: session } = useSession();
   const { settings } = usePlatformSettings();
   const user = session?.user;
@@ -27,6 +27,14 @@ export function DashboardTopBar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center border-b bg-gradient-to-r from-card via-card to-primary-50 px-4">
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label="فتح القائمة"
+        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary-200/40 md:hidden"
+      >
+        <Menu className="h-6 w-6" />
+      </button>
       <div className="ms-auto flex items-center">
         <DropdownMenu>
           <DropdownMenuTrigger

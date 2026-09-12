@@ -27,7 +27,7 @@ export default async function CertificateSourceDashboardPage() {
           assessments: {
             where: {
               status: {
-                in: ["FINALIZED", "ACCEPTED", "NOTIFIED"],
+                in: ["APPROVED", "ACCEPTED", "NOTIFIED"],
               },
             },
             select: { finalScore: true },

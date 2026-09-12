@@ -26,6 +26,7 @@ export type PlatformSettings = {
   whatsappNumber: string | null;
   darkModeEnabled: boolean;
   requireStudentApplicationFile: boolean;
+  showTutorialSection: boolean;
 };
 
 /**
@@ -54,6 +55,7 @@ export const getPlatformSettings = cache(
       whatsappNumber: settings.whatsappNumber,
       darkModeEnabled: settings.darkModeEnabled,
       requireStudentApplicationFile: settings.requireStudentApplicationFile,
+      showTutorialSection: settings.showTutorialSection,
     };
   }
 );
@@ -306,6 +308,41 @@ export async function updateStudentApplicationFileSetting(
   });
 
   revalidatePath("/admin/settings");
+  revalidatePath("/");
+
+  return { success: true };
+}
+
+/**
+ * تفعيل/تعطيل قسم التعليم والدور في صفحة الإعدادات
+ * - عند التفعيل يظهر رابط التعليم في صفحة الإعدادات وفي الشريط الجانبي
+ */
+export async function updateTutorialSectionSetting(
+  enabled: boolean
+): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+
+  await checkRateLimit(`settings-update:${user.id}`, 10);
+
+  await prisma.appSettings.update({
+    where: { id: "singleton" },
+    data: { showTutorialSection: enabled },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "AppSettings",
+        showTutorialSection: enabled,
+      }),
+    },
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/settings");
   revalidatePath("/");
 
   return { success: true };

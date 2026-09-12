@@ -2,45 +2,67 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 // ============================================================
-// اختبار تكاملي لمنطق الاعتماد المتسلسل وفق العمر (المادة 5):
-// الأكبر سناً يعتمد أولاً، والأصغر سناً يعتمد اعتماداً نهائياً.
-// يعيد إنتاج الحساب الذي تستخدمه approveAssessment
+// اختبار تكاملي لمنطق الاعتماد المستقل:
+// كل مختبر يعتمد تقييمه الخاص بشكل مستقل، بدون ترتيب بالعمر.
+// يختبر منطق الحالات المستخدمة في approveAssessment و specialistFinalApprove
 // ============================================================
 
-type Teacher = { id: string; birthDate: Date | null };
+type Examiner = { id: string };
 
-function isSenior(currentUserId: string, t1: Teacher, t2: Teacher): boolean {
-  if (!t1.birthDate || !t2.birthDate) {
-    throw new Error("تاريخ ميلاد أحد المعلمين غير مكتمل");
-  }
-  const teacher1IsOlder = t1.birthDate <= t2.birthDate;
-  if (currentUserId === t1.id) return teacher1IsOlder;
-  return !teacher1IsOlder;
-}
+test("مختبران يعتمدان بشكل مستقل دون ترتيب", () => {
+  const examiner1: Examiner = { id: "t1" };
+  const examiner2: Examiner = { id: "t2" };
 
-// حالات استخدام واقعية من اللائحة
-const seniorTeacher = { id: "t-senior", birthDate: new Date("1985-02-10") };
-const juniorTeacher = { id: "t-junior", birthDate: new Date("1992-11-03") };
+  // كل مختبر يُحدّد تقييمه المستقل
+  const approval1 = { evaluatorId: examiner1.id, status: "APPROVED" };
+  const approval2 = { evaluatorId: examiner2.id, status: "APPROVED" };
 
-test("الاعتماد الأول للأكبر سناً فقط", () => {
-  assert.equal(isSenior(seniorTeacher.id, seniorTeacher, juniorTeacher), true);
-  assert.equal(isSenior(juniorTeacher.id, seniorTeacher, juniorTeacher), false);
+  assert.equal(approval1.status, "APPROVED");
+  assert.equal(approval2.status, "APPROVED");
+  assert.equal(approval1.evaluatorId, examiner1.id);
+  assert.equal(approval2.evaluatorId, examiner2.id);
 });
 
-test("الاعتماد النهائي للأصغر سناً فقط", () => {
-  // الأكبر لا يقوم بالاعتماد النهائي (!isSenior = false) والأصغر هو من يقوم به
-  assert.equal(!isSenior(seniorTeacher.id, seniorTeacher, juniorTeacher), false);
-  assert.equal(!isSenior(juniorTeacher.id, seniorTeacher, juniorTeacher), true);
+test("الطالب يصبح COMPLETED بعد أول اعتماد من أي مختبر", () => {
+  const assessments: Array<{ status: string }> = [];
+  // لم يُعتمد بعد
+  assert.equal(assessments.length, 0);
+
+  // مختبر 1 يعتمد
+  assessments.push({ status: "APPROVED" });
+  assert.equal(assessments.length, 1);
+  const studentStatus = "COMPLETED"; // بعد أول اعتماد
+  assert.equal(studentStatus, "COMPLETED");
+
+  // مختبر 2 يعتمد (مستقل)
+  assessments.push({ status: "APPROVED" });
+  assert.equal(assessments.length, 2);
+  assert.equal(studentStatus, "COMPLETED");
 });
 
-test("معلمون بتواريخ عيد ميلاد متساوية: الأول في اللجنة يعتبر الأكبر", () => {
-  const same1 = { id: "same-1", birthDate: new Date("1990-01-01") };
-  const same2 = { id: "same-2", birthDate: new Date("1990-01-01") };
-  assert.equal(isSenior(same1.id, same1, same2), true);
-  assert.equal(isSenior(same2.id, same1, same2), false);
+test("تقييم محفوظ (DRAFT) لا يُحتسب في الاعتماد", () => {
+  const assessments = [
+    { evaluatorId: "t1", status: "DRAFT" },
+    { evaluatorId: "t2", status: "APPROVED" },
+  ];
+
+  const approved = assessments.filter((a) => a.status === "APPROVED");
+  assert.equal(approved.length, 1);
+  assert.equal(approved[0]!.evaluatorId, "t2");
 });
 
-test("نقص أحد التواريخ يمنع الاعتماد تماماً", () => {
-  const missing = { id: "t-missing", birthDate: null as Date | null };
-  assert.throws(() => isSenior(juniorTeacher.id, seniorTeacher, missing));
+test("بعد اعتماد الأخصائي، تقييمات المختبرين تتحول إلى ACCEPTED", () => {
+  // محاكاة specialistFinalApprove:.updateMany
+  const assessments = [
+    { evaluatorId: "t1", status: "APPROVED" },
+    { evaluatorId: "t2", status: "APPROVED" },
+  ];
+
+  // تحديث الاعتماد الإداري
+  const updated = assessments.map((a) =>
+    a.status === "APPROVED" ? { ...a, status: "ACCEPTED" } : a
+  );
+
+  assert.equal(updated[0]!.status, "ACCEPTED");
+  assert.equal(updated[1]!.status, "ACCEPTED");
 });

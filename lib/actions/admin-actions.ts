@@ -21,10 +21,10 @@ async function recordAudit(userId: string, action: AuditAction, details: unknown
 }
 
 /**
- * 1) الاعتماد الإداري النهائي — أخصائي الاختبارات
+ * 1) الاعتماد الإداري — أخصائي الاختبارات
  * - عزل الصلاحيات: لا ينفذها إلا مستخدم بدور TEST_SPECIALIST.
  * - يحوّل الطالب المكتمل (COMPLETED) إلى NOTIFIED.
- * - يحدّث تقييمه إلى ACCEPTED ويرسل إشعاراً لرئيس الشؤون التعليمية.
+ * - يحدّث تقييماته المعتمدة من المختبرين إلى ACCEPTED ويرسل إشعاراً لرئيس الشؤون التعليمية.
  */
 export async function specialistFinalApprove(studentId: string) {
   const user = await requireUser();
@@ -44,7 +44,7 @@ export async function specialistFinalApprove(studentId: string) {
     throw new Error("الطالب غير موجود");
   }
   if (student.status !== StudentStatus.COMPLETED) {
-    throw new Error("الطالب لم يكمل التقييم والاعتماد المتسلسل بعد");
+    throw new Error("الطالب لم يُقيَّم من قبل أي مختبر بعد");
   }
 
   // تحديث حالة الطالب إلى NOTIFIED
@@ -53,14 +53,14 @@ export async function specialistFinalApprove(studentId: string) {
     data: { status: StudentStatus.NOTIFIED },
   });
 
-  // تحديث سجل التقييم المعتمد إلى ACCEPTED
+  // تحديث تقييمات المختبرين المعتمدة إلى ACCEPTED
   const session = await prisma.examSession.findFirst({
-    where: { studentId, assessments: { some: { status: AssessmentStatus.FINALIZED } } },
+    where: { studentId, assessments: { some: { status: AssessmentStatus.APPROVED } } },
     select: { id: true },
   });
   if (session) {
     await prisma.assessment.updateMany({
-      where: { examSessionId: session.id, status: AssessmentStatus.FINALIZED },
+      where: { examSessionId: session.id, status: AssessmentStatus.APPROVED },
       data: { status: AssessmentStatus.ACCEPTED },
     });
   }

@@ -502,13 +502,9 @@ async function main() {
   }
   console.log(`✅ الطلاب: ${studentCount} طالباً موزعين على ${createdInstitutions.length} جهة`);
 
-  // ===== 7) اللجان المتوازنة (معلمان لكل لجنة + 3-5 طلاب) =====
-  // نقسم المعلمين: الأكبر سناً + الأصغر سناً
-  const sortedExaminers = [...examiners].sort((a, b) => a.birthDate.getTime() - b.birthDate.getTime());
-  const seniorTeachers = sortedExaminers.slice(0, 4); // الأكبر
-  const juniorTeachers = sortedExaminers.slice(4); // الأصغر
-
-  // أعمار صحيحة: نتحقق أن senior أكبر من junior (افتراضياً هكذا بالفرز)
+  // ===== 7) اللجان (معلمان لكل لجنة + 3-5 طلاب) =====
+  // كل معلم يعمل بشكل مستقل في تقييمه — لا يوجد ترتيب حسب العمر
+  const pairedExaminers = [...examiners];
   let committeeCount = 0;
   const usedDates = new Set<string>();
   const approvedStudents = createdStudents.filter(
@@ -516,9 +512,9 @@ async function main() {
   );
 
   // نكوّن لجاناً بحيث تشمل المعلمين جميعاً
-  for (let i = 0; i < seniorTeachers.length && i < juniorTeachers.length; i++) {
-    const senior = seniorTeachers[i]!;
-    const junior = juniorTeachers[i]!;
+  for (let i = 0; i + 4 < pairedExaminers.length; i++) {
+    const teacher1 = pairedExaminers[i]!;
+    const teacher2 = pairedExaminers[i + 4]!;
     // 3-5 طلاب لكل لجنة
     const groupSize = 3 + (i % 3); // 3,4,5
     const group = approvedStudents.slice(
@@ -541,8 +537,8 @@ async function main() {
       await prisma.examSession.create({
         data: {
           studentId: student.id,
-          teacher1Id: senior.id,
-          teacher2Id: junior.id,
+          teacher1Id: teacher1.id,
+          teacher2Id: teacher2.id,
           examDate,
           period: i % 2 === 0 ? "صباحي" : "مسائي",
           status: "SCHEDULED",

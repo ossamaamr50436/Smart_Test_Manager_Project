@@ -12,6 +12,7 @@ import {
   updateTemplateSettings,
   updateAppearanceSettings,
   updateStudentApplicationFileSetting,
+  updateTutorialSectionSetting,
 } from "@/lib/actions/settings-actions";
 
 type Props = {
@@ -23,6 +24,7 @@ type Props = {
   initialWhatsappNumber: string | null;
   initialDarkModeEnabled: boolean;
   initialRequireStudentApplicationFile: boolean;
+  initialShowTutorialSection: boolean;
 };
 
 export function AdminSettingsForm({
@@ -34,6 +36,7 @@ export function AdminSettingsForm({
   initialWhatsappNumber,
   initialDarkModeEnabled,
   initialRequireStudentApplicationFile,
+  initialShowTutorialSection,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -48,6 +51,9 @@ export function AdminSettingsForm({
   const [darkModeEnabled, setDarkModeEnabled] = useState(initialDarkModeEnabled);
   const [requireStudentApplicationFile, setRequireStudentApplicationFile] = useState(
     initialRequireStudentApplicationFile
+  );
+  const [showTutorialSection, setShowTutorialSection] = useState(
+    initialShowTutorialSection
   );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -72,6 +78,7 @@ export function AdminSettingsForm({
   }
 
   async function handleSavePlatform() {
+    if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
@@ -95,6 +102,7 @@ export function AdminSettingsForm({
   }
 
   async function handleSaveTemplate() {
+    if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
@@ -118,6 +126,7 @@ export function AdminSettingsForm({
   }
 
   async function handleSaveAppearance() {
+    if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
@@ -137,12 +146,28 @@ export function AdminSettingsForm({
   }
 
   async function handleSaveApplicationFileSetting() {
+    if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
       try {
         await updateStudentApplicationFileSetting(requireStudentApplicationFile);
         setSuccess("تم حفظ إعداد نموذج اختبار الطالب بنجاح");
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
+      }
+    });
+  }
+
+  async function handleSaveTutorialSection() {
+    if (isPending) return;
+    setError("");
+    setSuccess("");
+    startTransition(async () => {
+      try {
+        await updateTutorialSectionSetting(showTutorialSection);
+        setSuccess("تم حفظ إعداد قسم التعليم والدور بنجاح");
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
@@ -304,7 +329,7 @@ export function AdminSettingsForm({
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+<div className="flex items-center justify-between rounded-lg border p-4">
             <div>
               <Label htmlFor="requireAppFile">نموذج اختبار الطالب (PDF)</Label>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -319,8 +344,27 @@ export function AdminSettingsForm({
             />
           </div>
 
-          <Button onClick={handleSaveAppearance} disabled={isPending}>
-            {isPending ? "جارٍ الحفظ..." : "حفظ إعدادات المظهر والحوكمة"}
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <Label htmlFor="showTutorialSection">قسم التعليم والدور</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                إظهار رابط التعليم والدور لكل المستخدمين في صفحة الإعدادات
+                والشريط الجانبي
+              </p>
+            </div>
+            <Switch
+              id="showTutorialSection"
+              checked={showTutorialSection}
+              onCheckedChange={setShowTutorialSection}
+            />
+          </div>
+
+          <Button onClick={handleSaveApplicationFileSetting} disabled={isPending}>
+            {isPending ? "جارٍ الحفظ..." : "حفظ إعداد نموذج اختبار الطالب"}
+          </Button>
+
+          <Button onClick={handleSaveTutorialSection} disabled={isPending}>
+            {isPending ? "جارٍ الحفظ..." : "حفظ إعداد قسم التعليم والدور"}
           </Button>
 
           <Button onClick={handleSaveApplicationFileSetting} disabled={isPending}>

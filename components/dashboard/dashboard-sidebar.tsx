@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, GraduationCap, X } from "lucide-react";
 import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
@@ -70,7 +71,13 @@ const NOTIFICATIONS_LINK: NavLink = {
   showBadge: true,
 };
 
-export function DashboardSidebar() {
+export function DashboardSidebar({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const { data: session } = useSession();
   const pathname = usePathname();
   const { settings } = usePlatformSettings();
@@ -80,20 +87,45 @@ export function DashboardSidebar() {
   const links = role ? ROLE_LINKS[role] ?? [] : [];
   const platformName = settings?.platformName ?? "تطبيق الاختبارات";
   const whatsappNumber = settings?.whatsappNumber ?? null;
+  const showTutorialSection = settings?.showTutorialSection ?? true;
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-l bg-gradient-to-b from-primary-700 to-primary-900">
-      <div className="border-b border-white/10 p-4">
-        <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={settings?.logoUrl || "/logo.png"}
-            alt={platformName}
-            className="h-9 w-9 rounded-lg bg-white/90 object-contain p-0.5"
-          />
-          <p className="text-lg font-bold text-white">{platformName}</p>
+    <>
+      {/* خلفية معتمة للجوال — تُغلق القائمة عند الضغط عليها */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={onClose}
+          aria-hidden
+        />
+      )}
+
+      <aside
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex w-64 shrink-0 flex-col border-l bg-gradient-to-b from-primary-700 to-primary-900 transition-transform duration-300 md:static md:z-auto md:translate-x-0 md:transition-none",
+          open ? "translate-x-0" : "translate-x-full md:translate-x-0"
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 p-4">
+          <div className="flex items-center gap-2">
+            <Image
+              src={settings?.logoUrl || "/logo.png"}
+              alt={platformName}
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-lg bg-white/90 object-contain p-0.5"
+            />
+            <p className="text-lg font-bold text-white">{platformName}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="إغلاق القائمة"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-white/80 hover:bg-white/10 hover:text-white md:hidden"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
-      </div>
 
       {/* منطقة التنقل — قابلة للتمرير */}
       <div className="flex-1 overflow-y-auto p-4">
@@ -111,6 +143,21 @@ export function DashboardSidebar() {
             <NotificationBadge />
             {NOTIFICATIONS_LINK.label}
           </Link>
+
+          {showTutorialSection && (
+            <Link
+              href="/settings/tutorial"
+              className={cn(
+                "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-150",
+                pathname === "/settings/tutorial"
+                  ? "bg-gradient-to-r from-primary-500 to-primary-600 font-medium text-white shadow-md"
+                  : "text-white/80 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <GraduationCap className="h-4 w-4" />
+              التعليم والدور
+            </Link>
+          )}
         </nav>
 
         {links.length > 0 && (
@@ -147,6 +194,7 @@ export function DashboardSidebar() {
           </Link>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -20,6 +20,7 @@ export async function GET() {
         whatsappNumber: null,
         darkModeEnabled: false,
         requireStudentApplicationFile: false,
+        showTutorialSection: true,
       },
       { status: 200 }
     );

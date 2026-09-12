@@ -12,12 +12,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+type ExaminerScore = {
+  examinerName: string;
+  finalScore: number | null;
+};
+
 type FinalStudent = {
   id: string;
   name: string;
   branch: string;
   institutionName: string;
-  finalScore: number | null;
+  examiners: ExaminerScore[];
   completedAt: Date;
 };
 
@@ -43,7 +48,7 @@ export function FinalReviewTable({ students }: { students: FinalStudent[] }) {
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          لا يوجد طلاب مكتملون بانتظار الاعتماد النهائي حالياً
+          لا يوجد طلاب بتقييمات معتمدة بانتظار المراجعة حالياً
         </CardContent>
       </Card>
     );
@@ -53,7 +58,7 @@ export function FinalReviewTable({ students }: { students: FinalStudent[] }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          الطلاب المكتملون ({students.length})
+          الطلاب المقيَّمون ({students.length})
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -64,7 +69,7 @@ export function FinalReviewTable({ students }: { students: FinalStudent[] }) {
                 <th className="pb-2 font-medium">اسم الطالب</th>
                 <th className="pb-2 font-medium">الجهة</th>
                 <th className="pb-2 font-medium">الفرع</th>
-                <th className="pb-2 font-medium">الدرجة النهائية</th>
+                <th className="pb-2 font-medium">تقييمات المختبرين (منفصلة)</th>
                 <th className="pb-2 font-medium">تاريخ الانتهاء</th>
                 <th className="pb-2 font-medium">إجراءات</th>
               </tr>
@@ -76,9 +81,22 @@ export function FinalReviewTable({ students }: { students: FinalStudent[] }) {
                   <td className="py-3">{student.institutionName}</td>
                   <td className="py-3">{getBranchLabel(student.branch)}</td>
                   <td className="py-3">
-                    {student.finalScore !== null
-                      ? `${student.finalScore.toFixed(2)} / 20`
-                      : "—"}
+                    <ul className="space-y-1">
+                      {student.examiners.length === 0 ? (
+                        <li className="text-muted-foreground">—</li>
+                      ) : (
+                        student.examiners.map((ex, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{ex.examinerName}:</span>
+                            <span className="font-semibold">
+                              {ex.finalScore !== null
+                                ? `${ex.finalScore.toFixed(1)} / 100`
+                                : "—"}
+                            </span>
+                          </li>
+                        ))
+                      )}
+                    </ul>
                   </td>
                   <td className="py-3">
                     {student.completedAt.toLocaleDateString("ar-SA")}
@@ -91,7 +109,7 @@ export function FinalReviewTable({ students }: { students: FinalStudent[] }) {
                     >
                       {processingId === student.id
                         ? "جارٍ الاعتماد..."
-                        : "اعتماد نهائي (Accept)"}
+                        : "اعتماد نهائي"}
                     </Button>
                   </td>
                 </tr>

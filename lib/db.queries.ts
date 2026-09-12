@@ -215,7 +215,7 @@ export async function getDashboardCounters() {
 export async function getExaminerOptions() {
   return prisma.user.findMany({
     where: { role: Role.EXAMINER },
-    select: { id: true, name: true, birthDate: true },
-    orderBy: { birthDate: "asc" },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
 }

@@ -174,6 +174,7 @@ export async function createAdminUser(input: {
   role: string;
   birthDate?: string;
   institutionId?: string;
+  forcePasswordChange?: boolean; // ← جديد: إجبار المستخدم على تغيير كلمة المرور عند أول دخول
 }): Promise<CreateUserResult> {
   let user;
   try {
@@ -237,7 +238,7 @@ export async function createAdminUser(input: {
         role: data.role,
         birthDate: data.birthDate,
         institutionId,
-        mustChangePassword: true,
+        mustChangePassword: input.forcePasswordChange === true, // الافتراضي false
       },
     });
   } catch (error) {

@@ -49,7 +49,7 @@ export const emailSchema = z
 
 /**
  * مثال على مخطط مستخدم كامل يُستخدم في أي عملية إنشاء مستخدم
- * (خاصة المعلمين EXAMINER حيث يلزم birthDate للاعتماد المتسلسل)
+ * (خاصة المعلمين EXAMINER حيث يلزم birthDate كبيانات تعريفية)
  */
 export const createUserSchema = z.object({
   name: z.string().min(2, "اسم المستخدم لا يقل عن حرفين").max(100, "الاسم طويل جداً"),

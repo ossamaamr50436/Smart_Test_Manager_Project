@@ -42,13 +42,13 @@ export async function getPerformanceOverview(): Promise<PerformanceOverview> {
       prisma.student.groupBy({ by: ["status"], _count: { _all: true } }),
       prisma.student.groupBy({ by: ["branch"], _count: { _all: true } }),
       prisma.assessment.aggregate({
-        where: { status: { in: ["APPROVED", "FINALIZED"] } },
+        where: { status: { in: ["APPROVED", "ACCEPTED", "NOTIFIED"] } },
         _count: { _all: true },
         _avg: { finalScore: true },
       }),
       prisma.assessment.groupBy({
         by: ["finalScore"],
-        where: { status: { in: ["APPROVED", "FINALIZED"] } },
+        where: { status: { in: ["APPROVED", "ACCEPTED", "NOTIFIED"] } },
         _count: { _all: true },
       }),
     ]);

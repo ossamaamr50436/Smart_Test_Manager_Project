@@ -65,6 +65,7 @@ export function CommitteeManager({
   const [endModel, setEndModel] = useState("10");
 
   async function handleCreate() {
+    if (loading) return;
     setError("");
     setSuccess("");
     setLoading(true);
@@ -97,6 +98,7 @@ export function CommitteeManager({
   }
 
   async function handleDelete(id: string) {
+    if (loading) return;
     setError("");
     setSuccess("");
     setLoading(true);
@@ -117,6 +119,7 @@ export function CommitteeManager({
   }
 
   async function handleAssignStudent() {
+    if (loading) return;
     if (!assignStudentId || !assignCommitteeId) {
       setError("اختر الطالب واللجنة");
       return;
@@ -180,7 +183,7 @@ export function CommitteeManager({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>المعلم الأول (الأكبر سناً) *</Label>
+              <Label>المعلم الأول *</Label>
               <Select value={teacher1Id} onValueChange={setTeacher1Id}>
                 <SelectTrigger><SelectValue placeholder="اختر المعلم الأول" /></SelectTrigger>
                 <SelectContent>
@@ -191,7 +194,7 @@ export function CommitteeManager({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>المعلم الثاني (الأصغر سناً) *</Label>
+              <Label>المعلم الثاني *</Label>
               <Select value={teacher2Id} onValueChange={setTeacher2Id}>
                 <SelectTrigger><SelectValue placeholder="اختر المعلم الثاني" /></SelectTrigger>
                 <SelectContent>

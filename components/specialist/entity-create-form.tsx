@@ -40,6 +40,7 @@ export function EntityCreateForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError("");
     setCopied(false);
     setLoading(true);

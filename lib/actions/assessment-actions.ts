@@ -192,17 +192,17 @@ export async function saveAssessment(input: AssessmentInput) {
 }
 
 /**
- * منطق الاعتماد حسب العمر (المادة 5):
- * - الأكبر سناً يفعّل "اعتماد" (الحالة APPROVED)، ثم يلي ذلك
- * - الأصغر سناً يفعّل "اعتماد نهائي" (الحالة FINALIZED).
+ * اعتماد التقييم — يعتمد المختبر تقييمه الخاص بشكل مستقل
+ * (بدون ترتيب حسب العمر، وبدون انتظار تقييم مختبر آخر).
+ * الحالة النهائية لتقييم المختبر: APPROVED.
  */
-export async function approveAssessment(examSessionId: string, action: "approve" | "finalize") {
+export async function approveAssessment(examSessionId: string) {
   const user = await requireUser();
 
   // عزل الصلاحيات: المقيّم فقط (المادة 8/2)
   requireRole(user, [Role.EXAMINER]);
 
-  const parsed = assessmentApprovalSchema.safeParse({ examSessionId, action });
+  const parsed = assessmentApprovalSchema.safeParse({ examSessionId });
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "بيانات غير صحيحة");
   }
@@ -222,97 +222,37 @@ export async function approveAssessment(examSessionId: string, action: "approve"
   if (!assessment) {
     throw new Error("احفظ التقييم أولاً قبل الاعتماد");
   }
-
-  // جلب المعلمين مع تواريخ الميلاد للمقارنة (المادة 5)
-  const teachers = await prisma.user.findMany({
-    where: { id: { in: [session.teacher1Id, session.teacher2Id] } },
-    select: { id: true, birthDate: true },
-  });
-
-  const birthDateOf = (id: string) =>
-    teachers.find((t) => t.id === id)?.birthDate ?? null;
-
-  // الأكبر سناً هو صاحب تاريخ الميلاد الأقدم (الأصغر قيمةً)
-  const teacher1BD = birthDateOf(session.teacher1Id);
-  const teacher2BD = birthDateOf(session.teacher2Id);
-
-  const isSenior = (): boolean => {
-    if (!teacher1BD || !teacher2BD) {
-      throw new Error(
-        "تاريخ ميلاد أحد المعلمين غير مكتمل — لا يمكن تحديد الترتيب العمري"
-      );
-    }
-    const teacher1IsOlder = teacher1BD <= teacher2BD;
-    if (user.id === session.teacher1Id) return teacher1IsOlder;
-    return !teacher1IsOlder;
-  };
-
-  const seniorIsUser = isSenior();
+  if (assessment.status !== AssessmentStatus.DRAFT) {
+    throw new Error("تم اعتماد هذا التقييم مسبقاً");
+  }
 
   await prisma.$transaction(async (tx) => {
-    if (action === "approve") {
-      if (!seniorIsUser) {
-        throw new Error(
-          "المعلم الأصغر سناً لا يقوم بالاعتماد الأول؛ الاعتماد الأول للمعلم الأكبر"
-        );
-      }
-      await tx.assessment.update({
-        where: { id: assessment.id },
-        data: { status: AssessmentStatus.APPROVED },
-      });
-      await tx.student.update({
-        where: { id: session.student.id },
-        data: { status: StudentStatus.ASSIGNED },
-      });
+    // اعتماد تقييم المختبر الحالي فقط
+    await tx.assessment.update({
+      where: { id: assessment.id },
+      data: { status: AssessmentStatus.APPROVED },
+    });
 
-      const otherTeacherId =
-        user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id;
-      await tx.notification.create({
-        data: {
-          userId: otherTeacherId,
-          message: `اعتمد المعلم الأكبر سناً تقييم الطالب «${session.student.name}» — بانتظار اعتمادك النهائي`,
+    // الطالب لديه الآن تقييم معتمد — يُعرض للأخصائي للمراجعة
+    await tx.student.update({
+      where: { id: session.student.id },
+      data: { status: StudentStatus.COMPLETED },
+    });
+
+    // إشعار الأخصائيين بمراجعة تقييم الطالب المعتمد
+    const specialists = await tx.user.findMany({
+      where: { role: Role.TEST_SPECIALIST },
+      select: { id: true },
+    });
+    if (specialists.length > 0) {
+      await tx.notification.createMany({
+        data: specialists.map((s) => ({
+          userId: s.id,
+          message: `اعتمد المختبر تقييم الطالب «${session.student.name}» — بانتظار مراجعتك`,
           type: NotificationType.ASSESSMENT,
           examSessionId: session.id,
-        },
+        })),
       });
-    } else {
-      if (seniorIsUser) {
-        throw new Error(
-          "المعلم الأكبر سناً لا يقوم بالاعتماد النهائي؛ الاعتماد النهائي للمعلم الأصغر"
-        );
-      }
-      const seniorTeacherId =
-        user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id;
-      const seniorAssessment = await tx.assessment.findFirst({
-        where: { examSessionId: session.id, evaluatorId: seniorTeacherId },
-        select: { status: true },
-      });
-      if (!seniorAssessment || seniorAssessment.status !== AssessmentStatus.APPROVED) {
-        throw new Error("يجب أن يعتمد المعلم الأكبر التقييم قبل الاعتماد النهائي");
-      }
-      await tx.assessment.update({
-        where: { id: assessment.id },
-        data: { status: AssessmentStatus.FINALIZED },
-      });
-      await tx.student.update({
-        where: { id: session.student.id },
-        data: { status: StudentStatus.COMPLETED },
-      });
-
-      const specialists = await tx.user.findMany({
-        where: { role: Role.TEST_SPECIALIST },
-        select: { id: true },
-      });
-      if (specialists.length > 0) {
-        await tx.notification.createMany({
-          data: specialists.map((s) => ({
-            userId: s.id,
-            message: `اكتمل تقييم الطالب «${session.student.name}» واعتمده المعلمان — بانتظار اعتمادك الإداري`,
-            type: NotificationType.ASSESSMENT,
-            examSessionId: session.id,
-          })),
-        });
-      }
     }
 
     await tx.auditLog.create({
@@ -322,8 +262,7 @@ export async function approveAssessment(examSessionId: string, action: "approve"
         details: JSON.stringify({
           examSessionId: session.id,
           studentId: session.student.id,
-          action,
-          role: seniorIsUser ? "senior" : "junior",
+          status: AssessmentStatus.APPROVED,
         }),
       },
     });
@@ -333,32 +272,23 @@ export async function approveAssessment(examSessionId: string, action: "approve"
   revalidatePath("/examiner/assess");
 
   // بعد نجاح المعاملة الذرية: توزيع الإشعارات على القنوات الخارجية (دفع/بريد/SMS)
-  const channelRecipients =
-    action === "approve"
-      ? [user.id === session.teacher1Id ? session.teacher2Id : session.teacher1Id]
-      : (
-          await prisma.user.findMany({
-            where: { role: Role.TEST_SPECIALIST },
-            select: { id: true },
-          })
-        ).map((s) => s.id);
+  const specialists = await prisma.user.findMany({
+    where: { role: Role.TEST_SPECIALIST },
+    select: { id: true },
+  });
   await dispatchNotificationChannels({
-    userIds: channelRecipients,
-    message:
-      action === "approve"
-        ? `اعتمد المعلم الأكبر سناً تقييم الطالب «${session.student.name}» — بانتظار اعتمادك النهائي`
-        : `اكتمل تقييم الطالب «${session.student.name}» واعتمده المعلمان — بانتظار اعتمادك الإداري`,
+    userIds: specialists.map((s) => s.id),
+    message: `اعتمد المختبر تقييم الطالب «${session.student.name}» — بانتظار مراجعتك`,
     type: NotificationType.ASSESSMENT,
     examSessionId: session.id,
   });
 
   await broadcastAssessmentUpdate(session.id, {
     evaluatorId: user.id,
-    assessmentStatus:
-      action === "approve" ? AssessmentStatus.APPROVED : AssessmentStatus.FINALIZED,
+    assessmentStatus: AssessmentStatus.APPROVED,
   });
 
-  return { success: true, status: action === "approve" ? AssessmentStatus.APPROVED : AssessmentStatus.FINALIZED };
+  return { success: true, status: AssessmentStatus.APPROVED };
 }
 
 /**

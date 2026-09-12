@@ -42,8 +42,8 @@ export default async function AssessStudentPage({
     include: {
       committee: {
         include: {
-          teacher1: { select: { id: true, name: true, birthDate: true } },
-          teacher2: { select: { id: true, name: true, birthDate: true } },
+          teacher1: { select: { id: true, name: true } },
+          teacher2: { select: { id: true, name: true } },
           allocations: {
             select: {
               startModelNumber: true,
@@ -67,18 +67,6 @@ export default async function AssessStudentPage({
     committee.teacher1Id === user.id || committee.teacher2Id === user.id;
   if (!isTeacher) {
     notFound();
-  }
-
-  // تحديد هل المقيّم الحالي هو الأكبر سناً
-  let seniorIsUser = true;
-  const t1 = committee.teacher1.birthDate;
-  const t2 = committee.teacher2.birthDate;
-  if (t1 && t2) {
-    const teacher1Older = t1 <= t2;
-    seniorIsUser =
-      user.id === committee.teacher1Id ? teacher1Older : !teacher1Older;
-  } else {
-    seniorIsUser = user.id === committee.teacher1Id;
   }
 
   // قراءة رقم النموذج من URL (المهمة 4)
@@ -164,7 +152,6 @@ export default async function AssessStudentPage({
     <AssessmentBoard
       student={{ id: student.id, name: student.name, branch: student.branch }}
       sessionId={committee.id}
-      seniorIsUser={seniorIsUser}
       evaluatorId={user.id}
       segments={segments}
       modelNumber={modelNumberFinal}

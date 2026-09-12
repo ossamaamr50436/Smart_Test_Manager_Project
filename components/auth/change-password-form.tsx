@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { changeMyPassword } from "@/lib/actions/change-password-actions";
@@ -22,29 +22,26 @@ export function ChangePasswordForm({ forced }: { forced?: boolean }) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    if (newPassword !== confirmPassword) {
-      setError("كلمتا المرور غير متطابقتين");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await changeMyPassword(currentPassword, newPassword);
-      // تحديث الجلسة فوراً حتى لا يبقى المستخدم محبوساً على الصفحة (المرحلة 4)
-      await update({ mustChangePassword: false });
-      router.replace("/");
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
-    } finally {
-      setLoading(false);
-    }
+    startTransition(async () => {
+      const result = await changeMyPassword(
+        currentPassword,
+        newPassword,
+        confirmPassword
+      );
+      if (result.success) {
+        await update({ mustChangePassword: false });
+        router.replace("/");
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
   }
 
   return (
@@ -100,8 +97,8 @@ export function ChangePasswordForm({ forced }: { forced?: boolean }) {
             </p>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "جارٍ الحفظ..." : "حفظ وتحديث الجلسة"}
+          <Button type="submit" disabled={isPending} className="w-full">
+            {isPending ? "جارٍ الحفظ..." : "حفظ وتحديث الجلسة"}
           </Button>
         </form>
       </CardContent>

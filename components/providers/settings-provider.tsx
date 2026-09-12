@@ -45,6 +45,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         whatsappNumber: null,
         darkModeEnabled: false,
         requireStudentApplicationFile: false,
+        showTutorialSection: true,
       });
     }
   }

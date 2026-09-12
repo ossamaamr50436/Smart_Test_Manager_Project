@@ -427,3 +427,155 @@ scripts/verify-before-deploy.ts  # OK — Users: 1 (ossamaamr50436@gmail.com ف�
 - لم يتم الرفع إلى GitHub — سيُراجع المستخدم ثم يرفع بنفسه.
 - السكربت المؤقت `scripts/_diag-e2e.ts` حُذف بعد نجاح الاختبار والتنظيف.
 - مستخدما الاختبار المؤقتان حُذفا من قاعدة البيانات (قاعدة نظيفة: `Users: 1`).
+
+---
+
+# الجزء الرابع — المهام الثماني الجديدة (o.txt الأخير)
+
+> تاريخ التنفيذ: السبت 2026-09-12 — سلسلة `o.txt` المكوَّنة من 8 مهام مع شروط
+> `CONSTITUTION.txt` (قاعدة بيانات Neon فقط، فحص القرص ≥ 6GB قبل أي تثبيت، عدم الرفع إلى
+> GitHub، كل رسائل الخطأ بالعربية، لا `any`/`as unknown as`، التوثيق في هذا التقرير).
+
+## 20) المهمة 1 — إصلاح أزرار الضغطات المتعددة (تسجيل الدخول + كامل النماذج)
+
+### تسجيل الدخول
+- **`components/auth/login-form.tsx`**: أُعيدت كتابته من `useState(loading)` إلى
+  `useTransition` + `isPending` مع درع `if (isPending) return` في بداية `handleSubmit`،
+  وتعطيل الحقول والزر أثناء المعالجة، وعرض "جارٍ الدخول...". أُزيل `LottiePlayer`
+  (مكتبة `lottie-react` غير مستخدمة في المشروع بعد الآن — تحقَّق بالـ grep).
+
+### دروع الضغط المزدوج في بقية النماذج
+| الملف | الحماية |
+| :--- | :--- |
+| `components/students/nomination-form.tsx` | منع إرسال متكرر + تعطيل أثناء `loading` |
+| `components/specialist/committee-form.tsx` | منع إرسال متكرر |
+| `components/specialist/entity-create-form.tsx` | منع إرسال متكرر |
+| `components/specialist/assessment-settings-form.tsx` | منع إرسال متكرر |
+| `components/specialist/committee-manager.tsx` | `handleCreate` / `handleDelete` / `handleAssignStudent` = بوابات `isPending` |
+| `components/admin/admin-settings-form.tsx` | المعالجات الأربع (إعدادات عامة/شعار/تعليم/سجل) خلف `isPending` |
+| `components/admin/admin-users-manager.tsx` | `handleCreate` / `handleSaveEdit` / `handleResetPassword` / `handleDelete` |
+
+## 21) المهمة 2 — إلغاء إجبار تغيير كلمة المرور لموظفيه الأدمن
+
+- **`lib/actions/admin-panel-actions.ts`**: `createAdminUser` أصبح يقبل
+  `forcePasswordChange?: boolean`؛ القيمة الافتراضية `false` معيّنة عبر
+  `mustChangePassword: input.forcePasswordChange === true`.
+- **`components/admin/admin-users-manager.tsx`**: حالة نموذج `forcePasswordChange: false`
+  + صندوق اختيار "إجبار تغيير كلمة المرور عند أول دخول" يُمرَّر للإجراء.
+- **`auth.config.ts`**: المنطق قائم وتم التحقق منه — التوجيه القسري إلى `/change-password`
+  يحدث فقط إذا كان `mustChangePassword === true`.
+
+## 22) المهمة 3 — رسائل خطأ تغيير كلمة المرور بالعربية
+
+- تم الفحص: الكود الحالي ينفّذ المطلوب أصلاً (Union type `{success,error}` مع رسائل
+  عربية في `change-password/page.tsx`، منطق `useTransition`، التحقق بخمسة تحققات
+  وجود/تطابق/قوة). **لا تعديلات مطلوبة** — الخيار "حفظ لأغراض المراجعة فقط".
+
+## 23) المهمة 4 — تحسين الأداء
+
+- **`next.config.mjs`**: `compress: true` (gzip/br)، `poweredByHeader: false`،
+  `removeConsole` في الإنتاج (مع الإبقاء على `error`/`warn`)، `images.formats` =
+  `avif`/`webp`، `minimumCacheTTL` = 30 يوماً.
+- **اللوغو**: تحويل `<img>` إلى `next/image` في:
+  - `app/(auth)/login/page.tsx` (شعار صفحة الدخول).
+  - `components/dashboard/dashboard-sidebar.tsx` (شعار الشريط الجانبي).
+- **إزالة الحِمل الثقيل**: `lottie-react` لم يعد مستورداً في أي ملف (التحقق بالـ grep).
+- لا يوجد استيراد فعلي لـ `recharts` في الكود (التحقق من الأدلة) — لا حاجة لإعادة هيكلة.
+- `app/(dashboard)/loading.tsx` موجود مسبقاً كسقيفة تحميل.
+
+## 24) المهمة 5 — تحسين SEO شامل
+
+- **`app/layout.tsx`**:
+  - `metadata` محدّثة: `title` قالب، `description` مفصّلة، `keywords`، `metadataBase`
+    (رابط الإنتاج)، `openGraph` (النوع/اللغات/صور)، `robots`، `alternates.canonical`،
+    `applicationName`.
+  - JSON-LD `organizationSchema` (مؤسسة نظام تعليمي) بحقن `application/ld+json`.
+  - `viewport`: `maximumScale: 5` + `viewportFit: "cover"` (منع Zoom Lock وتسوية
+    الشرائح على الجوال).
+  - **ملاحظة CSP**: السكربت المضمّن يُحقن بـ `nonce={nonce}` كي يجتاز
+    `script-src 'self' 'nonce-…'` في `lib/csp.ts`.
+- **`app/robots.ts`** (جديد): السماح للجوال `*`، منع `/api/`, `/admin/`, `/audit-log`.
+- **`app/sitemap.xml`** عبر `app/sitemap.ts` (جديد): الصفحة الرئيسية + `/login`.
+- **التأكد**: `<html lang="ar" dir="rtl">` قائم؛ صفحة الدخول وصفحات لوحة التحكم
+  تحوي `h1` — بنية العناوين سليمة.
+
+## 25) المهمة 6 — التوافق مع الجوال وأهداف اللمس
+
+- **`app/globals.css`**: كتلة `@media (max-width: 640px)`:
+  - `html { font-size: 14px }` (وضَع الجذر).
+  - `button, a, [role="button"], input, select, textarea { min-height: 48px }`
+    (أهداف لمس 48px لكل تفاعلات الدعم المالي).
+  - `body { overflow-x: hidden; max-width: 100vw }` (منع التمرير الأفقي).
+- **القائمة الجانبية → Drawer جوال**:
+  - `components/dashboard/dashboard-shell.tsx` (جديد): مكوّن عميل يدير
+    `sidebarOpen` ويغلق القائمة تلقائياً عند تغير المسار (`usePathname`).
+  - `components/dashboard/dashboard-sidebar.tsx`: أصبح يقبل `open`/`onClose`؛
+    على الجوال `fixed right-0` كـ Drawer منزلق مع خلفية معتمة وزر إغلاق (X)، وعلى
+    `md:` يعود `static` بدون حركة. (RTL: `translate-x-full` يخفيه خارج الحافة اليمنى.)
+  - `components/dashboard/dashboard-topbar.tsx`: زر قائمة ☰ (`Menu`) لفتح الـ Drawer
+    على الجوال (`md:hidden`) بجوار عناصر الشريط العلوي.
+  - `app/(dashboard)/layout.tsx`: يستخدم `DashboardShell` مع `SessionProvider` و
+    `SettingsProvider` كما كانت.
+- تنسيقات الشبكة (بطاقات `grid-cols-1` ثم `sm:`/`lg:`) والجداول (`overflow-x-auto`)
+  قائمة أصلاً ومبقاة على وضعها.
+- `viewport` للتجوال أُضيف في المهمة 5.
+
+## 26) المهمة 7 — إزالة مفهوم الأكبر/الأصغر
+
+- **الرمز**: تحقَّق شامل بالـ grep (ملفات `.ts`/`.tsx`) — لا بقايا:
+  `senior`, `junior`, `seniorIsUser`, `الأكبر`, `الأصغر`, `الأكبر سناً`, `الأصغر سناً`.
+  - `lib/actions/assessment-actions.ts`: `approveAssessment` يعتمد تقييم المختبر فقط
+    ويرفع الطالب إلى `COMPLETED` (جاهز لمراجعة الأخصائي).
+  - `components/specialist/assessment-board.tsx`: زر **اعتماد تقييمي** واحد لكل مختبر.
+  - صفحة `final-review`: تعرض تقييمات كل مختبر **منفصلة** للأخصائي.
+- **التوثيق (وثائق الاستخدام الفعلية)** — أُزيلت كل الإشارات إلى ترتيب الاعتماد حسب
+  العمر وأُعيدت صياغتها كاعتماد مستقل:
+  - `README.md` (السطر التمهيدي + ميزة الاعتماد)
+  - `docs/user-guide.md` (المقدمة، سير العمل، قسم المعلم المختبر، الأخصائي)
+  - `docs/quick-start.md` (سير التجربة السريع)
+  - `docs/developer-guide.md` (حالات التقييم + قسم "سير الاعتماد")
+- ملفات `CONSTITUTION.txt`/`SRS`/تقارير التدقيق التاريخية حُفظت دون تعديل (وثائق
+  محكّمة سابقة) — **تعارض معلَّم**: المادة 5 من الدستور (الاعتماد حسب العمر) ما زالت
+  نصّاً، ونُفّذت المهمة 7 كأمر صريح من o.txt، ويُوصى بتحديث الدستور في وقت لاحق.
+
+## 27) المهمة 8 — القسم التعليمي (تعليم ودورات)
+
+- **`prisma/schema.prisma`**: حقل `showTutorialSection Boolean @default(true)` في
+  `AppSettings`.
+- **مهاجرة مطبَّقة**: `prisma/migrations/20260912080000_add_tutorial_section/migration.sql`
+  → `pnpm prisma migrate deploy` (نجح على Neon) ثم `pnpm prisma generate`.
+- **الإعدادات**:
+  - `lib/actions/settings-actions.ts`: `PlatformSettings` + إرجاع الإجراء يشمل
+    `showTutorialSection`؛ إجراء `updateTutorialSectionSetting`.
+  - `app/api/settings/route.ts` و `components/providers/settings-provider.tsx`: قيم
+    افتراضية `true` عند غياب السجل.
+- **لوحة التحكم**: `components/admin/admin-settings-form.tsx`: Switch "إظهار القسم
+  التعليمي" + زر حفظ؛ `app/(dashboard)/admin/settings/page.tsx` يمرر القيمة الابتدائية.
+- **المستخدم**: `app/(dashboard)/settings/page.tsx` يعرض رابط القسم عند التفعيل؛
+  صفحة جديدة `app/(dashboard)/settings/tutorial/page.tsx` بمحتوى توجيهي حسب الدور
+  (المعلم، الأخصائي، الجهة، رئيس الشؤون، مصدر الشهادات، الأدمن).
+- **الشريط الجانبي**: رابط "التعليم والدورات" (`GraduationCap`) يظهر للجميع حسب
+  إعداد المنصة.
+
+## 28) ملفات جديدة هذا الجزء
+
+- `app/robots.ts`
+- `app/sitemap.ts`
+- `components/dashboard/dashboard-shell.tsx`
+- `app/(dashboard)/settings/tutorial/page.tsx`
+- `prisma/migrations/20260912080000_add_tutorial_section/migration.sql`
+
+## 29) التحقق النهائي
+
+```powershell
+pnpm typecheck   # OK — بدون أخطاء (tsc --noEmit)
+pnpm build       # OK — 45/45 صفحة (شمل /settings/tutorial) + robots.txt + sitemap.xml
+```
+
+- المهاجرة الجديدة مطبَّقة على Neon (`migrate deploy` نجح، `generate` نجح).
+- لا `any`/`as unknown as` أُدخلت في هذا الجزء.
+- كل رسائل الخطأ الجديدة (تسجيل الدخول، إنشاء المستخدم، إعداد المهمة التعليمية)
+  بالعربية.
+- **لم يُرفع أي شيء إلى GitHub** — سيُراجع المستخدم التغييرات ويرفعها بنفسه.
+- ملاحظة بيئة: تحذير `Unsupported engine (node v24)` في pnpm غير مؤثر — الإنتاج
+  يبني على Node 20 وفق `engines` في `package.json`.

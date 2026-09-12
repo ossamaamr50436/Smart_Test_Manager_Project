@@ -69,15 +69,15 @@ describe("assessmentInputSchema", () => {
 });
 
 describe("assessmentApprovalSchema", () => {
-  it("يقبل approve و finalize فقط", () => {
+  it("يقبل معرّف جلسة صالح فقط", () => {
     expect(
-      assessmentApprovalSchema.safeParse({ examSessionId: "s", action: "approve" }).success
+      assessmentApprovalSchema.safeParse({ examSessionId: "s" }).success
     ).toBe(true);
+  });
+
+  it("يرفض معرّف جلسة فارغاً", () => {
     expect(
-      assessmentApprovalSchema.safeParse({ examSessionId: "s", action: "finalize" }).success
-    ).toBe(true);
-    expect(
-      assessmentApprovalSchema.safeParse({ examSessionId: "s", action: "burn" }).success
+      assessmentApprovalSchema.safeParse({ examSessionId: "" }).success
     ).toBe(false);
   });
 });

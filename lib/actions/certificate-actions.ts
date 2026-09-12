@@ -47,7 +47,7 @@ async function getStudentFinalScore(studentId: string): Promise<number | null> {
         where: {
           status: {
             in: [
-              AssessmentStatus.FINALIZED,
+              AssessmentStatus.APPROVED,
               AssessmentStatus.ACCEPTED,
               AssessmentStatus.NOTIFIED,
             ],

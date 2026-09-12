@@ -9,7 +9,12 @@ import { ServiceWorkerRegister } from "@/components/providers/service-worker-reg
 const cairo = Cairo({
   subsets: ["arabic"],
   variable: "--font-cairo",
+  display: "swap",
 });
+
+const SITE_URL = "https://smart-test-manager-project.vercel.app";
+
+export const metadataBase: Metadata["metadataBase"] = new URL(SITE_URL);
 
 export async function generateViewport(): Promise<Viewport> {
   const settings = await getPlatformSettings();
@@ -17,6 +22,8 @@ export async function generateViewport(): Promise<Viewport> {
     themeColor: settings.primaryColor || "#015e63",
     width: "device-width",
     initialScale: 1,
+    maximumScale: 5,
+    viewportFit: "cover",
   };
 }
 
@@ -28,9 +35,49 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${settings.platformName}`,
     },
     description:
-      "منصة رقمية متكاملة لاختبارات جمعية تعليم القرآن وعلومه — فرع المدينة المنورة",
+      "منصة رقمية شاملة لإدارة اختبارات حفظ القرآن الكريم وفق لائحة الجمعية — فرع المدينة المنورة.",
+    keywords: [
+      "اختبارات القرآن",
+      "حفظ القرآن",
+      "المدينة المنورة",
+      "جمعية تعليم القرآن",
+      "منصة اختبارات",
+    ],
+    metadataBase: new URL(SITE_URL),
+    openGraph: {
+      type: "website",
+      locale: "ar_SA",
+      url: SITE_URL,
+      siteName: settings.platformName,
+      title: settings.platformName,
+      description:
+        "إدارة اختبارات حفظ القرآن الكريم ومتابعة تقييم الطلاب واللجان.",
+      images: [
+        {
+          url: settings.logoUrl || "/logo.png",
+          width: 512,
+          height: 512,
+          alt: settings.platformName,
+        },
+      ],
+    },
+    robots: { index: true, follow: true },
+    alternates: { canonical: SITE_URL },
+    applicationName: settings.platformName,
   };
 }
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "EducationalOrganization",
+  name: "جمعية تعليم القرآن وعلومه — فرع المدينة المنورة",
+  alternateName: "منصة مدير الاختبارات الذكي",
+  url: SITE_URL,
+  description:
+    "منصة رقمية شاملة لإدارة اختبارات حفظ القرآن الكريم وفق لائحة الجمعية — فرع المدينة المنورة.",
+  areaServed: "المدينة المنورة",
+  inLanguage: "ar-SA",
+};
 
 export default async function RootLayout({
   children,
@@ -60,6 +107,11 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content={settings.platformName} />
+        <script
+          nonce={nonce}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
       </head>
       <body className={`${cairo.variable} font-sans antialiased`}>
         <ThemeProvider defaultTheme={defaultTheme} nonce={nonce}>

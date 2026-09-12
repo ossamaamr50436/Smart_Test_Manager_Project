@@ -65,13 +65,12 @@ export const assessmentInputSchema = z.object({
 
 export type AssessmentInput = z.infer<typeof assessmentInputSchema>;
 
-// مخطط التحقق من عملية الاعتماد المتسلسل (المادة 5)
+// مخطط التحقق من اعتماد المختبر لتقييمه (اعتماد مستقل — بدون ترتيب عمري)
 export const assessmentApprovalSchema = z.object({
   examSessionId: z
     .string()
     .min(1, "معرّف الجلسة مطلوب")
     .max(64, "معرّف الجلسة غير صالح"),
-  action: z.enum(["approve", "finalize"], { message: "إجراء غير صحيح" }),
 });
 
 export type AssessmentApprovalInput = z.infer<typeof assessmentApprovalSchema>;

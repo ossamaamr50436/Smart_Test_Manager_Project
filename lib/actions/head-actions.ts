@@ -72,7 +72,7 @@ export async function getStudentsForHeadReview(
  * رفض رئيس الشؤون التعليمية لطلب تم اعتماده إدارياً من الأخصائي
  *
  * الرفض: يعيد الطالب من NOTIFIED إلى APPROVED (بانتظار إعادة التوزيع/التقييم)
- * ويُعيد تقييمات الأخصائي (ACCEPTED) إلى FINALIZED لتصحيح سير العمل،
+ * ويُعيد تقييمات الأخصائي (ACCEPTED) إلى APPROVED لتصحيح سير العمل،
  * مع إشعار الأخصائيين والجهة التعليمية بالنتيجة.
  *
  * الهدف: تُوجَّه الإشعارات للأخصائيين والجهة — وليس للمستخدم المتخذ للقرار.
@@ -104,7 +104,7 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
     data: { status: StudentStatus.APPROVED },
   });
 
-  // إعادة تقييم الأخصائي (ACCEPTED) إلى FINALIZED لتظل السلسلة منطقية
+  // إعادة تقييم الأخصائي (ACCEPTED) إلى APPROVED لتظل السلسلة منطقية
   const session = await prisma.examSession.findFirst({
     where: { studentId, assessments: { some: { status: AssessmentStatus.ACCEPTED } } },
     select: { id: true },
@@ -112,7 +112,7 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
   if (session) {
     await prisma.assessment.updateMany({
       where: { examSessionId: session.id, status: AssessmentStatus.ACCEPTED },
-      data: { status: AssessmentStatus.FINALIZED },
+      data: { status: AssessmentStatus.APPROVED },
     });
   }
 

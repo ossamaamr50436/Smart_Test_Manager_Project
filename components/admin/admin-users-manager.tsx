@@ -70,6 +70,7 @@ export function AdminUsersManager() {
     role: Role.EXAMINER as string,
     birthDate: "",
     institutionId: "",
+    forcePasswordChange: false,
   });
 
   // بيانات المستخدم قيد التعديل
@@ -122,6 +123,7 @@ export function AdminUsersManager() {
   }
 
   async function handleCreate() {
+    if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
@@ -132,11 +134,12 @@ export function AdminUsersManager() {
         role: form.role,
         birthDate: form.birthDate || undefined,
         institutionId: form.role === Role.INSTITUTION ? form.institutionId || undefined : undefined,
+        forcePasswordChange: form.forcePasswordChange,
       });
       if (result.success) {
         setSuccess("تم إنشاء المستخدم بنجاح");
         setShowCreate(false);
-        setForm({ name: "", email: "", password: "", role: Role.EXAMINER, birthDate: "", institutionId: "" });
+        setForm({ name: "", email: "", password: "", role: Role.EXAMINER, birthDate: "", institutionId: "", forcePasswordChange: false });
         loadUsers();
       } else {
         setError(result.error);
@@ -159,6 +162,7 @@ export function AdminUsersManager() {
 
   async function handleSaveEdit() {
     if (!editing) return;
+    if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
@@ -184,6 +188,7 @@ export function AdminUsersManager() {
 
   async function handleResetPassword() {
     if (!passwordTarget) return;
+    if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
@@ -199,6 +204,7 @@ export function AdminUsersManager() {
   }
 
   async function handleDelete(u: AdminUser) {
+    if (isPending) return;
     if (!confirm(`هل أنت متأكد من حذف المستخدم "${u.name}"؟`)) return;
     setError("");
     setSuccess("");
@@ -316,6 +322,20 @@ export function AdminUsersManager() {
                   </select>
                 </div>
               )}
+              <div className="flex items-center gap-2 rounded-lg border p-3 sm:col-span-2">
+                <input
+                  id="forcePasswordChange"
+                  type="checkbox"
+                  checked={form.forcePasswordChange}
+                  onChange={(e) =>
+                    setForm({ ...form, forcePasswordChange: e.target.checked })
+                  }
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="forcePasswordChange" className="text-sm font-normal">
+                  إجبار المستخدم على تغيير كلمة المرور عند أول دخول
+                </Label>
+              </div>
             </div>
             <div className="mt-4 flex justify-end">
               <Button disabled={isPending} onClick={handleCreate}>

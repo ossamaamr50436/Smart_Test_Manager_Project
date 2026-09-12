@@ -34,6 +34,7 @@ export default async function AdminSettingsPage() {
         initialWhatsappNumber={settings.whatsappNumber}
         initialDarkModeEnabled={settings.darkModeEnabled}
         initialRequireStudentApplicationFile={settings.requireStudentApplicationFile}
+        initialShowTutorialSection={settings.showTutorialSection}
       />
     </div>
   );

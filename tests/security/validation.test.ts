@@ -289,20 +289,18 @@ test("تقييم: قبول تقييم صحيح كامل (كل الحقول)", ()
   assert.equal(parsed.success, true);
 });
 
-test("اعتماد: رفض إجراء غير معروف ومنع صارم للـ enum", () => {
+test("اعتماد: رفض معرّف جلسة غير صالح", () => {
   assert.equal(
     assessmentApprovalSchema.safeParse({
-      examSessionId: "session1",
-      action: "delete", // ضار
+      examSessionId: "",
     }).success,
     false
   );
   assert.equal(
     assessmentApprovalSchema.safeParse({
-      examSessionId: "",
-      action: "approve",
+      examSessionId: "session1",
     }).success,
-    false
+    true
   );
 });
 

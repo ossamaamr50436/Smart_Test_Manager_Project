@@ -50,7 +50,6 @@ type Settings = {
 type Props = {
   student: StudentForAssess;
   sessionId: string;
-  seniorIsUser: boolean;
   evaluatorId: string;
   segments: Segment[];
   modelNumber: number;
@@ -83,7 +82,6 @@ function emptyCounts(segments: Segment[]): Counts {
 export function AssessmentBoard({
   student,
   sessionId,
-  seniorIsUser,
   evaluatorId,
   segments,
   modelNumber,
@@ -283,7 +281,7 @@ export function AssessmentBoard({
     }
   }
 
-  async function handleApprove(action: "approve" | "finalize") {
+  async function handleApprove() {
     setError("");
     setMessage("");
     try {
@@ -300,13 +298,9 @@ export function AssessmentBoard({
         recitationScore,
         tajweedScore,
       });
-      await approveAssessment(sessionId, action);
+      await approveAssessment(sessionId);
       setLocked(true);
-      setMessage(
-        action === "approve"
-          ? "تم اعتماد التقييم من المعلم الأكبر — اللوحة مقفلة"
-          : "تم الاعتماد النهائي — اللوحة مقفلة"
-      );
+      setMessage("تم اعتماد تقييمك — اللوحة مقفلة");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
@@ -559,21 +553,13 @@ export function AssessmentBoard({
                 {saving ? "جارٍ الحفظ..." : "حفظ كمسودة"}
               </Button>
 
-              {seniorIsUser ? (
-                <Button
-                  onClick={() => handleApprove("approve")}
-                  variant="secondary"
-                >
-                  اعتماد (المعلم الأكبر)
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => handleApprove("finalize")}
-                  variant="default"
-                >
-                  اعتماد نهائي (المعلم الأصغر)
-                </Button>
-              )}
+              <Button
+                onClick={handleApprove}
+                variant="default"
+                disabled={saving || !loaded}
+              >
+                اعتماد تقييمي
+              </Button>
             </>
           )}
         </CardContent>

@@ -128,14 +128,6 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
     }
   }
 
-  function ageOf(birthDate: Date): number {
-    const now = new Date();
-    let age = now.getFullYear() - birthDate.getFullYear();
-    const m = now.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < birthDate.getDate())) age--;
-    return age;
-  }
-
   return (
     <div className="space-y-6">
       {error && (
@@ -176,7 +168,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="exBirth">تاريخ الميلاد * (لحساب الأكبر سناً)</Label>
+              <Label htmlFor="exBirth">تاريخ الميلاد *</Label>
               <Input
                 id="exBirth"
                 type="date"
@@ -220,7 +212,6 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
                 <thead className="bg-muted/60">
                   <tr className="text-right">
                     <th className="px-3 py-2 font-medium">المعلم</th>
-                    <th className="px-3 py-2 font-medium">العمر</th>
                     <th className="px-3 py-2 font-medium">الارتباط</th>
                     <th className="px-3 py-2 font-medium">إجراءات</th>
                   </tr>
@@ -232,7 +223,6 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
                         <p className="font-medium">{ex.name}</p>
                         <p className="text-xs text-muted-foreground" dir="ltr">{ex.email}</p>
                       </td>
-                      <td className="px-3 py-2">{ageOf(ex.birthDate)} سنة</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         {ex._count.committeesAsTeacher1 + ex._count.committeesAsTeacher2} لجنة —{" "}
                         {ex._count.sessionsAsTeacher1 + ex._count.sessionsAsTeacher2} جلسة

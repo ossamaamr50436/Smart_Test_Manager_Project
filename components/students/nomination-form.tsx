@@ -55,6 +55,7 @@ export function NominationForm({
   });
 
   async function onSubmit(data: StudentApplicationInput) {
+    if (loading) return;
     setError("");
 
     // التحقق من رفع نموذج الاختبار عند تفعيل الإعداد

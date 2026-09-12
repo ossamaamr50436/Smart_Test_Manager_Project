@@ -45,8 +45,8 @@ enum ExamSessionStatus {
 
 enum AssessmentStatus {
   DRAFT // تقييم أولي قيد التحرير
-  APPROVED // اعتمده المعلم الأكبر سناً
-  FINALIZED // اعتمد نهائياً من المعلم الأصغر
+  APPROVED // اعتمده المختبر — حالة الاعتماد النهائية لتقييم المختبر
+  FINALIZED // حالة محفوظة للتوافق مع البيانات القديمة
   ACCEPTED // اعتمده الأخصائي
   NOTIFIED // وافق عليه رئيس الشؤون
 }
@@ -89,7 +89,7 @@ model User {
   email              String   @unique
   password           String // مشفرة بـ bcrypt
   role               Role
-  birthDate          DateTime // لحساب الترتيب الأعمار في الاعتماد المتسلسل
+  birthDate          DateTime // تاريخ الميلاد (بيانات تعريفية)
   phone              String? // رقم الجوال — يُستخدم في قناة إشعارات SMS
   mustChangePassword Boolean  @default(false) // إجبار المستخدم على تغيير كلمة المرور بعد أول دخول
   createdAt          DateTime @default(now())
@@ -197,8 +197,8 @@ model Committee {
   name       String // اسم اللجنة (مثال: "لجنة 1 — فرع 5 أجزاء")
   branch     String // الفرع: 5/10/15/20/25/30 جزءاً
   seasonId   String
-  teacher1Id String // المعلم الأول (الأكبر سناً)
-  teacher2Id String // المعلم الثاني (الأصغر سناً)
+  teacher1Id String // المعلم الأول في اللجنة
+  teacher2Id String // المعلم الثاني في اللجنة
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -240,13 +240,13 @@ model ExamModel {
 
 // ------------------------------------------------------------
 // جلسات الاختبار
-// اللجنة = معلمان: teacher1 (الأكبر سناً) و teacher2 (الأصغر سناً)
+// اللجنة = معلمان: teacher1 و teacher2 (يعملان بشكل مستقل)
 // ------------------------------------------------------------
 model ExamSession {
   id         String            @id @default(cuid())
   studentId  String
-  teacher1Id String // المقيّم الأول (الأكبر سناً)
-  teacher2Id String // المقيّم الثاني (الأصغر سناً)
+  teacher1Id String // المقيّم الأول
+  teacher2Id String // المقيّم الثاني
   examDate   DateTime
   period     String // صباحي / مسائي
   status     ExamSessionStatus @default(SCHEDULED)
@@ -419,6 +419,7 @@ model AppSettings {
   whatsappNumber                String? // رقم الدعم الفني (ديناميكي)
   darkModeEnabled               Boolean  @default(false) // تفعيل الوضع المظلم
   requireStudentApplicationFile Boolean  @default(false) // إلزام الجهات برفع ملف PDF
+  showTutorialSection           Boolean  @default(true) // إظهار قسم التعليم والدور في الإعدادات
   updatedAt                     DateTime @updatedAt
 
   @@map("app_settings")

@@ -67,6 +67,7 @@ export function CommitteeForm({
   });
 
   async function onSubmit(data: CommitteeInput) {
+    if (loading) return;
     setError("");
     setLoading(true);
     try {
@@ -120,7 +121,7 @@ export function CommitteeForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>المعلم الأول (الأكبر سناً) *</Label>
+              <Label>المعلم الأول *</Label>
               <Select {...selectProps("teacher1Id")} name="teacher1Id">
                 <SelectTrigger>
                   <SelectValue placeholder="اختر المعلم الأول" />
@@ -141,7 +142,7 @@ export function CommitteeForm({
             </div>
 
             <div className="space-y-2">
-              <Label>المعلم الثاني (الأصغر سناً) *</Label>
+              <Label>المعلم الثاني *</Label>
               <Select {...selectProps("teacher2Id")} name="teacher2Id">
                 <SelectTrigger>
                   <SelectValue placeholder="اختر المعلم الثاني" />

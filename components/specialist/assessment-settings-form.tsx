@@ -30,6 +30,7 @@ export function AssessmentSettingsForm({ settings }: { settings: Settings }) {
   const [error, setError] = useState("");
 
   async function handleSave() {
+    if (loading) return;
     setLoading(true);
     setError("");
     setMessage("");
