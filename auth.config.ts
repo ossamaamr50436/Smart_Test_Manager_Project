@@ -81,6 +81,14 @@ export const authConfig = {
         return true;
       }
 
+      // صفحات عامة لكل المستخدمين المسجلين (بما فيها SUPER_ADMIN)
+      // /profile و /settings و /settings/tutorial و /notifications
+      // توضع قبل قيد SUPER_ADMIN حتى يتمكن من الوصول إليها دون إعادة توجيه
+      const allowedForAllUsers = ["/profile", "/settings", "/settings/tutorial", "/notifications"];
+      if (allowedForAllUsers.some((p) => path === p || path.startsWith(p + "/"))) {
+        return true;
+      }
+
       // SUPER_ADMIN → /super-admin قسرياً (عزل المالك عن مساحات المؤسسات)
       if (role === "SUPER_ADMIN") {
         if (!path.startsWith("/super-admin")) {
@@ -102,11 +110,6 @@ export const authConfig = {
         if (home && home !== "/") {
           return Response.redirect(new URL(home, nextUrl));
         }
-        return true;
-      }
-
-      // صفحات عامة لكل المستخدمين المسجلين
-      if (path === "/notifications" || path === "/profile" || path === "/settings") {
         return true;
       }
 

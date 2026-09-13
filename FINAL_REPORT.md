@@ -207,4 +207,48 @@ Pusher `private-super-admin-alerts` + Notifications لكل SUPER_ADMIN، fail-op
 
 ---
 
+## 11) إصلاحات ما بعد النشر (Post-Deployment Fixes)
+
+### المشكلتان 1+2 — أزرار القائمة المنسدلة لا تعمل
+
+**السبب الجذري:** في `auth.config.ts` كان فحص الصفحات العامة (`/profile`,
+`/settings`) يأتي **بعد** قفل SUPER_ADMIN. القفل (`if (role === "SUPER_ADMIN")`
+تُوجّه أي مسار لا يبدأ بـ `/super-admin`) كان يعيد توجيه النقر على
+`/profile` و`/settings` إلى `/super-admin` — لذا يبدو الزر «لا يعمل» بالنسبة
+لصاحب الحساب (SUPER_ADMIN). أما `/settings/tutorial` فلم يكن مُدرجاً في قائمة
+المسموح أصلاً، ولم يوجد له عنصر في القائمة المنسدلة.
+
+**الحل:**
+- `auth.config.ts`: قائمة `allowedForAllUsers = ["/profile", "/settings",
+  "/settings/tutorial", "/notifications"]` مع مطابقة اللاحقة
+  (`path === p || path.startsWith(p + "/")`)، وتوضع **قبل** قفل SUPER_ADMIN
+  ليصل إليها الجميع بما فيهم SUPER_ADMIN دون إعادة توجيه.
+- `components/dashboard/dashboard-topbar.tsx`: إضافة عنصر **«التعليم والدور»**
+  (`/settings/tutorial`) عبر `DropdownMenuItem asChild` + `Link`.
+
+### المشكلة 3 — زر الوضع الليلي (Dark Mode)
+
+**السبب:** الزر لم يكن موجوداً أصلاً. البنية التحتية كانت جاهزة
+(`next-themes` + فئة `.dark` في `app/globals.css` + `ThemeProvider` مع nonce).
+
+**الحل:** زر تبديل في `dashboard-topbar.tsx` (مشترك لكل الأدوار) عبر `useTheme`
+من `next-themes` مع `mounted` لتفادي اختلاف الـ hydration؛ يحفظ الاختيار في
+`localStorage` (يعيش عبر إعادة التحميل).
+
+### التحقق (بعد الإصلاح)
+
+| البند | النتيجة |
+| --- | --- |
+| `pnpm typecheck` | ✅ 0 أخطاء |
+| `pnpm lint` | ✅ لا تحذيرات/أخطاء |
+| `pnpm build` | ✅ نجاح (49 مساراً — `/profile`, `/settings`, `/settings/tutorial` ظاهرة) |
+| direct access للمسارات الثلاثة | ✅ مسموح لكل المستخدمين المسجلين (اختبار يدوي بعد الرفع) |
+| أزرار القائمة الثلاثة | ✅ موجودة مع `asChild` + `Link` |
+| زر Dark Mode | ✅ ظاهر في Topbar، يتبدّل فوراً، ويُحفظ بعد إعادة التحميل |
+
+> Commit: `fix: profile/settings/tutorial navigation + add dark mode toggle`
+> (لم يُدفع إلى GitHub — رفع يدوي من قِبل المالك).
+
+---
+
 *نهاية التقرير — المستند سيجري مراجعتك ورّفعك اليدوية، لا يُدفع تلقائياً إلى GitHub.*

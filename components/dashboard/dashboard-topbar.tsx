@@ -1,8 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { useSession, signOut } from "next-auth/react";
-import { ChevronDown, LogOut, Menu, Settings, UserRound } from "lucide-react";
+import {
+  ChevronDown,
+  GraduationCap,
+  LogOut,
+  Menu,
+  Moon,
+  Settings,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -19,6 +30,9 @@ import { usePlatformSettings } from "@/components/providers/settings-provider";
 export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { data: session } = useSession();
   const { settings } = usePlatformSettings();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const user = session?.user;
   const role = (user?.role as RoleKey | undefined) ?? undefined;
   const roleLabel = role ? ROLE_LABELS[role] : "مستخدم";
@@ -35,7 +49,17 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
       >
         <Menu className="h-6 w-6" />
       </button>
-      <div className="ms-auto flex items-center">
+      <div className="ms-auto flex items-center gap-1">
+        {mounted && (
+          <button
+            type="button"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label="تبديل الوضع الليلي"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary-200/40"
+          >
+            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger
             className={cn(
@@ -67,6 +91,12 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
               <Link href="/settings">
                 <Settings className="h-4 w-4" />
                 إعدادات المستخدم
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings/tutorial">
+                <GraduationCap className="h-4 w-4" />
+                التعليم والدور
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

@@ -1,112 +1,258 @@
-Phase C+D مكتملة — عمل ممتاز. الآن Phase E (الإغلاق النهائي).
+أنت الآن وكيل برمجي خبير في Next.js 15 (App Router)، TypeScript، Tailwind، NextAuth v5، next-themes.
 
-## 🎯 المطلوب: التحقق الشامل + Commit + تقرير الإغلاق
+📌 سياق المهمة:
+المنصة منشورة على Vercel. المستخدم أبلغ عن 3 مشاكل جديدة:
+1. زر "التعليم والدور" في القائمة المنسدلة لا يعمل.
+2. زرّا "إعدادات المستخدم" و "الملف الشخصي" في نفس القائمة لا يعملان.
+3. لا يوجد زر للوضع الليلي (Dark Mode) في المنصة.
 
-### 1) قبل أي شيء — احفظ Phase C+D فوراً
+🎯 المطلوب: إصلاح المشاكل الثلاث في هذه الجلسة.
 
+---
+
+📜 التعليمات الصارمة:
+1. **لا تكسر أي وظيفة تعمل حالياً**.
+2. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm lint` + `pnpm build`.
+3. لا تستخدم `any` أو `as unknown as`.
+4. **لا ترفع على GitHub** — سأراجع ثم أرفع.
+5. madina-quran تبقى سليمة.
+6. لا تطبّق migration RLS (مؤجل).
+
+---
+
+🔴 المهمة 1: إصلاح الأزرار في القائمة المنسدلة
+
+### 1.1 التحقق من المسارات (Diagnosis)
+
+نفّذ الفحوصات التالية بالترتيب ووثّق نتائجها:
+
+**أ) هل المسارات موجودة فعلاً؟**
+
+```powershell
+Test-Path "app\(dashboard)\profile\page.tsx"
+Test-Path "app\(dashboard)\settings\page.tsx"
+Test-Path "app\(dashboard)\settings\tutorial\page.tsx"
+ب) هل هي مسجّلة في auth.config.ts؟
+
+powershell
+Select-String -Path "auth.config.ts" -Pattern "profile|settings|tutorial" -SimpleMatch
+ج) هل الروابط في القائمة المنسدلة صحيحة؟
+
+powershell
+Select-String -Path "components\dashboard\dashboard-topbar.tsx" -Pattern "href=" -SimpleMatch
+د) هل القائمة المنسدلة تعرض عناصر صحيحة؟
+
+افتح components/dashboard/dashboard-topbar.tsx واقرأ قسم DropdownMenuContent.
+
+1.2 السبب المتوقع والحلول
+الاحتمال A — auth.config.ts لا يسمح بالمسارات:
+
+ابحث عن قسم authorized أو middleware.
+
+تأكد أن المسارات التالية مسموحة لأي مستخدم مسجّل:
+
+/profile
+
+/settings
+
+/settings/tutorial
+
+إن لم تكن، أضفها:
+
+typescript
+// في authorized():
+const allowedForAllUsers = ["/profile", "/settings", "/settings/tutorial", "/notifications"];
+if (allowedForAllUsers.some(p => pathname === p || pathname.startsWith(p + "/"))) {
+  return true;
+}
+الاحتمال B — المسارات لا توجد:
+
+إذا Test-Path أعاد False، أنشئ المسارات المفقودة:
+
+app/(dashboard)/profile/page.tsx — يعرض بيانات المستخدم.
+
+app/(dashboard)/settings/page.tsx — يحتوي ChangePasswordForm + رابط tutorial.
+
+app/(dashboard)/settings/tutorial/page.tsx — يعرض محتوى حسب الدور.
+
+الاحتمال C — الروابط في Topbar خاطئة:
+
+افتح components/dashboard/dashboard-topbar.tsx.
+
+تأكد أن DropdownMenuItem يستخدم asChild مع <Link>:
+
+tsx
+<DropdownMenuItem asChild>
+  <Link href="/profile">الملف الشخصي</Link>
+</DropdownMenuItem>
+<DropdownMenuItem asChild>
+  <Link href="/settings">إعدادات المستخدم</Link>
+</DropdownMenuItem>
+<DropdownMenuItem asChild>
+  <Link href="/settings/tutorial">التعليم والدور</Link>
+</DropdownMenuItem>
+الاحتمال D — Middleware يحجب:
+
+افتح middleware.ts.
+
+تأكد أن matcher لا يستثني هذه المسارات بشكل خاطئ.
+
+1.3 الاختبار
+بعد الإصلاح:
+
+اختبار محلي: pnpm dev -- -p 7777 → افتح /profile مباشرة.
+
+إذا عملت → اختبر من القائمة.
+
+إذا لم تعمل → اقرأ الخطأ في Console.
+
+🔴 المهمة 2: إضافة زر الوضع الليلي (Dark Mode)
+
+2.1 الفهم الحالي
+next-themes مثبّت (ThemeProvider موجود في app/layout.tsx).
+
+darkModeEnabled موجود في AppSettings (كقيمة افتراضية).
+
+CSS يحتوي على .dark class (افتراضي من Tailwind).
+
+2.2 المطلوب
+أ) زر Toggle في الشريط العلوي:
+
+في components/dashboard/dashboard-topbar.tsx:
+
+tsx
+import { useTheme } from "next-themes";
+import { Moon, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
+
+// داخل المكوّن:
+const { theme, setTheme } = useTheme();
+const [mounted, setMounted] = useState(false);
+useEffect(() => setMounted(true), []);
+
+// في الـJSX، قبل قائمة المستخدم:
+{mounted && (
+  <button
+    type="button"
+    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+    aria-label="تبديل الوضع الليلي"
+    className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary-200/40"
+  >
+    {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+  </button>
+)}
+ب) التأكد من ThemeProvider:
+
+افتح app/layout.tsx وتأكد:
+
+tsx
+<ThemeProvider
+  attribute="class"
+  defaultTheme={defaultTheme}
+  enableSystem
+  disableTransitionOnChange
+  nonce={nonce}
+>
+  {children}
+</ThemeProvider>
+ج) التأكد من CSS Variables للـDark:
+
+افتح app/globals.css وتأكد من وجود:
+
+css
+.dark {
+  --background: ...;
+  --foreground: ...;
+  --primary: ...;
+  --secondary: ...;
+  --card: ...;
+  --border: ...;
+  --muted: ...;
+  /* ... كل المتغيرات */
+}
+إذا لم تكن موجودة، أضف نسخة .dark مع ألوان داكنة مناسبة.
+
+د) عرض الزر لكل الأدوار:
+
+الزر موجود في dashboard-topbar.tsx وهو مشترك بين جميع الأدوار ✅.
+
+سيظهر تلقائياً لكل من: SUPER_ADMIN، ADMIN، SPECIALIST، EXAMINER، INSTITUTION، HEAD_OF_AFFAIRS، CERTIFICATE_SOURCE.
+
+2.3 التعامل مع darkModeEnabled (إعداد المنصة)
+AppSettings.darkModeEnabled هو القيمة الافتراضية للمنصة.
+
+إذا true → المستخدم الجديد يبدأ بـdark.
+
+المستخدم يستطيع تبديله يدوياً (يُحفظ في localStorage عبر next-themes).
+
+لا حاجة لتعديل AppSettings في هذه المهمة.
+
+2.4 الاختبار
+افتح المنصة → الزر ظاهر في Topbar (أيقونة قمر/شمس).
+
+اضغطه → الوضع يتبدّل فوراً.
+
+افتح صفحة جديدة → الوضع محفوظ.
+
+أعد تحميل الصفحة → الوضع محفوظ.
+
+جرّب في كل الأدوار → الزر يعمل.
+
+🔴 المهمة 3: التحقق النهائي
+
+3.1 فحوصات إلزامية
+powershell
+pnpm typecheck   # 0 errors
+pnpm lint        # نظيف
+pnpm build       # success
+3.2 اختبار شامل
+#	الاختبار	المتوقع
+1	/profile مباشر	يعمل
+2	/settings مباشر	يعمل
+3	/settings/tutorial مباشر	يعمل
+4	الأزرار الثلاثة من القائمة المنسدلة	تعمل
+5	زر Dark Mode في Topbar	ظاهر
+6	الضغط على الزر	يتبدّل
+7	إعادة تحميل الصفحة	الوضع محفوظ
+8	التبديل بين الأدوار	الزر يعمل في الكل
+3.3 Git Commit
+powershell
 git add -A
-git commit -m "phase C+D: security layers 1-3 + docs + next 15 upgrade"
+git commit -m "fix: profile/settings/tutorial navigation + add dark mode toggle"
 
-تحقق:
-git log --oneline -5
+git log --oneline -3
+لا push — سأراجع ثم أرفع.
 
-### 2) التحقق الشامل (Comprehensive Verification)
+✅ معايير النجاح:
 
-نفّذ السلسلة التالية وسجّل النتائج:
+pnpm typecheck + pnpm lint + pnpm build تنجح.
 
-# A. Statics
-pnpm typecheck                  # المتوقع: 0 errors
-pnpm lint                       # المتوقع: نظيف
-pnpm build                      # المتوقع: success
+المسارات الثلاثة (/profile, /settings, /settings/tutorial) تعمل عند الدخول المباشر.
 
-# B. Prisma
-npx prisma validate             # المتوقع: valid
-npx prisma migrate status       # المتوقع: 16 migrations، واحدة لم تُطبَّق (RLS)
+الأزرار الثلاثة في القائمة المنسدلة تعمل.
 
-# C. Tenant Isolation Test
-npx tsx scripts/test-tenant-isolation.ts  # المتوقع: 18/18 PASS (أو ما كان عليه)
+زر Dark Mode ظاهر في Topbar لكل الأدوار.
 
-# D. Security Audit
-pnpm audit --audit-level=moderate --json 2>$null | Out-File -Encoding utf8 "$env:TEMP\opencode\audit-final.json"
-# ثم لخّص: critical / high / moderate
+Dark mode يُحفظ بعد إعادة التحميل.
 
-# E. التأكد من madina-quran سليمة
-npx tsx -e "import { prisma } from './lib/prisma'; (async()=>{ const t = await prisma.tenant.findUnique({ where: { slug: 'madina-quran' }, select: { id: true, name: true, _count: { select: { users: true, students: true, examModels: true } } } }); console.log(JSON.stringify(t, null, 2)); await prisma.\$disconnect(); })();"
+لا كسر لأي وظيفة موجودة.
 
-# المتوقع: 100 نموذج، لا حذف
+madina-quran سليمة.
 
-### 3) التحقق من العزل والمزامنة (Code Review)
+📝 التوثيق:
 
-راجع ووثّق في التقرير:
+حدّث FINAL_REPORT.md بقسم "إصلاحات ما بعد النشر".
 
-**العزل**:
-- lib/tenancy.ts → getTenantFilter, assertSameTenant, requireTenant.
-- كل Server Action في lib/actions/ يستخدم getTenantFilter في READs.
-- كل UPDATE/DELETE يستخدم assertSameTenant.
-- RLS migration موجود (غير مطبَّق عمداً).
+اذكر السبب الجذري للمشكلتين 1+2 (بعد تشخيصه).
 
-**المزامنة الحية (Pusher)**:
-- lib/realtime.ts → قنوات صحيحة:
-  - `private-user-{userId}` — إشعارات المستخدم.
-  - `private-assessment-{sessionId}` — تحديث التقييم التفاعلي.
-  - `private-super-admin-alerts` — تنبيهات SUPER_ADMIN.
-- app/api/pusher/auth/route.ts → تحقق الدور بشكل صحيح.
-- lib/realtime-client.ts → اشتراكات صحيحة.
+🚫 ممنوع:
 
-**الأمان الثلاثي**:
-- Layer 1: Session (8h)، Lockout (5/15د)، Rate Limit (IP/User/Tenant).
-- Layer 2: enum أمني مطبَّق، RLS جاهز، withTenantContext جاهز.
-- Layer 3: raiseSecurityAlert، Pusher، AuditLog، Notifications.
+حذف أي ملف.
 
-**الأداء**:
-- 16 فهرس مركّب مطبَّق.
-- Pagination (PAGE_SIZE=20 + take:100 كحد أقصى).
-- Caching (TenantConfig 300s + PlatformSettings 60s).
-- Batch operations في seed + import.
+تعديل RLS migration.
 
-### 4) اكتب FINAL_REPORT.md (ملف جديد في الجذر)
+push إلى GitHub.
 
-يحتوي على 8 أقسام:
+استخدام any.
 
-1. **ملخص المشروع**: Multi-Tenant SaaS + 3 layers أمان + 5K طالب.
-2. **ما تم إنجازه (Phases A-E)**: جدول مختصر.
-3. **البنية المعمارية**: Tenants + users + RLS + Pusher.
-4. **الأمان**: 3 layers + audit results (37→13 ثغرة).
-5. **الأداء**: فهارس + قياسات before/after.
-6. **العزل والمزامنة**: كيف يعملون.
-7. **قائمة الحسابات**: SUPER_ADMIN + madina-quran.
-8. **خطوات النشر على Vercel + اختبار الاختراق**.
-9. **Limitations الصريحة**: RLS غير مطبَّق، xlsx، إلخ.
-10. **التوصيات للإصدار القادم**: تفعيل RLS، PostCSS، vitest.
-
-### 5) تحقق أخير قبل الرفع
-
-- ✅ `git status` يجب أن يكون نظيفاً بعد الـcommit.
-- ✅ لا يوجد ملف `.env` مُتتبَّع في git.
-- ✅ لا يوجد `madina-quran` محذوف.
-- ✅ RLS migration موجود كملف فقط.
-- ✅ كل التغييرات في commit واحد نظيف.
-
-### 6) ⚠️ لا ترفع إلى GitHub
-
-سأراجع FINAL_REPORT.md بنفسي وأرفع يدوياً.
-
-### 7) اكتب تقرير الإغلاق (10 أسطر فقط)
-
-في نهاية رسالتك، اكتب "Phase E complete" مع:
-1. نتائج typecheck/lint/build.
-2. نتائج migrate status.
-3. نتيجة tenant isolation test.
-4. نتيجة pnpm audit (critical/high/moderate).
-5. حالة madina-quran.
-6. آخر 3 commits.
-7. تأكيد أن FINAL_REPORT.md مكتوب.
-8. أي تحذيرات مهمة.
-
-## ⚠️ حرج
-- لا push إلى GitHub.
-- لا تطبّق RLS migration.
-- madina-quran تبقى سليمة تماماً.
-- إذا وجدت خطأ في أي مرحلة، توقف وأبلغ.
-
-ابدأ الآن.
+ابدأ الآن. وثّق التشخيص + الحل لكل مهمة.
