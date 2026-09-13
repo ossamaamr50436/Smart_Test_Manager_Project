@@ -2,7 +2,7 @@
 
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireRole, requireTenantId } from "@/lib/security";
+import { requireUser, requireRole } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { uploadFileToDrive } from "@/lib/google-drive";
@@ -71,7 +71,7 @@ export async function updatePlatformSettings(
   logoFile?: { buffer: ArrayBuffer; fileName: string; mimeType: string }
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+  requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN]);
 
   if (!platformName || platformName.trim().length === 0) {
     throw new Error("اسم المنصة مطلوب");
@@ -128,7 +128,7 @@ export async function updatePlatformSettings(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
-      tenantId: requireTenantId(user),
+      tenantId: user.tenantId,
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -154,7 +154,7 @@ export async function updateTemplateSettings(
   templateFile?: { buffer: ArrayBuffer; fileName: string; mimeType: string }
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+  requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN]);
 
   // منع إساءة الاستخدام (رفع قوالب متكررة)
   await checkRateLimit(`settings-update:${user.id}`, 10);
@@ -196,7 +196,7 @@ export async function updateTemplateSettings(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
-      tenantId: requireTenantId(user),
+      tenantId: user.tenantId,
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -224,7 +224,7 @@ export async function updateAppearanceSettings(input: {
   darkModeEnabled: boolean;
 }): Promise<{ success: boolean }> {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+  requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN]);
 
   const primaryColor = (input.primaryColor || "#015e63").trim();
   const secondaryColor = (input.secondaryColor || "#d3bb8b").trim();
@@ -261,7 +261,7 @@ export async function updateAppearanceSettings(input: {
   await prisma.auditLog.create({
     data: {
       userId: user.id,
-      tenantId: requireTenantId(user),
+      tenantId: user.tenantId,
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -290,7 +290,7 @@ export async function updateStudentApplicationFileSetting(
   enabled: boolean
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+  requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN]);
 
   await checkRateLimit(`settings-update:${user.id}`, 10);
 
@@ -302,7 +302,7 @@ export async function updateStudentApplicationFileSetting(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
-      tenantId: requireTenantId(user),
+      tenantId: user.tenantId,
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",
@@ -325,7 +325,7 @@ export async function updateTutorialSectionSetting(
   enabled: boolean
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+  requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN]);
 
   await checkRateLimit(`settings-update:${user.id}`, 10);
 
@@ -337,7 +337,7 @@ export async function updateTutorialSectionSetting(
   await prisma.auditLog.create({
     data: {
       userId: user.id,
-      tenantId: requireTenantId(user),
+      tenantId: user.tenantId,
       action: AuditAction.UPDATE,
       details: JSON.stringify({
         entity: "AppSettings",

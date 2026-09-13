@@ -6,6 +6,21 @@
   :root {
     --primary: #015e63;
     --secondary: #d3bb8b;
+    --background: #ffffff;
+    --foreground: #1a1a1a;
+    --card: #ffffff;
+    --card-foreground: #1a1a1a;
+    --popover: #ffffff;
+    --popover-foreground: #1a1a1a;
+    --muted: #f8f9fa;
+    --muted-foreground: #6b7280;
+    --border: #e5e7eb;
+    --input: #e5e7eb;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --accent: #f1ead9;
+    --accent-foreground: #01434a;
+    --ring: #015e63;
   }
 
   .dark {
@@ -19,6 +34,10 @@
     --muted-foreground: #9fb3c0;
     --border: #24343e;
     --input: #24343e;
+    --destructive: #7f1d1d;
+    --destructive-foreground: #fecaca;
+    --accent: #1a262e;
+    --accent-foreground: #eef1f4;
   }
 
   * {
@@ -173,9 +192,9 @@
   .skeleton {
     background: linear-gradient(
       90deg,
-      hsl(var(--muted)) 25%,
-      hsl(var(--muted-foreground) / 0.1) 50%,
-      hsl(var(--muted)) 75%
+      var(--muted) 25%,
+      color-mix(in srgb, var(--muted-foreground) 10%, transparent) 50%,
+      var(--muted) 75%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;

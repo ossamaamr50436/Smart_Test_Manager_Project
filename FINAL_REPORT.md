@@ -251,4 +251,72 @@ Pusher `private-super-admin-alerts` + Notifications لكل SUPER_ADMIN، fail-op
 
 ---
 
+## 12) إصلاحات ما بعد النشر — الجولة الثانية
+
+### المشكلة 1 — زر Dark Mode يبدّل الحالة لكن المظهر لا يتغير
+
+**السبب الجذري:** `darkMode: "class"` موجود، وفئة `.dark` موجودة في
+`app/globals.css`، و`ThemeProvider` سليم (`attribute="class"`,
+`enableSystem={false}`). لكن **`tailwind.config.ts` كان يصلّب الألوان الضوئية**
+ثابتة (`background: "#FFFFFF"`, `card`, `popover`, `border`, `muted`,
+`foreground`, ...) بدلاً من ربطها بمتغيرات CSS. النتيجة: عند وضع `.dark` على
+`<html>` تتغير المتغيرات لكن أي utility مبني على الألوان الدلالية (مثل
+`bg-background`, `text-foreground`, `border-border`, `bg-card`) ما زال يقرأ
+القيم الثابتة من الـ config — فلا يظهر أي أثر للوضع الليلي. فقط
+`primary/secondary/ring` كانت مربوطة بـ `var()`.
+
+**الحل:**
+- `tailwind.config.ts`: رُبطت الألوان الدلالية كلها بمتغيرات CSS
+  (`background`, `foreground`, `card`, `popover`, `muted`, `border`, `input`,
+  `destructive`, `accent`).
+- `app/globals.css`: توسيع `:root` بكل متغيرات الوضع الفاتح، وتوسيع `.dark`
+  بمتغيرات الوضع الليلي (بصيغة HEX متناسقة مع ألوان العلامة والشعار المُحقنة
+  ديناميكياً — خيار المشروع بدل اقتراح HSL في o.txt).
+- إصلاح `.skeleton` (كان `hsl(var(--muted))` غير صالح) إلى `var(--muted)` +
+  `color-mix(...)`.
+- `dashboard-topbar.tsx`: tooltip على زر التبديل («الوضع الليلي/النهاري»).
+
+**التحقق من `pnpm build`:** الـ CSS المبنية صارت تحوي
+`body { background-color: var(--background); … }` و
+`bg-card { background-color: var(--card) }` و`* { border-color: var(--border) }`
+— أي أن تبديل `.dark` على `<html>` يغيّر القيم فعلياً.
+
+### المشكلة 2 — صفحة إعدادات المنصة غير موجودة في حساب SUPER_ADMIN
+
+**السبب:** صفحة `/admin/settings` موجودة لكن قفل SUPER_ADMIN في `auth.config.ts`
+يعيد توجيه كل شيء نحو `/super-admin`، كما أن Server Actions الإعدادات
+محمية بـ `requireRole(user, [Role.ADMIN])` و`requireTenantId(user)` — وكلاهما
+يفشل مع SUPER_ADMIN (`tenantId` خالٍ).
+
+**الحل (الخيار 1 من o.txt):**
+- مسار جديد `app/(dashboard)/super-admin/settings/page.tsx` (metadata + اسم
+  وديناميكي `force-dynamic` + `getCurrentUser` + `requireSuperAdmin` +
+  `getCachedPlatformSettings`).
+- مكوّن جديد `components/super-admin/platform-settings-form.tsx` (نسخة من منطق
+  `admin-settings-form` بالقيم الصحيحة: زر حفظ المظهر/الحوكمة موجود + لا تكرار
+  لزر نموذج الطالب) — يعيد استخدام **نفس** Server Actions الموجودة
+  (`updatePlatformSettings`, `updateAppearanceSettings`, `updateTemplateSettings`,
+  `updateStudentApplicationFileSetting`, `updateTutorialSectionSetting`).
+- `lib/actions/settings-actions.ts`: السماح لـ`SUPER_ADMIN` بجانب `ADMIN`
+  (`requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN])`)، واستبدال
+  `tenantId: requireTenantId(user)` بـ`tenantId: user.tenantId` (يتوافق مع
+  `AuditLog.tenantId` القابل للخواء) — بلا أي Actions جديدة.
+- `dashboard-sidebar.tsx`: رابط **«إعدادات المنصة»** في قسم SUPER_ADMIN
+  (`/super-admin/settings`).
+
+### التحقق (بعد الإصلاح)
+
+| البند | النتيجة |
+| --- | --- |
+| `pnpm typecheck` | ✅ 0 أخطاء |
+| `pnpm lint` | ✅ نظيف |
+| `pnpm build` | ✅ نجاح — المسار `/super-admin/settings` ظاهر (5.22 kB) |
+| التبديل Dark Mode | ✅ المتغيرات الدلالية كلها عبر `var(--…)`؛ المظهر يتبدّل فعلاً |
+| `/super-admin/settings` | ✅ يُتيح تعديل الاسم والشعار والألوان (SUPER_ADMIN) |
+
+> Commit: `fix: dark mode application + add /super-admin/settings page`
+> (لم يُدفع إلى GitHub — رفع يدوي من قِبل المالك).
+
+---
+
 *نهاية التقرير — المستند سيجري مراجعتك ورّفعك اليدوية، لا يُدفع تلقائياً إلى GitHub.*

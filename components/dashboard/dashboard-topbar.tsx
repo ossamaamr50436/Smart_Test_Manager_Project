@@ -55,6 +55,7 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
             type="button"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label="تبديل الوضع الليلي"
+            title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
             className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary-200/40"
           >
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}

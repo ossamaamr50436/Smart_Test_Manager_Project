@@ -1,258 +1,269 @@
-أنت الآن وكيل برمجي خبير في Next.js 15 (App Router)، TypeScript، Tailwind، NextAuth v5، next-themes.
+أنت الآن وكيل برمجي خبير في Next.js 15 (App Router)، TypeScript، Tailwind CSS، next-themes، NextAuth v5.
 
 📌 سياق المهمة:
-المنصة منشورة على Vercel. المستخدم أبلغ عن 3 مشاكل جديدة:
-1. زر "التعليم والدور" في القائمة المنسدلة لا يعمل.
-2. زرّا "إعدادات المستخدم" و "الملف الشخصي" في نفس القائمة لا يعملان.
-3. لا يوجد زر للوضع الليلي (Dark Mode) في المنصة.
+المنصة منشورة على Vercel. المستخدم أبلغ عن مشكلتين:
+1. زر Dark Mode يُبدّل الحالة (state) لكن **المظهر لا يتغير** — الوضع الليلي لا يُطبَّق.
+2. **صفحة إعدادات المنصة** (الاسم، الشعار، الألوان) غير موجودة في حساب SUPER_ADMIN، رغم وجودها في `/admin/settings` لحسابات ADMIN.
 
-🎯 المطلوب: إصلاح المشاكل الثلاث في هذه الجلسة.
+🎯 المطلوب: تشخيص وإصلاح المشكلتين.
 
 ---
 
 📜 التعليمات الصارمة:
-1. **لا تكسر أي وظيفة تعمل حالياً**.
+1. لا تكسر أي وظيفة تعمل حالياً.
 2. جميع التعديلات تمر بـ`pnpm typecheck` + `pnpm lint` + `pnpm build`.
-3. لا تستخدم `any` أو `as unknown as`.
+3. لا `any` ولا `as unknown as`.
 4. **لا ترفع على GitHub** — سأراجع ثم أرفع.
 5. madina-quran تبقى سليمة.
-6. لا تطبّق migration RLS (مؤجل).
+6. لا تطبّق migration RLS.
 
 ---
 
-🔴 المهمة 1: إصلاح الأزرار في القائمة المنسدلة
+🔴 المهمة 1: تشخيص Dark Mode (Diagnosis First)
 
-### 1.1 التحقق من المسارات (Diagnosis)
+### 1.1 الفحوصات الإلزامية (نفّذها كلها قبل أي تعديل)
 
-نفّذ الفحوصات التالية بالترتيب ووثّق نتائجها:
-
-**أ) هل المسارات موجودة فعلاً؟**
-
+**أ) تحقق من Tailwind config:**
 ```powershell
-Test-Path "app\(dashboard)\profile\page.tsx"
-Test-Path "app\(dashboard)\settings\page.tsx"
-Test-Path "app\(dashboard)\settings\tutorial\page.tsx"
-ب) هل هي مسجّلة في auth.config.ts؟
+Get-Content tailwind.config.ts | Select-String -Pattern "darkMode"
+Get-Content tailwind.config.js -ErrorAction SilentlyContinue | Select-String -Pattern "darkMode"
+```
 
-powershell
-Select-String -Path "auth.config.ts" -Pattern "profile|settings|tutorial" -SimpleMatch
-ج) هل الروابط في القائمة المنسدلة صحيحة؟
+**ب) تحقق من `.dark` في globals.css:**
+```powershell
+Select-String -Path "app\globals.css" -Pattern "^\.dark" -SimpleMatch
+```
 
-powershell
-Select-String -Path "components\dashboard\dashboard-topbar.tsx" -Pattern "href=" -SimpleMatch
-د) هل القائمة المنسدلة تعرض عناصر صحيحة؟
+**ج) تحقق من ThemeProvider:**
+```powershell
+Get-Content "components\providers\theme-provider.tsx"
+Get-Content "app\layout.tsx" | Select-String -Pattern "ThemeProvider" -Context 0,10
+```
 
-افتح components/dashboard/dashboard-topbar.tsx واقرأ قسم DropdownMenuContent.
+**د) تحقق من package.json:**
+```powershell
+Select-String -Path "package.json" -Pattern "next-themes|tailwind"
+```
 
-1.2 السبب المتوقع والحلول
-الاحتمال A — auth.config.ts لا يسمح بالمسارات:
+### 1.2 الحل حسب السبب
 
-ابحث عن قسم authorized أو middleware.
+**الحالة A — Tailwind 3.x بدون darkMode: 'class'**:
 
-تأكد أن المسارات التالية مسموحة لأي مستخدم مسجّل:
+عدّل `tailwind.config.ts`:
+```typescript
+const config: Config = {
+  darkMode: "class",  // ← الإضافة
+  content: [...],
+  // ...
+};
+```
 
-/profile
+**الحالة B — لا يوجد `.dark` في globals.css**:
 
-/settings
-
-/settings/tutorial
-
-إن لم تكن، أضفها:
-
-typescript
-// في authorized():
-const allowedForAllUsers = ["/profile", "/settings", "/settings/tutorial", "/notifications"];
-if (allowedForAllUsers.some(p => pathname === p || pathname.startsWith(p + "/"))) {
-  return true;
+أضف في نهاية `app/globals.css`:
+```css
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 183 55% 25%;          /* نسخة أغمق من primary الأصلي */
+  --primary-foreground: 210 40% 98%;
+  --secondary: 40 45% 35%;          /* نسخة أغمق من secondary */
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 183 55% 40%;
 }
-الاحتمال B — المسارات لا توجد:
 
-إذا Test-Path أعاد False، أنشئ المسارات المفقودة:
+/* انتقال ناعم عند التبديل */
+html {
+  transition: background-color 200ms ease, color 200ms ease;
+}
+```
 
-app/(dashboard)/profile/page.tsx — يعرض بيانات المستخدم.
+**الحالة C — ThemeProvider لا يمرّر attribute**:
 
-app/(dashboard)/settings/page.tsx — يحتوي ChangePasswordForm + رابط tutorial.
-
-app/(dashboard)/settings/tutorial/page.tsx — يعرض محتوى حسب الدور.
-
-الاحتمال C — الروابط في Topbar خاطئة:
-
-افتح components/dashboard/dashboard-topbar.tsx.
-
-تأكد أن DropdownMenuItem يستخدم asChild مع <Link>:
-
-tsx
-<DropdownMenuItem asChild>
-  <Link href="/profile">الملف الشخصي</Link>
-</DropdownMenuItem>
-<DropdownMenuItem asChild>
-  <Link href="/settings">إعدادات المستخدم</Link>
-</DropdownMenuItem>
-<DropdownMenuItem asChild>
-  <Link href="/settings/tutorial">التعليم والدور</Link>
-</DropdownMenuItem>
-الاحتمال D — Middleware يحجب:
-
-افتح middleware.ts.
-
-تأكد أن matcher لا يستثني هذه المسارات بشكل خاطئ.
-
-1.3 الاختبار
-بعد الإصلاح:
-
-اختبار محلي: pnpm dev -- -p 7777 → افتح /profile مباشرة.
-
-إذا عملت → اختبر من القائمة.
-
-إذا لم تعمل → اقرأ الخطأ في Console.
-
-🔴 المهمة 2: إضافة زر الوضع الليلي (Dark Mode)
-
-2.1 الفهم الحالي
-next-themes مثبّت (ThemeProvider موجود في app/layout.tsx).
-
-darkModeEnabled موجود في AppSettings (كقيمة افتراضية).
-
-CSS يحتوي على .dark class (افتراضي من Tailwind).
-
-2.2 المطلوب
-أ) زر Toggle في الشريط العلوي:
-
-في components/dashboard/dashboard-topbar.tsx:
-
-tsx
-import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
-
-// داخل المكوّن:
-const { theme, setTheme } = useTheme();
-const [mounted, setMounted] = useState(false);
-useEffect(() => setMounted(true), []);
-
-// في الـJSX، قبل قائمة المستخدم:
-{mounted && (
-  <button
-    type="button"
-    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-    aria-label="تبديل الوضع الليلي"
-    className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary-200/40"
-  >
-    {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-  </button>
-)}
-ب) التأكد من ThemeProvider:
-
-افتح app/layout.tsx وتأكد:
-
-tsx
+في `app/layout.tsx`، تأكد:
+```tsx
 <ThemeProvider
   attribute="class"
   defaultTheme={defaultTheme}
-  enableSystem
-  disableTransitionOnChange
+  enableSystem={false}
+  disableTransitionOnChange={false}
   nonce={nonce}
 >
   {children}
 </ThemeProvider>
-ج) التأكد من CSS Variables للـDark:
+```
 
-افتح app/globals.css وتأكد من وجود:
+### 1.3 التحقق بعد الإصلاح
 
-css
-.dark {
-  --background: ...;
-  --foreground: ...;
-  --primary: ...;
-  --secondary: ...;
-  --card: ...;
-  --border: ...;
-  --muted: ...;
-  /* ... كل المتغيرات */
+- شغّل: `pnpm dev -- -p 7777` (أو أي منفذ متاح).
+- افتح DevTools → Elements → `<html>`.
+- اضغط زر Dark Mode.
+- **المتوقع**: `<html class="dark">` (يظهر الـclass).
+- **المتوقع**: خلفية الصفحة تصبح داكنة.
+
+### 1.4 تعزيز الزر (UX)
+
+في `components/dashboard/dashboard-topbar.tsx`، حسّن الزر:
+- استخدم `suppressHydrationWarning` على أي عنصر يعرض `theme` مباشرة.
+- تأكد من `mounted` موجود.
+- أضف tooltip اختياري: "الوضع الليلي" / "الوضع النهاري".
+
+---
+
+🔴 المهمة 2: صفحة إعدادات المنصة لـSUPER_ADMIN
+
+### 2.1 الفحص
+
+**أ) هل `/admin/settings` موجود؟**
+```powershell
+Test-Path "app\(dashboard)\admin\settings\page.tsx"
+```
+
+**ب) ما محتواه؟**
+اقرأ `app/(dashboard)/admin/settings/page.tsx` والمكونات المرتبطة.
+
+**ج) لماذا SUPER_ADMIN لا يصل؟**
+- في `auth.config.ts`، يوجد `if (role === "SUPER_ADMIN")` → إعادة توجيه كل شيء إلى `/super-admin`.
+- هذا يمنع SUPER_ADMIN من الوصول لـ`/admin/settings`.
+
+### 2.2 الحل — خيارَان
+
+**الخيار 1 (موصى به): إنشاء `/super-admin/settings`**
+
+أنشئ المسار التالي: `app/(dashboard)/super-admin/settings/page.tsx`
+
+يحتوي على:
+```typescript
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/actions/auth-actions";
+import { requireSuperAdmin } from "@/lib/tenancy";
+import { getCachedPlatformSettings } from "@/lib/cache";
+import { PlatformSettingsForm } from "@/components/super-admin/platform-settings-form";
+
+export const metadata: Metadata = { title: "إعدادات المنصة" };
+export const dynamic = "force-dynamic";
+
+export default async function SuperAdminSettingsPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  requireSuperAdmin(user);
+
+  const settings = await getCachedPlatformSettings();
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-2xl font-bold">إعدادات المنصة</h1>
+        <p className="mt-1 text-muted-foreground">
+          الاسم، الشعار، الألوان، والتفضيلات العامة
+        </p>
+      </div>
+      <PlatformSettingsForm initial={settings} />
+    </div>
+  );
 }
-إذا لم تكن موجودة، أضف نسخة .dark مع ألوان داكنة مناسبة.
+```
 
-د) عرض الزر لكل الأدوار:
+**مكون `PlatformSettingsForm`**:
+- انسخ منطق `components/admin/admin-settings-form.tsx` (موجود) إلى `components/super-admin/platform-settings-form.tsx`.
+- استخدم نفس Server Actions الموجودة في `lib/actions/settings-actions.ts`.
+- **لا تُنشئ Actions جديدة** — استخدم `updatePlatformSettings` و `updateAppearanceSettings`.
 
-الزر موجود في dashboard-topbar.tsx وهو مشترك بين جميع الأدوار ✅.
+**أضف رابط في Sidebar**:
+في `components/dashboard/dashboard-sidebar.tsx`، قسم `SUPER_ADMIN`، أضف:
+```typescript
+{ href: "/super-admin/settings", label: "إعدادات المنصة" },
+```
 
-سيظهر تلقائياً لكل من: SUPER_ADMIN، ADMIN، SPECIALIST، EXAMINER، INSTITUTION، HEAD_OF_AFFAIRS، CERTIFICATE_SOURCE.
+**الخيار 2 (بديل): السماح لـSUPER_ADMIN بالوصول لـ`/admin/settings`**
 
-2.3 التعامل مع darkModeEnabled (إعداد المنصة)
-AppSettings.darkModeEnabled هو القيمة الافتراضية للمنصة.
+في `auth.config.ts`، عدّل قيد SUPER_ADMIN:
+```typescript
+if (role === "SUPER_ADMIN") {
+  const allowedPaths = ["/super-admin", "/admin/settings", "/settings", "/profile", "/notifications", "/settings/tutorial"];
+  if (!allowedPaths.some(p => path === p || path.startsWith(p + "/"))) {
+    return Response.redirect(new URL("/super-admin", nextUrl));
+  }
+  return true;
+}
+```
 
-إذا true → المستخدم الجديد يبدأ بـdark.
+**الخيار الأفضل**: **الخيار 1** — لأنه يحافظ على الفصل بين SUPER_ADMIN و ADMIN، ويعطي SUPER_ADMIN واجهة مخصّصة.
 
-المستخدم يستطيع تبديله يدوياً (يُحفظ في localStorage عبر next-themes).
+### 2.3 التحقق
 
-لا حاجة لتعديل AppSettings في هذه المهمة.
+- اذهب إلى `/super-admin` (كـSUPER_ADMIN).
+- اضغط على **"إعدادات المنصة"** في Sidebar.
+- عدّل الاسم والشعار.
+- **المتوقع**: يُحفظ التغيير وتظهر النتيجة.
 
-2.4 الاختبار
-افتح المنصة → الزر ظاهر في Topbar (أيقونة قمر/شمس).
-
-اضغطه → الوضع يتبدّل فوراً.
-
-افتح صفحة جديدة → الوضع محفوظ.
-
-أعد تحميل الصفحة → الوضع محفوظ.
-
-جرّب في كل الأدوار → الزر يعمل.
+---
 
 🔴 المهمة 3: التحقق النهائي
 
-3.1 فحوصات إلزامية
-powershell
+### 3.1 فحوصات إلزامية
+
+```powershell
 pnpm typecheck   # 0 errors
 pnpm lint        # نظيف
 pnpm build       # success
-3.2 اختبار شامل
-#	الاختبار	المتوقع
-1	/profile مباشر	يعمل
-2	/settings مباشر	يعمل
-3	/settings/tutorial مباشر	يعمل
-4	الأزرار الثلاثة من القائمة المنسدلة	تعمل
-5	زر Dark Mode في Topbar	ظاهر
-6	الضغط على الزر	يتبدّل
-7	إعادة تحميل الصفحة	الوضع محفوظ
-8	التبديل بين الأدوار	الزر يعمل في الكل
-3.3 Git Commit
-powershell
+```
+
+### 3.2 اختبار شامل
+
+| # | الاختبار | المتوقع |
+| :-: | :--- | :--- |
+| 1 | زر Dark Mode (بعد الإصلاح) | المظهر يتبدّل فعلاً |
+| 2 | `<html class="dark">` في DevTools | موجود |
+| 3 | إعادة تحميل الصفحة | الوضع محفوظ |
+| 4 | `/super-admin/settings` | يفتح |
+| 5 | تعديل اسم المنصة | يُحفظ |
+| 6 | تعديل الشعار | يُحفظ |
+| 7 | Sidebar SUPER_ADMIN | يعرض الرابط |
+
+### 3.3 Git Commit
+
+```powershell
 git add -A
-git commit -m "fix: profile/settings/tutorial navigation + add dark mode toggle"
+git commit -m "fix: dark mode application + add /super-admin/settings page"
 
 git log --oneline -3
-لا push — سأراجع ثم أرفع.
+```
+
+**لا push** — سأراجع ثم أرفع.
+
+---
 
 ✅ معايير النجاح:
 
-pnpm typecheck + pnpm lint + pnpm build تنجح.
-
-المسارات الثلاثة (/profile, /settings, /settings/tutorial) تعمل عند الدخول المباشر.
-
-الأزرار الثلاثة في القائمة المنسدلة تعمل.
-
-زر Dark Mode ظاهر في Topbar لكل الأدوار.
-
-Dark mode يُحفظ بعد إعادة التحميل.
-
-لا كسر لأي وظيفة موجودة.
-
-madina-quran سليمة.
+1. `pnpm typecheck` + `pnpm lint` + `pnpm build` تنجح.
+2. Dark Mode: `<html class="dark">` يظهر في DevTools عند التبديل، والمظهر يتغير فعلاً.
+3. `/super-admin/settings` يعمل ويسمح بتعديل اسم المنصة والشعار.
+4. Sidebar SUPER_ADMIN يعرض رابط الإعدادات.
+5. لا كسر لأي وظيفة موجودة.
+6. madina-quran سليمة.
 
 📝 التوثيق:
-
-حدّث FINAL_REPORT.md بقسم "إصلاحات ما بعد النشر".
-
-اذكر السبب الجذري للمشكلتين 1+2 (بعد تشخيصه).
+- حدّث `FINAL_REPORT.md` بقسم "إصلاحات ما بعد النشر — الجولة الثانية".
+- اذكر السبب الجذري لعدم عمل Dark Mode.
 
 🚫 ممنوع:
+- استخدام `any`.
+- push إلى GitHub.
+- تعديل RLS migration.
+- إعادة كتابة `admin/settings` من الصفر — استخدم الموجود.
 
-حذف أي ملف.
-
-تعديل RLS migration.
-
-push إلى GitHub.
-
-استخدام any.
-
-ابدأ الآن. وثّق التشخيص + الحل لكل مهمة.
+**ابدأ الآن. اتبع المهام بالترتيب. وثّق كل خطوة.**
