@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -501,9 +502,8 @@ function UserRow({
           </div>
           <div className="space-y-2">
             <Label htmlFor={`edit-password-${user.id}`}>كلمة مرور جديدة (اختياري)</Label>
-            <Input
+            <PasswordInput
               id={`edit-password-${user.id}`}
-              type="password"
               value={editPassword}
               onChange={(e) => setEditPassword(e.target.value)}
               placeholder="اتركها فارغة لعدم تغييرها"
@@ -563,8 +563,7 @@ function CreateAdminForm({ tenantId }: { tenantId: string }) {
           placeholder="البريد الإلكتروني"
           dir="ltr"
         />
-        <Input
-          type="password"
+        <PasswordInput
           value={form.password}
           onChange={(e) => update("password", e.target.value)}
           placeholder="كلمة المرور"

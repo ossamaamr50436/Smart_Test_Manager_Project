@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function LoginForm({
@@ -71,10 +72,9 @@ export function LoginForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">كلمة المرور</Label>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               dir="ltr"
               placeholder="••••••••"
               value={password}

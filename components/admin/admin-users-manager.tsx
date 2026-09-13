@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Role } from "@prisma/client";
 import {
   getAdminUsers,
@@ -273,8 +274,7 @@ export function AdminUsersManager() {
               </div>
               <div className="space-y-1">
                 <Label>كلمة المرور</Label>
-                <Input
-                  type="password"
+                <PasswordInput
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   dir="ltr"
@@ -455,8 +455,7 @@ export function AdminUsersManager() {
           <CardContent>
             <div className="space-y-1">
               <Label>كلمة المرور الجديدة</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={passwordValue}
                 onChange={(e) => setPasswordValue(e.target.value)}
                 dir="ltr"

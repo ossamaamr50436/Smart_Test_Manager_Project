@@ -7,6 +7,7 @@ import { changeMyPassword } from "@/lib/actions/change-password-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Card,
   CardContent,
@@ -56,9 +57,8 @@ export function ChangePasswordForm({ forced }: { forced?: boolean }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="currentPassword">كلمة المرور الحالية *</Label>
-            <Input
+            <PasswordInput
               id="currentPassword"
-              type="password"
               autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -68,9 +68,8 @@ export function ChangePasswordForm({ forced }: { forced?: boolean }) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="newPassword">كلمة المرور الجديدة *</Label>
-            <Input
+            <PasswordInput
               id="newPassword"
-              type="password"
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -80,9 +79,8 @@ export function ChangePasswordForm({ forced }: { forced?: boolean }) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">تأكيد كلمة المرور الجديدة *</Label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
