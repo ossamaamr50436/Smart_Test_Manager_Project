@@ -1050,14 +1050,30 @@ export async function adminDeleteUser(userId: string): Promise<UpdateUserResult>
   if (!target) return { success: false, error: "المستخدم غير موجود" };
   assertSameTenant(user, target);
 
-  const activeSessions = await prisma.examSession.count({
-    where: { ...getTenantFilter(user), OR: [{ teacher1Id: userId }, { teacher2Id: userId }] },
+  const inUse = await prisma.$transaction(async (tx) => {
+    const sessions = await tx.examSession.count({
+      where: { tenantId: target.tenantId ?? "", OR: [{ teacher1Id: userId }, { teacher2Id: userId }] },
+    });
+    const committees = await tx.committee.count({
+      where: { tenantId: target.tenantId ?? "", OR: [{ teacher1Id: userId }, { teacher2Id: userId }] },
+    });
+    const assessments = await tx.assessment.count({
+      where: { tenantId: target.tenantId ?? "", evaluatorId: userId },
+    });
+    return sessions + committees + assessments;
   });
-  if (activeSessions > 0) {
-    return { success: false, error: "لا يمكن حذف مستخدم لديه جلسات اختبار مرتبطة" };
+  if (inUse > 0) {
+    return {
+      success: false,
+      error: "لا يمكن حذف مستخدم مرتبط بجلسات/لجان/تقييمات — يمكن تعطيله عبر إعادة تعيين كلمة المرور فقط",
+    };
   }
 
-  await prisma.user.delete({ where: { id: userId } });
+  // حذف الإشعارات أولاً (Notification.userId → Restrict) ثم المستخدم
+  await prisma.$transaction(async (tx) => {
+    await tx.notification.deleteMany({ where: { userId } });
+    await tx.user.delete({ where: { id: userId } });
+  });
 
   try {
     await recordAudit(user.id, AuditAction.DELETE, {

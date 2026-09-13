@@ -218,6 +218,7 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
 
   try {
     await prisma.$transaction(async (tx) => {
+      await tx.notification.deleteMany({ where: { userId: examinerId } });
       await tx.user.delete({ where: { id: examinerId } });
       await tx.auditLog.create({
         data: {

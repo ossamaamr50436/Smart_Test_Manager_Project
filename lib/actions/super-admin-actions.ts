@@ -3,8 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
-import { Role, AuditAction, NotificationType } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import { Prisma, Role, AuditAction, NotificationType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/security";
@@ -952,7 +951,7 @@ export async function updateTenantAdmin(
   }
 }
 
-/** حذف مشرف من مؤسسة — يمسح إشعاراته ثم يحذفه. */
+/** حذف مشرف من مؤسسة — يمسح كل علاقاته المقيدة ثم يحذفه بأمان. */
 export async function deleteTenantAdmin(
   input: TenantAdminTarget
 ): Promise<ActionResult> {
@@ -987,8 +986,20 @@ export async function deleteTenantAdmin(
       name: admin.name,
     });
 
-    // حذف الإشعارات أولاً (FK إلزامي على Notification.userId) ثم المستخدم
+    // حذف كل العلاقات المقيدة بالـ FK قبل حذف المستخدم نفسه:
+    // 1) تقييمات (Assessments.evaluatorId @relation → Restrict)
+    // 2) جلسات اختبار (ExamSession.teacher1Id/teacher2Id → Restrict) —
+    //    حذف الجلسة يمسح تقييماتها (Cascade) ويحرّر طلابها عبر الـFK
+    // 3) لجان (Committee.teacher1Id/teacher2Id → Restrict)
+    // 4) إشعارات (Notification.userId → Restrict)
     await prisma.$transaction(async (tx) => {
+      await tx.assessment.deleteMany({ where: { evaluatorId: admin.id } });
+      await tx.examSession.deleteMany({
+        where: { OR: [{ teacher1Id: admin.id }, { teacher2Id: admin.id }] },
+      });
+      await tx.committee.deleteMany({
+        where: { OR: [{ teacher1Id: admin.id }, { teacher2Id: admin.id }] },
+      });
       await tx.notification.deleteMany({ where: { userId: admin.id } });
       await tx.user.delete({ where: { id: admin.id } });
     });
@@ -1000,7 +1011,12 @@ export async function deleteTenantAdmin(
     if (isUniqueConstraintError(error)) {
       return { success: false, error: friendlyUniqueMessage(error) };
     }
-    console.error("deleteTenantAdmin failed:", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // تسجيل الكيان/الجدول الذي منع الحذف (constraint) لسرعة تتبّع أي حظر باقٍ
+      console.error("deleteTenantAdmin Prisma error:", error.code, error.meta);
+    } else {
+      console.error("deleteTenantAdmin failed:", error);
+    }
     return { success: false, error: "حدث خطأ غير متوقع أثناء حذف المشرف" };
   }
 }
