@@ -1,93 +1,112 @@
-Phase B مكتملة بنجاح — شكراً على إصلاح أخطاء analyze-performance.ts.
+Phase C+D مكتملة — عمل ممتاز. الآن Phase E (الإغلاق النهائي).
 
-ابدأ Phase C (الأمان الثلاثي) + Phase D (التوثيق) — مع قرار معماري إلزامي:
+## 🎯 المطلوب: التحقق الشامل + Commit + تقرير الإغلاق
 
-## 🎯 قرار معماري إلزامي قبل البدء
+### 1) قبل أي شيء — احفظ Phase C+D فوراً
 
-بالنسبة لـRLS (Layer 2):
-- أنشئ migration enable_row_level_security بصيغة --create-only.
-- ✅ نفّذ: كتابة الـmigration + RLS policies في الملف.
-- ❌ لا تنفّذ: prisma migrate deploy لهذا الـmigration.
-- السبب: RLS مع Neon Pooler يحتاج withTenantContext في كل Server Action
-  — وهذا عمل ضخم يؤجل للإصدار التالي. الحالي: جاهز للتطبيق لاحقاً.
+git add -A
+git commit -m "phase C+D: security layers 1-3 + docs + next 15 upgrade"
 
-## 📋 Layer 1: Authentication Hardening
+تحقق:
+git log --oneline -5
 
-1. auth.config.ts:
-   - session: maxAge 8h, updateAge 1h.
-   - Cookies: __Secure-next-auth.session-token + httpOnly + sameSite lax + secure.
-2. auth.ts: Account Lockout
-   - 5 محاولات فاشلة → قفل 15 دقيقة.
-   - التحقق قبل مقارنة كلمة المرور.
-   - سجّل في AuditLog كـFAILED_LOGIN.
-3. lib/rate-limit.ts: checkMultiLevelRateLimit(user, ip, action)
-   - IP: 100 req / window
-   - User: 50 req / window
-   - Tenant: 500 req / window
+### 2) التحقق الشامل (Comprehensive Verification)
 
-## 📋 Layer 2: RLS (بدون تطبيق)
+نفّذ السلسلة التالية وسجّل النتائج:
 
-1. أضف enum AuditAction القيم الجديدة:
-   - SUSPICIOUS_ACCESS, RATE_LIMIT_HIT, CROSS_TENANT_ATTEMPT, FAILED_LOGIN
-   - Migration add_security_audit_actions (طبّقها فعلاً — enum فقط).
-2. أنشئ migration enable_row_level_security بصيغة --create-only:
-   - ENABLE ROW LEVEL SECURITY على 11 جدول.
-   - CREATE POLICY tenant_isolation_<table> لكل جدول.
-   - ⚠️ لا تطبّقها بـmigrate deploy.
-3. أنشئ lib/tenancy-db.ts مع withTenantContext(user, fn) — utility جاهز
-   لكن غير مستخدم بعد.
+# A. Statics
+pnpm typecheck                  # المتوقع: 0 errors
+pnpm lint                       # المتوقع: نظيف
+pnpm build                      # المتوقع: success
 
-## 📋 Layer 3: Intrusion Detection + Alerting
+# B. Prisma
+npx prisma validate             # المتوقع: valid
+npx prisma migrate status       # المتوقع: 16 migrations، واحدة لم تُطبَّق (RLS)
 
-1. lib/security-alerts.ts: raiseSecurityAlert(payload)
-   - AuditLog (tenantId: null).
-   - Pusher channel: private-super-admin-alerts.
-   - Notifications لكل SUPER_ADMIN.
-   - فشل التنبيه لا يُفشل الطلب (try/catch).
-2. حقن التنبيهات في:
-   - lib/tenancy.ts → assertSameTenant → CROSS_TENANT_ATTEMPT.
-   - lib/rate-limit.ts → RATE_LIMIT_HIT.
-   - auth.ts → FAILED_LOGIN.
-3. app/api/pusher/auth/route.ts:
-   - private-super-admin-alerts حصري لـSUPER_ADMIN.
-4. تأكد من عمل صفحة /super-admin/alerts.
+# C. Tenant Isolation Test
+npx tsx scripts/test-tenant-isolation.ts  # المتوقع: 18/18 PASS (أو ما كان عليه)
 
-## 📋 Hardening إضافي
+# D. Security Audit
+pnpm audit --audit-level=moderate --json 2>$null | Out-File -Encoding utf8 "$env:TEMP\opencode\audit-final.json"
+# ثم لخّص: critical / high / moderate
 
-1. Security Headers في next.config.mjs (8 headers):
-   - X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS,
-     Permissions-Policy, X-DNS-Prefetch-Control, X-Download-Options,
-     X-Permitted-Cross-Domain-Policies.
-2. pnpm audit --audit-level=moderate
-   - Critical/High مباشر: حدّث.
-   - Critical/High transitive: وثّق.
-   - Moderate: وثّق فقط.
+# E. التأكد من madina-quran سليمة
+npx tsx -e "import { prisma } from './lib/prisma'; (async()=>{ const t = await prisma.tenant.findUnique({ where: { slug: 'madina-quran' }, select: { id: true, name: true, _count: { select: { users: true, students: true, examModels: true } } } }); console.log(JSON.stringify(t, null, 2)); await prisma.\$disconnect(); })();"
 
-## 📋 Phase D: التوثيق (4 ملفات)
+# المتوقع: 100 نموذج، لا حذف
 
-1. MULTI_TENANT_MIGRATION.md — قسم Session 4/4.
-2. SECURITY_ARCHITECTURE.md (جديد):
-   - الطبقات الثلاث.
-   - جدول التهديدات (12+).
-   - قرار RLS + السبب.
-   - قسم "Limitations الصريحة" (لا يمكن ضمان اختراق صفري 100%).
-3. PERFORMANCE_BENCHMARKS.md (محدَّث).
-4. PENETRATION_TEST_CHECKLIST.md (جديد): 8 أقسام.
+### 3) التحقق من العزل والمزامنة (Code Review)
+
+راجع ووثّق في التقرير:
+
+**العزل**:
+- lib/tenancy.ts → getTenantFilter, assertSameTenant, requireTenant.
+- كل Server Action في lib/actions/ يستخدم getTenantFilter في READs.
+- كل UPDATE/DELETE يستخدم assertSameTenant.
+- RLS migration موجود (غير مطبَّق عمداً).
+
+**المزامنة الحية (Pusher)**:
+- lib/realtime.ts → قنوات صحيحة:
+  - `private-user-{userId}` — إشعارات المستخدم.
+  - `private-assessment-{sessionId}` — تحديث التقييم التفاعلي.
+  - `private-super-admin-alerts` — تنبيهات SUPER_ADMIN.
+- app/api/pusher/auth/route.ts → تحقق الدور بشكل صحيح.
+- lib/realtime-client.ts → اشتراكات صحيحة.
+
+**الأمان الثلاثي**:
+- Layer 1: Session (8h)، Lockout (5/15د)، Rate Limit (IP/User/Tenant).
+- Layer 2: enum أمني مطبَّق، RLS جاهز، withTenantContext جاهز.
+- Layer 3: raiseSecurityAlert، Pusher، AuditLog، Notifications.
+
+**الأداء**:
+- 16 فهرس مركّب مطبَّق.
+- Pagination (PAGE_SIZE=20 + take:100 كحد أقصى).
+- Caching (TenantConfig 300s + PlatformSettings 60s).
+- Batch operations في seed + import.
+
+### 4) اكتب FINAL_REPORT.md (ملف جديد في الجذر)
+
+يحتوي على 8 أقسام:
+
+1. **ملخص المشروع**: Multi-Tenant SaaS + 3 layers أمان + 5K طالب.
+2. **ما تم إنجازه (Phases A-E)**: جدول مختصر.
+3. **البنية المعمارية**: Tenants + users + RLS + Pusher.
+4. **الأمان**: 3 layers + audit results (37→13 ثغرة).
+5. **الأداء**: فهارس + قياسات before/after.
+6. **العزل والمزامنة**: كيف يعملون.
+7. **قائمة الحسابات**: SUPER_ADMIN + madina-quran.
+8. **خطوات النشر على Vercel + اختبار الاختراق**.
+9. **Limitations الصريحة**: RLS غير مطبَّق، xlsx، إلخ.
+10. **التوصيات للإصدار القادم**: تفعيل RLS، PostCSS، vitest.
+
+### 5) تحقق أخير قبل الرفع
+
+- ✅ `git status` يجب أن يكون نظيفاً بعد الـcommit.
+- ✅ لا يوجد ملف `.env` مُتتبَّع في git.
+- ✅ لا يوجد `madina-quran` محذوف.
+- ✅ RLS migration موجود كملف فقط.
+- ✅ كل التغييرات في commit واحد نظيف.
+
+### 6) ⚠️ لا ترفع إلى GitHub
+
+سأراجع FINAL_REPORT.md بنفسي وأرفع يدوياً.
+
+### 7) اكتب تقرير الإغلاق (10 أسطر فقط)
+
+في نهاية رسالتك، اكتب "Phase E complete" مع:
+1. نتائج typecheck/lint/build.
+2. نتائج migrate status.
+3. نتيجة tenant isolation test.
+4. نتيجة pnpm audit (critical/high/moderate).
+5. حالة madina-quran.
+6. آخر 3 commits.
+7. تأكيد أن FINAL_REPORT.md مكتوب.
+8. أي تحذيرات مهمة.
 
 ## ⚠️ حرج
-
-- لا تطبّق migration RLS — فقط أنشئ الملف.
 - لا push إلى GitHub.
-- madina-quran تبقى سليمة.
-- typecheck + lint + build يجب أن تنجح.
-- إذا شعرت أن الجلسة تقترب من نهايتها، توقف بعد Layer 1 أو Layer 3
-  واكتب تقريراً مؤقتاً.
-
-## 🎯 نقطة توقف
-
-بعد إتمام Layer 1 + Layer 3 + Hardening + Phase D:
-- أوقف.
-- اكتب "Phase C+D complete".
-- انتظر تعليمي قبل Phase E.
+- لا تطبّق RLS migration.
+- madina-quran تبقى سليمة تماماً.
+- إذا وجدت خطأ في أي مرحلة، توقف وأبلغ.
 
 ابدأ الآن.
