@@ -142,10 +142,10 @@ async function setup() {
   // لجان
   const committeeData = Array.from({ length: 120 }, (_, i) => ({
     name: `لجنة المحاكاة ${i + 1}`,
-    branch: BRANCHES[i % BRANCHES.length],
+    branch: BRANCHES[i % BRANCHES.length]!,
     seasonId: season.id,
-    teacher1Id: examinerIds[i % examinerIds.length].id,
-    teacher2Id: examinerIds[(i + 1) % examinerIds.length].id,
+    teacher1Id: examinerIds[i % examinerIds.length]!.id,
+    teacher2Id: examinerIds[(i + 1) % examinerIds.length]!.id,
     tenantId: tenant.id,
   }));
   await prisma.committee.createMany({ data: committeeData, skipDuplicates: true });
@@ -158,12 +158,12 @@ async function setup() {
     Array.from({ length: SIM_STUDENTS }, (_, i) => ({
       name: `طالب المحاكاة ${i + 1}`,
       age: 8 + (i % 20),
-      branch: BRANCHES[i % BRANCHES.length],
+      branch: BRANCHES[i % BRANCHES.length]!,
       teacherName: `معلم الطالب ${i % 60}`,
       parentPhone: `0540${String(i).padStart(6, "0")}`,
       phone: null,
-      status: STATUSES[i % STATUSES.length],
-      institutionId: institutionIds[i % institutionIds.length].id,
+      status: STATUSES[i % STATUSES.length]!,
+      institutionId: institutionIds[i % institutionIds.length]!.id,
       tenantId: tenant.id,
     })),
     1000
@@ -182,14 +182,14 @@ async function setup() {
   let sessionCreated = 0;
   for (const batch of chunks(
     Array.from({ length: SIM_SESSIONS }, (_, i) => ({
-      studentId: allStudents[i % allStudents.length].id,
-      teacher1Id: examinerIds[i % examinerIds.length].id,
-      teacher2Id: examinerIds[(i + 1) % examinerIds.length].id,
+      studentId: allStudents[i % allStudents.length]!.id,
+      teacher1Id: examinerIds[i % examinerIds.length]!.id,
+      teacher2Id: examinerIds[(i + 1) % examinerIds.length]!.id,
       examDate: new Date(Date.UTC(2026, 0, 1 + (i % 30), 8 + (i % 10))),
       period: i % 2 === 0 ? "صباحي" : "مسائي",
       status: [ExamSessionStatus.SCHEDULED, ExamSessionStatus.IN_PROGRESS, ExamSessionStatus.COMPLETED][
         i % 3
-      ],
+      ]!,
       seasonId: season.id,
       modelId: null,
       tenantId: tenant.id,
@@ -210,15 +210,15 @@ async function setup() {
   const assessments: { examSessionId: string; evaluatorId: string; modelId: string; tenantId: string }[] = [];
   const usedEvaluatorPairs = new Set<string>();
   for (let i = 0; i < allSessions.length; i++) {
-    const s = allSessions[i];
-    const evaluatorId = examinerIds[i % examinerIds.length].id;
+    const s = allSessions[i]!;
+    const evaluatorId = examinerIds[i % examinerIds.length]!.id;
     const key = `${s.id}:${evaluatorId}`;
     if (usedEvaluatorPairs.has(key)) continue;
     usedEvaluatorPairs.add(key);
     assessments.push({
       examSessionId: s.id,
       evaluatorId,
-      modelId: modelIds[i % modelIds.length].id,
+      modelId: modelIds[i % modelIds.length]!.id,
       tenantId: tenant.id,
     });
   }
@@ -230,7 +230,7 @@ async function setup() {
   // شهادات
   const certificateData = Array.from({ length: SIM_CERTIFICATES }, (_, i) => ({
     serialNumber: `BENCH-${String(i + 1).padStart(8, "0")}`,
-    studentId: allStudents[i % allStudents.length].id,
+    studentId: allStudents[i % allStudents.length]!.id,
     finalScore: 85 + (i % 15),
     status: i % 2 === 0 ? CertificateStatus.PENDING : CertificateStatus.SIGNED,
     tenantId: tenant.id,
@@ -240,7 +240,7 @@ async function setup() {
 
   // إشعارات
   const notificationData = Array.from({ length: SIM_NOTIFICATIONS }, (_, i) => ({
-    userId: examinerIds[i % examinerIds.length].id,
+    userId: examinerIds[i % examinerIds.length]!.id,
     message: `إشعار محاكاة ${i + 1}`,
     tenantId: tenant.id,
     isRead: i % 2 === 0,
@@ -252,8 +252,8 @@ async function setup() {
 
   // سجل تدقيق
   const auditData = Array.from({ length: SIM_AUDIT_LOGS }, (_, i) => ({
-    userId: examinerIds[i % examinerIds.length].id,
-    action: [AuditAction.CREATE, AuditAction.UPDATE, AuditAction.APPROVE][i % 3],
+    userId: examinerIds[i % examinerIds.length]!.id,
+    action: [AuditAction.CREATE, AuditAction.UPDATE, AuditAction.APPROVE][i % 3]!,
     details: { bench: true, n: i },
     tenantId: tenant.id,
   }));
