@@ -294,6 +294,7 @@ export async function getPendingCertificatesForSignature() {
   return prisma.certificate.findMany({
     where: { ...getTenantFilter(user), status: CertificateStatus.PENDING },
     orderBy: { createdAt: "desc" },
+    take: 100,
     include: {
       student: { select: { name: true, branch: true } },
     },

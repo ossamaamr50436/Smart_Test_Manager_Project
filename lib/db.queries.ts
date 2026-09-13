@@ -5,6 +5,7 @@
 // ============================================================
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus, ExamSessionStatus } from "@prisma/client";
+import { PAGE_SIZE } from "@/lib/utils";
 
 // حقل ترقيم الصفحات العام
 export type Pagination = {
@@ -23,7 +24,7 @@ export function makeSkip(page: number, pageSize: number): number {
 // ------------------------------------------------------------
 export async function getStudentsPage({
   page = 1,
-  pageSize = 20,
+  pageSize = PAGE_SIZE,
   institutionId,
   status,
 }: Pagination & { institutionId?: string; status?: StudentStatus }) {
@@ -66,7 +67,7 @@ export async function getStudentsPage({
 // ------------------------------------------------------------
 export async function getInstitutionsPage({
   page = 1,
-  pageSize = 20,
+  pageSize = PAGE_SIZE,
 }: Pagination) {
   const skip = makeSkip(page, pageSize);
 
@@ -127,7 +128,7 @@ export async function getUsersPage({ page = 1, pageSize = 20 }: Pagination) {
 // ------------------------------------------------------------
 export async function getExamModelsPage({
   page = 1,
-  pageSize = 20,
+  pageSize = PAGE_SIZE,
   branch,
   institutionId,
 }: Pagination & { branch?: string; institutionId?: string }) {
@@ -162,7 +163,7 @@ export async function getExamModelsPage({
 // ------------------------------------------------------------
 export async function getExamSessionsPage({
   page = 1,
-  pageSize = 20,
+  pageSize = PAGE_SIZE,
   status,
 }: Pagination & { status?: ExamSessionStatus }) {
   const skip = makeSkip(page, pageSize);

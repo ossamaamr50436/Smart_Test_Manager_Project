@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isUniqueConstraintError, friendlyUniqueMessage } from "@/lib/actions/unique-guard";
 import { createUserSchema } from "@/lib/validations/user";
+import { PAGE_SIZE } from "@/lib/utils";
 
 // ============================================================
 // لوحة تحكم المسؤول — Server Actions (عزل صلاحيات: ADMIN فقط)
@@ -120,7 +121,7 @@ export async function getAdminUsers(params: {
   requireRole(user, [Role.ADMIN]);
 
   const page = Number(params.page ?? 1);
-  const pageSize = Number(params.pageSize ?? 20);
+  const pageSize = Number(params.pageSize ?? PAGE_SIZE);
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
@@ -430,7 +431,7 @@ export async function getAdminInstitutions(params: {
   requireRole(user, [Role.ADMIN]);
 
   const page = Number(params.page ?? 1);
-  const pageSize = Number(params.pageSize ?? 20);
+  const pageSize = Number(params.pageSize ?? PAGE_SIZE);
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
@@ -638,6 +639,7 @@ export async function getAdminSeasons() {
   const seasons = await prisma.examSeason.findMany({
     where: getTenantFilter(user),
     orderBy: { startDate: "desc" },
+    take: 100,
     include: {
       _count: { select: { sessions: true, models: true } },
     },
@@ -762,7 +764,7 @@ export async function getAdminModels(params: {
   requireRole(user, [Role.ADMIN]);
 
   const page = Number(params.page ?? 1);
-  const pageSize = Number(params.pageSize ?? 20);
+  const pageSize = Number(params.pageSize ?? PAGE_SIZE);
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
@@ -811,7 +813,7 @@ export async function getAdminStudents(params: {
   requireRole(user, [Role.ADMIN]);
 
   const page = Number(params.page ?? 1);
-  const pageSize = Number(params.pageSize ?? 20);
+  const pageSize = Number(params.pageSize ?? PAGE_SIZE);
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
@@ -868,7 +870,7 @@ export async function getAdminSessions(params: {
   requireRole(user, [Role.ADMIN]);
 
   const page = Number(params.page ?? 1);
-  const pageSize = Number(params.pageSize ?? 20);
+  const pageSize = Number(params.pageSize ?? PAGE_SIZE);
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
@@ -918,7 +920,7 @@ export async function getAdminCertificates(params: {
   requireRole(user, [Role.ADMIN]);
 
   const page = Number(params.page ?? 1);
-  const pageSize = Number(params.pageSize ?? 20);
+  const pageSize = Number(params.pageSize ?? PAGE_SIZE);
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
@@ -967,6 +969,7 @@ export async function getInstitutionsOptions() {
     where: getTenantFilter(user),
     select: { id: true, name: true },
     orderBy: { name: "asc" },
+    take: 100,
   });
 }
 
@@ -981,6 +984,7 @@ export async function getExaminersOptions() {
     where: { ...getTenantFilter(user), role: Role.EXAMINER },
     select: { id: true, name: true, institutionId: true },
     orderBy: { name: "asc" },
+    take: 100,
   });
 }
 

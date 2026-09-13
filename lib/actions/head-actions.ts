@@ -13,6 +13,7 @@ import {
 } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { PAGE_SIZE } from "@/lib/utils";
 
 /**
  * تسجيل حدث في Audit Log (شفافية كل قرار — المادة 8)
@@ -34,7 +35,7 @@ async function recordAudit(
  */
 export async function getStudentsForHeadReview(
   page = 1,
-  pageSize = 20
+  pageSize = PAGE_SIZE
 ): Promise<{
   students: Student[];
   total: number;

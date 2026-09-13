@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
+import { Role, Prisma } from "@prisma/client";
 import { uploadExamModelFile } from "@/lib/google-drive";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -40,6 +40,7 @@ export async function POST(req: Request) {
     }
 
     const results: { modelNumber: number; ok: boolean; error?: string }[] = [];
+    const modelsToCreate: Prisma.ExamModelCreateManyInput[] = [];
 
     for (const item of body) {
       const modelNumber = Number(item?.modelNumber);
@@ -121,16 +122,14 @@ export async function POST(req: Request) {
             ? { source: "drive", fileId: driveRef.fileId, name: `model-${modelNumber}` }
             : { segments: [] });
 
-        // إدراج النموذج (مع تجاهل التكرار حسب القيد الفريد للموسم)
-        await prisma.examModel.create({
-          data: {
-            modelNumber,
-            branch,
-            detailsJSON,
-            institutionId,
-            seasonId,
-            tenantId: requireTenantId(user),
-          },
+        // إدراج النموذج ضمن دفعة جماعية (createMany + skipDuplicates) — B.5
+        modelsToCreate.push({
+          modelNumber,
+          branch,
+          detailsJSON,
+          institutionId,
+          seasonId,
+          tenantId: requireTenantId(user),
         });
 
         results.push({ modelNumber, ok: true });
@@ -143,7 +142,15 @@ export async function POST(req: Request) {
       }
     }
 
-    const imported = results.filter((r) => r.ok).length;
+    // تنفيذ الإدراج الجماعي في استدعاء واحد (تجاهل المكرر حسب القيد الفريد)
+    let imported = 0;
+    if (modelsToCreate.length > 0) {
+      const r = await prisma.examModel.createMany({
+        data: modelsToCreate,
+        skipDuplicates: true,
+      });
+      imported = r.count;
+    }
 
     return NextResponse.json({
       imported,

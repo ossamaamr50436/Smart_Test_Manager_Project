@@ -209,6 +209,10 @@ model Student {
   @@index([committeeId])
   @@index([status])
   @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, institutionId])
+  @@index([tenantId, committeeId])
+  @@index([tenantId, createdAt])
   @@map("students")
 }
 
@@ -286,6 +290,8 @@ model ExamModel {
   @@index([institutionId])
   @@index([branch])
   @@index([tenantId])
+  @@index([tenantId, branch, seasonId])
+  @@index([tenantId, seasonId])
   @@map("exam_models")
 }
 
@@ -322,6 +328,10 @@ model ExamSession {
   @@index([teacher1Id])
   @@index([teacher2Id])
   @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, examDate])
+  @@index([tenantId, teacher1Id])
+  @@index([tenantId, teacher2Id])
   @@map("exam_sessions")
 }
 
@@ -415,6 +425,8 @@ model Assessment {
   @@index([examSessionId])
   @@index([evaluatorId])
   @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, examSessionId])
   @@map("assessments")
 }
 
@@ -445,6 +457,7 @@ model Certificate {
 
   @@index([studentId])
   @@index([tenantId])
+  @@index([tenantId, status])
   @@map("certificates")
 }
 
@@ -468,6 +481,7 @@ model Notification {
   @@index([userId])
   @@index([isRead])
   @@index([tenantId])
+  @@index([userId, isRead, tenantId])
   @@map("notifications")
 }
 
@@ -509,6 +523,8 @@ model AuditLog {
   @@index([userId])
   @@index([timestamp])
   @@index([tenantId])
+  @@index([tenantId, timestamp])
+  @@index([tenantId, action])
   @@map("audit_logs")
 }
 

@@ -356,5 +356,6 @@ export async function getCommitteeModelAllocations(seasonId?: string) {
       },
     },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
 }

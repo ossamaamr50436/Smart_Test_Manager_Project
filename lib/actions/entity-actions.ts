@@ -185,6 +185,7 @@ export async function listInstitutions() {
       _count: { select: { students: true, users: true, examModels: true } },
     },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
 
   return { institutions };

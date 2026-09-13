@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getPlatformSettings } from "@/lib/actions/settings-actions";
+import { getCachedPlatformSettings } from "@/lib/cache";
 
 export async function GET() {
   try {
     // الإعدادات العامة متاحة لجميع المستخدمين (بما فيهم صفحة تسجيل الدخول)
     // لأن الشعار واسم المنصة مطلوبان للعرض العام
-    const settings = await getPlatformSettings();
+    const settings = await getCachedPlatformSettings();
     return NextResponse.json(settings);
   } catch {
     return NextResponse.json(

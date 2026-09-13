@@ -254,6 +254,7 @@ export async function getCommittees(seasonId?: string) {
 
   return prisma.committee.findMany({
     where: { ...getTenantFilter(user), ...(seasonId ? { seasonId } : {}) },
+    take: 100,
     include: {
       teacher1: { select: { id: true, name: true } },
       teacher2: { select: { id: true, name: true } },

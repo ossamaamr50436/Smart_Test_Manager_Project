@@ -137,5 +137,6 @@ export async function getExamSeasons() {
   return prisma.examSeason.findMany({
     where: getTenantFilter(user),
     orderBy: { startDate: "desc" },
+    take: 100,
   });
 }

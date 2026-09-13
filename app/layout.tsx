@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Cairo } from "next/font/google";
 import "./globals.css";
-import { getPlatformSettings } from "@/lib/actions/settings-actions";
+import { getCachedPlatformSettings } from "@/lib/cache";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ServiceWorkerRegister } from "@/components/providers/service-worker-register";
 
@@ -17,7 +17,7 @@ const SITE_URL = "https://smart-test-manager-project.vercel.app";
 export const metadataBase: Metadata["metadataBase"] = new URL(SITE_URL);
 
 export async function generateViewport(): Promise<Viewport> {
-  const settings = await getPlatformSettings();
+  const settings = await getCachedPlatformSettings();
   return {
     themeColor: settings.primaryColor || "#015e63",
     width: "device-width",
@@ -28,7 +28,7 @@ export async function generateViewport(): Promise<Viewport> {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const settings = await getPlatformSettings();
+  const settings = await getCachedPlatformSettings();
   return {
     title: {
       default: settings.platformName,
@@ -84,7 +84,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const settings = await getPlatformSettings();
+  const settings = await getCachedPlatformSettings();
   const primaryColor = settings.primaryColor || "#015e63";
   const secondaryColor = settings.secondaryColor || "#d3bb8b";
   const defaultTheme = settings.darkModeEnabled ? "dark" : "light";

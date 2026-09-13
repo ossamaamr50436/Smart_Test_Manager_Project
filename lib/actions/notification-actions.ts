@@ -30,7 +30,7 @@ export async function getUserNotifications(page?: number, pageSize = 100) {
   }
 
   const skip = page && page > 1 ? (page - 1) * pageSize : 0;
-  const take = page ? pageSize : undefined;
+  const take = page ? pageSize : 100;
 
   const [notifications, total] = await Promise.all([
     prisma.notification.findMany({

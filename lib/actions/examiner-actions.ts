@@ -264,5 +264,6 @@ export async function getExaminersList() {
       },
     },
     orderBy: { name: "asc" },
+    take: 100,
   });
 }

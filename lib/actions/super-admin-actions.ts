@@ -224,6 +224,7 @@ export async function getTenantsList() {
 
   return prisma.tenant.findMany({
     orderBy: { createdAt: "desc" },
+    take: 100,
     select: {
       id: true,
       name: true,

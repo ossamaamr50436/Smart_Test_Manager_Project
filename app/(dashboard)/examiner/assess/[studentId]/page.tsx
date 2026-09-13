@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { AssessmentBoard } from "@/components/examiner/assessment-board";
-import { getAssessmentSettings } from "@/lib/actions/assessment-settings-actions";
+import { getCachedTenantConfig } from "@/lib/cache";
 
 export const metadata: Metadata = {
   title: "التقييم التفاعلي",
@@ -33,8 +33,15 @@ export default async function AssessStudentPage({
     redirect("/examiner");
   }
 
-  // جلب إعدادات التقييم من قاعدة البيانات
-  const settings = await getAssessmentSettings();
+  // جلب إعدادات التقييم من إعدادات المستأجر (مخزّنة مؤقتاً — B.4)
+  const tenantConfig = user.tenantId
+    ? await getCachedTenantConfig(user.tenantId)
+    : null;
+  const settings = tenantConfig?.assessmentSettings ?? {
+    errorDeduction: 2.0,
+    doubtDeduction: 1.0,
+    tajweedDeduction: 0.5,
+  };
 
   // البحث عن الطالب في اللجنة الخاصة بالمختبر
   const student = await prisma.student.findUnique({

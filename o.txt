@@ -1,30 +1,20 @@
-قرار مهم قبل Phase B:
+Phase B.3-B.6 اكتملت، لكن هناك 3 نقاط يجب إصلاحها قبل Phase C:
 
-تم تأجيل التحقق اليدوي لـPhase A إلى ما بعد النشر على Vercel،
-بسبب مشكلة بيئية على Windows (Port 3000 محجوز من netsh،
-وTurbopack يعاني مشاكل على بيئة المستخدم الحالية).
+🔴 1. أخطاء TypeScript في scripts/analyze-performance.ts
+ليست "قديمة" — أنشأتها أنت في Phase B.1 ولم تُصلحها. أخطاء:
+- السطر 147-148: Object is possibly 'undefined'
+- السطر 151: النوع غير متوافق مع CommitteeCreateManyInput
 
-مطلوب منك:
-1. وثّق هذا القرار في تقرير Phase B (قسم "ملاحظات"):
-   - "التحقق اليدوي لـPhase A لم يُنفَّذ بعد — سيُنفَّذ بعد النشر على Vercel".
-   - "السبب: قيود بيئية على Windows (منافذ محجوزة + Turbopack)."
-   - "لا تأثير على الكود — Phase A اجتاز الاختبارات الآلية 18/18."
+المطلوب: أصلح هذه الأخطاء بحيث `pnpm typecheck` يعيد 0 errors.
 
-2. تابع Phase B (الأداء) مباشرة:
-   - B.1: analyze-performance.ts + قياس
-   - B.2: الفهارس المركّبة + migration add_performance_indexes
-   - B.3: Pagination إلزامي
-   - B.4: Caching (unstable_cache)
-   - B.5: Batch operations
-   - B.6: PERFORMANCE_BENCHMARKS.md
+🔴 2. Commit Phase B
+بعد إصلاح الأخطاء:
+git add -A
+git commit -m "phase B: pagination + caching + batch ops + benchmarks"
 
-3. تحذيرات حرجة:
-   - لا تحذف أي بيانات.
-   - احتفظ بـmadina-quran سليمة تماماً.
-   - لا push إلى GitHub.
-   - إذا واجهت خطأ، توقف واسأل قبل التخمين.
+🔴 3. تحقق نهائي
+pnpm typecheck   # 0 errors
+pnpm lint        # نظيف
+pnpm build       # success
 
-4. عند إتمام Phase B، أوقف واكتب تقريراً مختصراً بعنوان
-   "Phase B complete" وانتظر تعليمي قبل Phase C.
-
-ابدأ الآن.
+بعد الإصلاح، أكّد أن Phase B مكتملة بالكامل، وأوقف وانتظر تعليمي قبل Phase C.

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole } from "@/lib/security";
 import { getTenantFilter } from "@/lib/tenancy";
 import { Role, AuditAction, Prisma } from "@prisma/client";
+import { PAGE_SIZE } from "@/lib/utils";
 
 // ============================================================
 // سجل التدقيق (المادة 8 — عزل الصلاحيات)
@@ -48,7 +49,7 @@ export async function getAuditLogs(
 
   // التحقق من قيم ترقيم الصفحات (منع DoS عبر قيم ضخمة)
   const rawPage = Number(filters.page ?? 1);
-  const rawPageSize = Number(filters.pageSize ?? 20);
+  const rawPageSize = Number(filters.pageSize ?? PAGE_SIZE);
   if (!Number.isInteger(rawPage) || rawPage < 1 || rawPage > 10000) {
     throw new Error("رقم الصفحة غير صالح");
   }
@@ -148,5 +149,6 @@ export async function getAuditLogUsers() {
     where: getTenantFilter(user),
     select: { id: true, name: true, email: true },
     orderBy: { name: "asc" },
+    take: 100,
   });
 }

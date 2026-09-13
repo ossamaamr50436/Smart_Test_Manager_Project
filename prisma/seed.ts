@@ -308,6 +308,12 @@ function pickBranch(): string {
   return ["5", "10", "15", "20", "25", "30"][Math.floor(Math.random() * 6)]!;
 }
 
+function chunks<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 function calculateAge(birthDate: Date): number {
   const diff = Date.now() - birthDate.getTime();
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
@@ -371,41 +377,63 @@ async function main() {
   // ===== 2) الجهات التعليمية (87 جهة) =====
   let instSeq = 1;
   const createdInstitutions: string[] = [];
+  const newInstitutionsData: {
+    name: string;
+    managerName: string;
+    supervisorName: string;
+    managerPhone: string;
+    supervisorPhone: string;
+    licenseNumber: string;
+    district: string;
+    contactInfo: string;
+    createdAt: Date;
+    tenantId: string;
+  }[] = [];
   for (const name of INSTITUTIONS) {
     const existing = await prisma.institution.findFirst({ where: { name } });
     if (existing) {
       createdInstitutions.push(existing.id);
       continue;
     }
-    const inst = await prisma.institution.create({
-      data: {
-        name,
-        managerName: "مدير الجهة",
-        supervisorName: "مشرف الجهة",
-        managerPhone: randomPhone(),
-        supervisorPhone: randomPhone(),
-        licenseNumber: `LIC-${instSeq++}`,
-        district: "الحي العام",
-        contactInfo: randomPhone(),
-        createdAt: new Date(Date.now() - Math.floor(Math.random() * 180) * 86400000),
-        tenantId: defaultTenant.id,
-      },
+    newInstitutionsData.push({
+      name,
+      managerName: "مدير الجهة",
+      supervisorName: "مشرف الجهة",
+      managerPhone: randomPhone(),
+      supervisorPhone: randomPhone(),
+      licenseNumber: `LIC-${instSeq++}`,
+      district: "الحي العام",
+      contactInfo: randomPhone(),
+      createdAt: new Date(Date.now() - Math.floor(Math.random() * 180) * 86400000),
+      tenantId: defaultTenant.id,
     });
-    createdInstitutions.push(inst.id);
+  }
+  // إنشاء جماعي مجمّع (B.5) بدلاً من create لكل جهة
+  for (const batch of chunks(newInstitutionsData, 50)) {
+    await prisma.institution.createMany({ data: batch });
+  }
+  // استرجاع معرّفات الجهات الجديدة (createMany لا يعيد المعرفات)
+  const fetchedInstitutions = await prisma.institution.findMany({
+    where: { name: { in: newInstitutionsData.map((d) => d.name) } },
+    select: { id: true, name: true },
+  });
+  for (const data of newInstitutionsData) {
+    const found = fetchedInstitutions.find((i) => i.name === data.name);
+    if (found) createdInstitutions.push(found.id);
+  }
 
-    // حساب الجهة التعليمية (حساب لكل جهة)
-    const email = `inst.${inst.id.slice(0, 8)}@example.com`;
-    await prisma.user.create({
-      data: {
-        email,
-        name: `حساب ${name}`,
-        password: demoHash,
-        role: Role.INSTITUTION,
-        birthDate: new Date("1990-01-01"),
-        phone: randomPhone(),
-        institutionId: inst.id,
-      },
-    });
+  // حساب الجهة التعليمية (حساب لكل جهة جديدة) — إنشاء جماعي مجمّع
+  const newInstitutionUsers = fetchedInstitutions.map((inst) => ({
+    email: `inst.${inst.id.slice(0, 8)}@example.com`,
+    name: `حساب ${inst.name}`,
+    password: demoHash,
+    role: Role.INSTITUTION,
+    birthDate: new Date("1990-01-01"),
+    phone: randomPhone(),
+    institutionId: inst.id,
+  }));
+  for (const batch of chunks(newInstitutionUsers, 50)) {
+    await prisma.user.createMany({ data: batch, skipDuplicates: true });
   }
   console.log(`✅ الجهات التعليمية: ${createdInstitutions.length} جهة`);
 
@@ -454,31 +482,33 @@ async function main() {
   // ===== 5) النماذج الاختبارية (100 نموذج لكل فرع من 6 أفرع = 600 نموذج) =====
   const modelInstitutionId = createdInstitutions[0]!;
   const modelBranches = ["5", "10", "15", "20", "25", "30"];
-  let modelCount = 0;
+  const newModelsData: {
+    modelNumber: number;
+    branch: string;
+    detailsJSON: { segments: ReturnType<typeof buildModelSegments> };
+    segmentsCount: number;
+    institutionId: string;
+    seasonId: string;
+    tenantId: string;
+  }[] = [];
   for (const branch of modelBranches) {
     for (let m = 1; m <= 100; m++) {
-      const existing = await prisma.examModel.findFirst({
-        where: {
-          institutionId: modelInstitutionId,
-          modelNumber: m,
-          seasonId: season.id,
-          branch,
-        },
+      newModelsData.push({
+        modelNumber: m,
+        branch,
+        detailsJSON: { segments: buildModelSegments(branch, m) },
+        segmentsCount: 10,
+        institutionId: modelInstitutionId,
+        seasonId: season.id,
+        tenantId: defaultTenant.id,
       });
-      if (existing) continue;
-      await prisma.examModel.create({
-        data: {
-          modelNumber: m,
-          branch,
-          detailsJSON: { segments: buildModelSegments(branch, m) },
-          segmentsCount: 10,
-          institutionId: modelInstitutionId,
-          seasonId: season.id,
-          tenantId: defaultTenant.id,
-        },
-      });
-      modelCount++;
     }
+  }
+  // إنشاء جماعي مجمّع (B.5) — skipDuplicates يحافظ على التكرار حسب القيد الفريد
+  let modelCount = 0;
+  for (const batch of chunks(newModelsData, 200)) {
+    const r = await prisma.examModel.createMany({ data: batch, skipDuplicates: true });
+    modelCount += r.count;
   }
   console.log(`✅ النماذج الاختبارية: ${modelCount} نموذج جديد (100 لكل فرع، 6 أفرع)`);
 
@@ -488,31 +518,56 @@ async function main() {
   const lastNames = ["العتيبي", "الجهني", "الأنصاري", "الحربي", "القحطاني", "الزهراني", "السلمي", "الغامدي", "البلوي", "المطيري", "الشمري", "السبيعي"];
 
   let studentCount = 0;
-  const createdStudents: { id: string; name: string; branch: string; institutionId: string }[] = [];
+  // بذر جماعي مجمّع (B.5) — فحص التكرار دفعة واحدة ثم createMany
+  const existingStudents = await prisma.student.findMany({
+    where: { institutionId: { in: createdInstitutions } },
+    select: { name: true, institutionId: true },
+  });
+  const existingStudentKeys = new Set(
+    existingStudents.map((s) => `${s.institutionId}:${s.name}`)
+  );
+  const newStudentsData: {
+    name: string;
+    age: number;
+    branch: string;
+    teacherName: string;
+    parentPhone: string;
+    address: string;
+    phone: string;
+    status: StudentStatus;
+    institutionId: string;
+    tenantId: string;
+  }[] = [];
   for (let i = 0; i < STUDENT_COUNT; i++) {
     const instId = createdInstitutions[i % createdInstitutions.length]!;
     const name = `${firstNames[i % firstNames.length]!} ${lastNames[i % lastNames.length]!}`;
-    const existing = await prisma.student.findFirst({
-      where: { name, institutionId: instId },
+    if (existingStudentKeys.has(`${instId}:${name}`)) continue;
+    newStudentsData.push({
+      name,
+      age: randomAge(),
+      branch: pickBranch(),
+      teacherName: examiners[i % examiners.length]!.name,
+      parentPhone: randomPhone(),
+      address: `${CITIES[i % CITIES.length]!} — حي النور`,
+      phone: randomPhone(),
+      status: i % 5 === 0 ? StudentStatus.PENDING : StudentStatus.APPROVED,
+      institutionId: instId,
+      tenantId: defaultTenant.id,
     });
-    if (existing) continue;
-    const student = await prisma.student.create({
-      data: {
-        name,
-        age: randomAge(),
-        branch: pickBranch(),
-        teacherName: examiners[i % examiners.length]!.name,
-        parentPhone: randomPhone(),
-        address: `${CITIES[i % CITIES.length]!} — حي النور`,
-        phone: randomPhone(),
-        status: i % 5 === 0 ? StudentStatus.PENDING : StudentStatus.APPROVED,
-        institutionId: instId,
-        tenantId: defaultTenant.id,
-      },
-    });
-    createdStudents.push({ id: student.id, name: student.name, branch: student.branch, institutionId: instId });
-    studentCount++;
   }
+  for (const batch of chunks(newStudentsData, 100)) {
+    await prisma.student.createMany({ data: batch });
+  }
+  // استرجاع الطلاب الجدد (createMany لا يعيد المعرفات) لتكوين اللجان
+  const createdStudents: { id: string; name: string; branch: string; institutionId: string }[] =
+    await prisma.student.findMany({
+      where: {
+        institutionId: { in: createdInstitutions },
+        name: { in: Array.from(new Set(newStudentsData.map((s) => s.name))) },
+      },
+      select: { id: true, name: true, branch: true, institutionId: true },
+    });
+  studentCount = newStudentsData.length;
   console.log(`✅ الطلاب: ${studentCount} طالباً موزعين على ${createdInstitutions.length} جهة`);
 
   // ===== 7) اللجان (معلمان لكل لجنة + 3-5 طلاب) =====

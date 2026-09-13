@@ -1,6 +1,12 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+/**
+ * حجم الصفحة الافتراضي لقوائم الواجهات (Pagination) — B.3
+ * تستخدمه server actions كحجم افتراضي للصفحة (20 صفاً)
+ */
+export const PAGE_SIZE = 20;
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

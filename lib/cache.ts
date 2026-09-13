@@ -5,6 +5,7 @@
 // ============================================================
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import type { PlatformSettings } from "@/lib/actions/settings-actions";
 
 /**
  * قائمة النماذج الاختبارية مخزّنة مؤقتاً (بيانات شبه ثابتة)
@@ -78,4 +79,94 @@ export const getCachedExaminers = unstable_cache(
   },
   ["examiners"],
   { revalidate: 600 }
+);
+
+// ------------------------------------------------------------
+// B.4 — تخزين مؤقت لإعدادات المستأجر والمنصة (Server Components)
+// ------------------------------------------------------------
+
+/** إعدادات مستأجر واحدة (ألوان العلامة + إعدادات التقييم) — شبه ثابتة */
+export type TenantConfig = {
+  id: string;
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  isActive: boolean;
+  assessmentSettings: {
+    errorDeduction: number;
+    doubtDeduction: number;
+    tajweedDeduction: number;
+  };
+};
+
+/**
+ * إعدادات المستأجر (Tenant) — مخزّنة مؤقتاً 5 دقائق.
+ * تُستخدم في Server Components الحرجة (اللوحات، صفحات التقييم) لتجنب
+ * تكرار الاستعلام لكل طلب.
+ */
+export const getCachedTenantConfig = unstable_cache(
+  async (tenantId: string): Promise<TenantConfig | null> => {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        name: true,
+        primaryColor: true,
+        secondaryColor: true,
+        isActive: true,
+        assessmentSettings: {
+          select: {
+            errorDeduction: true,
+            doubtDeduction: true,
+            tajweedDeduction: true,
+          },
+        },
+      },
+    });
+    if (!tenant) return null;
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      primaryColor: tenant.primaryColor,
+      secondaryColor: tenant.secondaryColor,
+      isActive: tenant.isActive,
+      assessmentSettings: tenant.assessmentSettings[0] ?? {
+        errorDeduction: 2.0,
+        doubtDeduction: 1.0,
+        tajweedDeduction: 0.5,
+      },
+    };
+  },
+  ["tenant-config"],
+  { revalidate: 300 }
+);
+
+/**
+ * إعدادات المنصة العامة (الاسم، الشعار، الألوان…) — مخزّنة مؤقتاً 60 ثانية.
+ * تُستخدم في اللوحة الجذرية (Root Layout) والإعدادات العامة.
+ */
+export const getCachedPlatformSettings = unstable_cache(
+  async (): Promise<PlatformSettings> => {
+    const settings = await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      update: {},
+      create: { id: "singleton" },
+    });
+
+    return {
+      platformName: settings.platformName,
+      logoUrl: settings.logoUrl,
+      logoFileId: settings.logoFileId,
+      useTemplateMode: settings.useTemplateMode,
+      templateFileId: settings.templateFileId,
+      primaryColor: settings.primaryColor,
+      secondaryColor: settings.secondaryColor,
+      whatsappNumber: settings.whatsappNumber,
+      darkModeEnabled: settings.darkModeEnabled,
+      requireStudentApplicationFile: settings.requireStudentApplicationFile,
+      showTutorialSection: settings.showTutorialSection,
+    };
+  },
+  ["platform-settings"],
+  { revalidate: 60 }
 );

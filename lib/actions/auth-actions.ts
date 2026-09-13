@@ -7,6 +7,7 @@ import { Role, StudentStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { getTenantFilter } from "@/lib/tenancy";
+import { PAGE_SIZE } from "@/lib/utils";
 
 // ------------------------------------------------------------
 // المصادقة
@@ -92,7 +93,7 @@ type StudentForList = {
  */
 export async function getStudentsForCurrentUser(
   page = 1,
-  pageSize = 20
+  pageSize = PAGE_SIZE
 ): Promise<{ students: StudentForList[]; total: number; totalPages: number; page: number }> {
   const user = await getCurrentUser();
 
