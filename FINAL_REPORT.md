@@ -319,4 +319,61 @@ Pusher `private-super-admin-alerts` + Notifications لكل SUPER_ADMIN، fail-op
 
 ---
 
+## 13) إصلاحات ما بعد النشر — الجولة الرابعة
+
+### المشكلة 1 — صفحة `/settings/tutorial` فارغة لـSUPER_ADMIN
+
+**السبب الجذري:** كائن `GUIDANCE` في
+`app/(dashboard)/settings/tutorial/page.tsx` لم يكن يحتوي مفتاحاً لـ`SUPER_ADMIN`
+فقط، فلم تقع عليه إلا 6 أدوار (ADMIN، HEAD_OF_AFFAIRS، CERTIFICATE_SOURCE،
+TEST_SPECIALIST، EXAMINER، INSTITUTION) — فكان المالك يرى الرسالة الانسدادية
+"لا يوجد محتوى تعليمي محدد لدورك الحالي".
+
+**الحل:**
+- اكتمل كائن `GUIDANCE` بـ**7 مفاتيح كاملة** تغطي جميع الأدوار السبعة في enum
+  `Role`: `SUPER_ADMIN` (5 أقسام)، `ADMIN` (5)، `HEAD_OF_AFFAIRS` (قسمان)،
+  `CERTIFICATE_SOURCE` (قسمان)، `TEST_SPECIALIST` (6)، `EXAMINER` (5)،
+  `INSTITUTION` (4) — كل دور بـ`title` و`intro` و`sections` بالعربية الفصحى
+  المخصصة لدوره.
+- الحماية الانسدادية موجودة أصلاً (`const guidance = role ? GUIDANCE[role] :
+  undefined;` → "لا يوجد محتوى") — ولم تعد قابلة للوصول لأي دور.
+
+### المشكلة 2 — تباين سيئ عند Hover في الوضع الليلي
+
+**السبب الجذري:** بعض المكونات تستخدم ألوانَ خلفية/نص **ثابتة** عند Hover
+(`hover:bg-secondary-50`, `hover:bg-secondary-100`) — وهي ألوان فاتحة تظل
+فاتحة في الوضع الليلي فيختفي النص أو يتباين بشكل سيئ.
+
+**الحل (القاعدة الذهبية: متغيرات دلالية لا ألوان ثابتة):**
+- `app/(dashboard)/settings/tutorial/page.tsx` (رابط «العودة إلى الإعدادات»):
+  `hover:bg-secondary-50` → `hover:bg-accent`.
+- `app/(dashboard)/settings/page.tsx` (بطاقة «قسم التعليم والدور»):
+  `hover:bg-secondary-50` → `hover:bg-accent`.
+- `app/(dashboard)/admin/page.tsx` (روابط «إدارة سريعة»):
+  `hover:bg-secondary-100` → `hover:bg-accent hover:text-accent-foreground`
+  (مع `text-primary-700` الأساسي — يبقى النص مقروءاً تحت التبديلين).
+- `components/ui/button.tsx`: تحقّق — جميع الـvariants تعتمد ألواناً دلالية
+  بالفعل (`hover:bg-accent`, `hover:bg-secondary/80`, `hover:from-primary-600`
+  ...) ولا حاجة لتعديل.
+- `.dark` في `app/globals.css`: تحقّق — يطابق §2.3 من o.txt بدقة
+  (`--accent: #1a262e`, `--accent-foreground: #eef1f4`, `--muted: #1a262e`,
+  `--muted-foreground: #9fb3c0`) — لا حاجة لتعديل.
+- الشريط الجانبي الملوّن الداكن (هدردوماً) احتفظ بـ`hover:bg-white/10`
+  — ألوان بيضاء مقصودة على خلفية داكنة ثابتة، تعمل في الوضعين.
+
+### التحقق (بعد الإصلاح)
+
+| البند | النتيجة |
+| --- | --- |
+| `pnpm typecheck` | ✅ 0 أخطاء |
+| `pnpm lint` | ✅ نظيف |
+| `pnpm build` | ✅ نجاح — `/settings/tutorial` ظاهر (189 B) |
+| محتوى التعليم | ✅ 7 أدوار كاملة — لا دور بدون محتوى |
+| Hover بالوضع الليلي | ✅ كل الأزرار تستخدم متغيرات دلالية — النص يبقى مرئياً |
+
+> Commit: `fix: complete tutorial content for all 7 roles + improve dark mode contrast`
+> (لم يُدفع إلى GitHub — رفع يدوي من قِبل المالك).
+
+---
+
 *نهاية التقرير — المستند سيجري مراجعتك ورّفعك اليدوية، لا يُدفع تلقائياً إلى GitHub.*

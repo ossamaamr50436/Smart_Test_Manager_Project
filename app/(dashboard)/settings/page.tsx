@@ -29,7 +29,7 @@ export default async function SettingsPage() {
       {settings.showTutorialSection && (
         <Link
           href="/settings/tutorial"
-          className="flex w-full items-center justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-secondary-50"
+          className="flex w-full items-center justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-accent"
         >
           <div>
             <p className="font-medium">قسم التعليم والدور</p>

@@ -83,7 +83,7 @@ export default async function AdminDashboardPage() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-md border bg-secondary-50 px-4 py-2 text-sm text-primary-700 transition-colors hover:bg-secondary-100"
+                className="rounded-md border bg-secondary-50 px-4 py-2 text-sm text-primary-700 transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 {link.label}
               </Link>
