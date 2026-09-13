@@ -374,6 +374,73 @@ TEST_SPECIALIST، EXAMINER، INSTITUTION) — فكان المالك يرى ال�
 > Commit: `fix: complete tutorial content for all 7 roles + improve dark mode contrast`
 > (لم يُدفع إلى GitHub — رفع يدوي من قِبل المالك).
 
+## 14) إصلاحات ما بعد النشر — الجولة الخامسة
+
+### المشكلة 1 — إدارة مشرفي المؤسسة (تعديل غير مكتمل + خلل تسجيل الدخول + منع حذف آخر مستخدم)
+
+**الملاحظات — **السبب الجذري** لخلل الدخول:**
+- عند إنشاء مشرف مؤسسة (`createTenantAdmin`) يُخزَّن البريد الإلكتروني بحروف
+  صغيرة بسبب `z.string().trim().toLowerCase()` في الـschema، بينما كان
+  `credentialsSchema` في `auth.ts` يقوم بـ`findUnique(email)` بالنص المُدخل
+  حرفياً — أي فرق في حالة الأحرف أو مسافة يؤدي لفشل تسجيل الدخول (برغم صحة
+  كلمة المرور).
+- لا يوجد أي تعديل (edit) لبيانات مشرف موجودة من /super-admin — كان المتوفر
+  تغيير كلمة مرور وحذف فقط.
+- `deleteTenantAdmin` كان يمنع حذف "آخر مشرف" في المؤسسة، ويسجّل التدقيق ثم
+  `user.delete` مباشرة — وهو ما يفشل عند وجود إشعارات للمستخدم بسبب قيد
+  `Notification.userId → Restrict on delete`.
+
+**الحل:**
+- `auth.ts` — `credentialsSchema.email` أصبح
+  `z.string().trim().toLowerCase().email()` حتى يطابق طريقة التخزين كلياً؛ خلل
+  الدخول للمشرفين الجدد محسوم (بيانات الدخول الآن تطبّع نفس الطريقة في
+  الإنشاء والتحقق).
+- `lib/actions/super-admin-actions.ts` — أُضيف:
+  - `optionalPassword`: كلمة مرور اختيارية في التعديل (فارغة = لا تغيير،
+    وإلا trim + حد 5-128 والحرف تُشفّر بـbcrypt 12 round كبقية المشرفين).
+  - Schema ونوع `updateTenantAdminSchema/UpdateTenantAdminInput` مع تحقق
+    الخادم من الدور عبر خريطة آمنة `TENANT_ROLE_BY_NAME` (بلا تحويلات
+    قسرية) — لا يُقبل `SUPER_ADMIN` داخل المؤسسة، وفحص تفرد البريد (بما في
+    ذلك المستثنى = المستخدم نفسه).
+  - Action `updateTenantAdmin`: تفويض SUPER_ADMIN + حد معدل + تحديث
+    (الاسم/البريد/الدور/كلمة المرور) + تدقيق `AuditAction.UPDATE` + إعادة
+    توجيه الـcache.
+  - `createTenantAdminSchema.password` أُضيف له `.trim()` (تطبيع إضافي).
+  - `deleteTenantAdmin`: حُذفت جملة منع حذف آخر مشرف كلياً، وأصبح الحذف
+    داخل `$transaction` يمسح إشعارات المستخدم أولاً ثم المستخدم — آمن
+    لقيدات الـFK ويسمح بتبديل كامل الفريق.
+- `components/super-admin/tenant-details-client.tsx` — `UserRow` دُعمت بزر
+  «تعديل» يفتح نموذجاً مضمناً: الاسم، البريد الإلكتروني، الدور (Select بـ6
+  خيارات)، كلمة مرور جديدة اختيارية + حفظ/إلغاء.
+
+### المشكلة 2 — زر إظهار/إخفاء كلمة المرور غير موجود
+
+**الملاحظة (من o.txt):** أي حقل كلمة مرور في المنصة يجب أن يحمل زر عين
+(eye icon) داخل الحقل — الافتراضي مخفي (••••) وعند الضغط تظهر.
+
+**الحل:**
+- مكوّن جديد قابل لإعادة الاستخدام `components/ui/password-input.tsx`
+  (`PasswordInput`): مبني على `Input` مع زر `Eye/EyeOff` من lucide-react،
+  يبدّل `type="text"`/`"password"`، الأيقونة في منطق `end` (تُحافظ على موضعها
+  تحت RTL)، مع `aria-label` و`pe-9` لمنع تغطية النص.
+- استُبدلت كل الحقول: تسجيل الدخول (`/login`)، «تغيير كلمة المرور»
+  (الحرجة + الطوعية)، إنشاء/تعديل مستخدمي لوحة `admin/users`، إنشاء مشرف
+  وتعديله في `/super-admin` — لم يتبقَّ أي `<Input type="password">` في
+  `app/` و`components/`.
+
+### التحقق (بعد الإصلاح)
+
+| البند | النتيجة |
+| --- | --- |
+| `pnpm typecheck` | ✅ 0 أخطاء |
+| `pnpm lint` | ✅ نظيف |
+| `pnpm build` | ✅ نجاح — `/admin/users` (5.78 kB)، `/login` (4.13 kB)، `/super-admin/tenants/[id]` (8.65 kB) |
+| فحص الـpasswords | ✅ `type="password"` غير موجود في `app/` و`components/` (فقط في o.txt والـdocs) |
+
+> Commits (لم يُدفعا إلى GitHub — رفع يدوي من قِبل المالك):
+> - `fix(super-admin): full tenant-admin editing + login email normalization + allow last-user deletion`
+> - `feat(ui): add show/hide password toggle across all password inputs`
+
 ---
 
 *نهاية التقرير — المستند سيجري مراجعتك ورّفعك اليدوية، لا يُدفع تلقائياً إلى GitHub.*
