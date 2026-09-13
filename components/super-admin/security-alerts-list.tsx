@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getSuperAdminDashboardStats } from "@/lib/actions/super-admin-actions";
+import { subscribeToSuperAdminAlerts } from "@/lib/realtime-client";
 
 type AlertLog = {
   id: string;
@@ -28,6 +29,10 @@ const ALERT_LABELS: Record<string, string> = {
   SHARE_LINK_ACCESSED: "تسجيل دخول عبر رابط مشاركة",
   SPAM_LOGIN_ATTEMPT: "محاولة تسجيل دخول مشبوهة",
   TRANSFER_TRIAL: "محاولة نقل بيانات محظورة",
+  SUSPICIOUS_ACCESS: "وصول مشبوه",
+  RATE_LIMIT_HIT: "تجاوز حد الطلبات",
+  CROSS_TENANT_ATTEMPT: "محاولة وصول عبر المستأجرين",
+  FAILED_LOGIN: "محاولة دخول فاشلة",
 };
 
 export function SecurityAlertsList({ initialAlerts }: SecurityAlertsListProps) {
@@ -45,8 +50,13 @@ export function SecurityAlertsList({ initialAlerts }: SecurityAlertsListProps) {
   }
 
   useEffect(() => {
+    // تحديث لحظي عند وصول تنبيه عبر Pusher (قناة خاصة بـ SUPER_ADMIN)
+    const unsubscribe = subscribeToSuperAdminAlerts(() => refresh());
     const interval = setInterval(refresh, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
   }, []);
 
   return (

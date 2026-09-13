@@ -8,10 +8,11 @@ import { prisma } from "@/lib/prisma";
 import { authConfig } from "./auth.config";
 import { AuditAction } from "@prisma/client";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { raiseSecurityAlert } from "@/lib/security-alerts";
 
 // النطاقات المسموح قبولها في ترويسة Host أثناء الدخول
 // (حماية إضافية من Host Header Injection — لا تغطيها الـ Middleware للـ /api)
-function assertAllowedHostHeader() {
+async function assertAllowedHostHeader() {
   const collected = new Set<string>();
   const na = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "";
   try {
@@ -33,7 +34,7 @@ function assertAllowedHostHeader() {
     throw new Error("خطأ في الإعداد: لا يوجد نطاق مصرح — NEXTAUTH_URL أو ALLOWED_HOSTS غير مضبوط");
   }
 
-  const h = headers();
+  const h = await headers();
   const raw = h.get("x-forwarded-host") || h.get("host") || "";
   let host = raw;
   if (/:\d+$/.test(host)) host = host.slice(0, host.lastIndexOf(":"));
@@ -65,7 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         // التحقق من ترويسة Host (منع Host Header Injection)
-        assertAllowedHostHeader();
+        await assertAllowedHostHeader();
 
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) {
@@ -79,7 +80,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         await checkRateLimit(`login:${email}`, 10);
 
         // Rate limit على مستوى IP لمنع الهجوم الموزّع
-        const forwarded = headers().get("x-forwarded-for");
+        const forwarded = (await headers()).get("x-forwarded-for");
         const ip = forwarded?.split(",")[0]?.trim() || "unknown";
         await checkRateLimit(`login-ip:${ip}`, 50);
 
@@ -101,12 +102,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        // حماية Brute Force: فحص عدد المحاولات الفاشلة خلال آخر 15 دقيقة
+        // حماية Brute Force (قفل الحساب): 5 محاولات فاشلة خلال 15 دقيقة
+        // → يُقفل الحساب مؤقتاً 15 دقيقة. الفحص قبل مقارنة كلمة المرور.
         const recentFails = await prisma.auditLog.count({
           where: {
             userId: user.id,
-            action: AuditAction.LOGIN,
-            details: { equals: { method: "credentials", success: false } },
+            action: AuditAction.FAILED_LOGIN,
             timestamp: { gte: new Date(Date.now() - 15 * 60 * 1000) },
           },
         });
@@ -120,22 +121,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // التحقق من كلمة المرور المشفرة
         const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) {
-          // تسجيل محاولة الدخول الفاشلة في Audit Log (بتنسيق JSON منظم)
+          // تسجيل محاولة الدخول الفاشلة في Audit Log كـ FAILED_LOGIN (مضاد للـ Lockout)
           try {
             await prisma.auditLog.create({
               data: {
                 userId: user.id,
-                action: AuditAction.LOGIN,
+                action: AuditAction.FAILED_LOGIN,
                 details: {
                   method: "credentials",
                   success: false,
                 },
-                tenantId: user.tenantId!,
+                tenantId: user.tenantId,
               },
             });
           } catch {
             // لا يمنع التسجيل الفاشل الاستجابة
           }
+
+          // Layer 3 — تنبيه أمني لمالكي المنصة (مرة واحدة لكل نافذة لمنع الإغراق)
+          try {
+            await checkRateLimit(`alert:failed-login:${user.id}`, 1);
+            await raiseSecurityAlert({
+              type: "failed_login",
+              message: `محاولة دخول فاشلة: ${email}`,
+              userId: user.id,
+              tenantId: user.tenantId,
+              ip,
+              details: { email },
+            });
+          } catch {
+            // تنبيه مكرر خلال النافذة أو فشل التنبيه — لا يُفشل الطلب
+          }
+
           return null;
         }
 

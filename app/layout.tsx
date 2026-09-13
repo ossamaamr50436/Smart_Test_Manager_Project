@@ -88,7 +88,7 @@ export default async function RootLayout({
   const primaryColor = settings.primaryColor || "#015e63";
   const secondaryColor = settings.secondaryColor || "#d3bb8b";
   const defaultTheme = settings.darkModeEnabled ? "dark" : "light";
-  const nonce = headers().get("x-nonce") ?? undefined;
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>

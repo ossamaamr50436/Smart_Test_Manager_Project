@@ -14,15 +14,16 @@ export const dynamic = "force-dynamic";
 export default async function SuperAdminTenantDetailsPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   requireSuperAdmin(user);
 
   let tenant;
   try {
-    tenant = await getTenantDetails(params.id);
+    tenant = await getTenantDetails(id);
   } catch {
     notFound();
   }

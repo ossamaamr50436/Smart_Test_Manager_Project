@@ -70,6 +70,18 @@ const nextConfig = {
             value: "camera=(), microphone=(), geolocation=(), payment=(), autoplay=(), display-capture=(), web-share=()",
           },
           {
+            key: "X-DNS-Prefetch-Control",
+            value: "off",
+          },
+          {
+            key: "X-Download-Options",
+            value: "noopen",
+          },
+          {
+            key: "X-Permitted-Cross-Domain-Policies",
+            value: "none",
+          },
+          {
             key: "Cross-Origin-Opener-Policy",
             value: "same-origin",
           },

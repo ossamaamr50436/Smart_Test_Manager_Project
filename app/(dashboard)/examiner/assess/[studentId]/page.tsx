@@ -24,9 +24,11 @@ export default async function AssessStudentPage({
   params,
   searchParams,
 }: {
-  params: { studentId: string };
-  searchParams: { model?: string };
+  params: Promise<{ studentId: string }>;
+  searchParams: Promise<{ model?: string }>;
 }) {
+  const { studentId } = await params;
+  const { model: modelParam } = await searchParams;
   const user = await getCurrentUser();
 
   if (!user || user.role !== Role.EXAMINER) {
@@ -45,7 +47,7 @@ export default async function AssessStudentPage({
 
   // البحث عن الطالب في اللجنة الخاصة بالمختبر
   const student = await prisma.student.findUnique({
-    where: { id: params.studentId },
+    where: { id: studentId },
     include: {
       committee: {
         include: {
@@ -78,9 +80,7 @@ export default async function AssessStudentPage({
 
   // قراءة رقم النموذج من URL (المهمة 4)
   const allocation = committee.allocations[0];
-  const modelNumberParam = searchParams.model
-    ? Number(searchParams.model)
-    : 0;
+  const modelNumberParam = modelParam ? Number(modelParam) : 0;
 
   if (!modelNumberParam || modelNumberParam < 1) {
     return (

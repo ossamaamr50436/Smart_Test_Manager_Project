@@ -52,6 +52,21 @@ export function channelNameFor(sessionId: string): string {
 }
 
 /**
+ * قناة تنبيهات مالك المنصة (مستوى المنصة) — خاصة بـ SUPER_ADMIN فقط
+ * private-super-admin-alerts
+ */
+export const SUPER_ADMIN_ALERTS_CHANNEL = "private-super-admin-alerts";
+
+/**
+ * بث تنبيه أمني لحظي لمالكي المنصة (لا يُفشل العملية عند فشله).
+ */
+export async function broadcastSecurityAlert(payload: Record<string, unknown>): Promise<void> {
+  const s = getServer();
+  if (!s) return; // بيئة بلا إعدادات — لا بث
+  await s.trigger(SUPER_ADMIN_ALERTS_CHANNEL, "security:alert", payload);
+}
+
+/**
  * القناة الخاصة بإشعارات مستخدم معين
  * private-user-{userId}
  */
@@ -94,10 +109,19 @@ export async function broadcastAssessmentUpdate(
 export async function authenticateChannel(
   socketId: string,
   requestChannel: string,
-  userId: string
+  userId: string,
+  role: Role
 ): Promise<{ auth: string }> {
   const s = getServer();
   if (!s) throw new Error("Pusher غير مفعّل في هذه البيئة");
+
+  // 0) قناة تنبيهات مالك المنصة: حصرية لـ SUPER_ADMIN (Layer 3)
+  if (requestChannel === SUPER_ADMIN_ALERTS_CHANNEL) {
+    if (role !== Role.SUPER_ADMIN) {
+      throw new Error("غير مصرح: قناة التنبيهات الأمنية مخصصة لمالك المنصة");
+    }
+    return s.authorizeChannel(requestChannel, socketId);
+  }
 
   // 1) القناة الخاصة بإشعارات المستخدم: يُسمح للمستخدم بقناته فقط
   if (requestChannel === userChannelNameFor(userId)) {

@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "بيانات ناقصة" }, { status: 400 });
     }
 
-    const auth = await authenticateChannel(socketId, channelName, user.id);
+    const auth = await authenticateChannel(socketId, channelName, user.id, user.role);
     return NextResponse.json(auth);
   } catch (e) {
     // عدم كشف تفاصيل داخلية (OWASP — Security Misconfiguration)

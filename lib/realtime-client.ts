@@ -87,3 +87,27 @@ export function subscribeToUserNotifications(
     client.unsubscribe(`private-user-${userId}`);
   };
 }
+
+/** شكل بيانات التنبيه الأمني اللحظي (مستوى المنصة) */
+export type SecurityAlertPushPayload = {
+  alertType?: string;
+  message?: string;
+  ip?: string | null;
+};
+
+/**
+ * الاشتراك في قناة تنبيهات مالك المنصة (قناة خاصة — SUPER_ADMIN فقط).
+ * يُستدعى من صفحة /super-admin/alerts لتحديث القائمة لحظياً عند رفع تنبيه.
+ */
+export function subscribeToSuperAdminAlerts(
+  onAlert: (payload: SecurityAlertPushPayload) => void
+): () => void {
+  const client = getPusher();
+  if (!client) return () => {};
+  const channel: Channel = client.subscribe(`private-super-admin-alerts`);
+  channel.bind("security:alert", onAlert);
+  return () => {
+    channel.unbind("security:alert", onAlert);
+    client.unsubscribe(`private-super-admin-alerts`);
+  };
+}

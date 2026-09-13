@@ -202,3 +202,73 @@
 
 ## ملاحظات
 - لم يُرفع شيء إلى GitHub (commits محلية فقط).
+
+---
+
+# Session 4/4 — الأمان الثلاثي (Phase C) + التوثيق (Phase D)
+
+## الحالة
+✅ **مكتمل** — طبقات الأمان الثلاث تنفيذاً، migration الـ RLS محضَّر (ملف فقط، **غير مطبّق**)،
+وأُنجزت وثائق Phase D. `pnpm typecheck` = 0 أخطاء، `pnpm lint` نظيف، `pnpm build` نجاح.
+
+## المنجز
+
+### Layer 1 — Authentication Hardening
+- ✅ `auth.config.ts`: تحقّق — الإعدادات موجودة أصلاً ومطابقة للمطلوب
+  (session `maxAge: 8h`, `updateAge: 1h`؛ Cookies `__Secure-next-auth.session-token` +
+  `httpOnly` + `sameSite: "lax"` + `secure` في الإنتاج).
+- ✅ `auth.ts`: Account Lockout — 5 محاولات فاشلة خلال 15 دقيقة → قفل مؤقت 15 دقيقة،
+  الفحص **قبل** مقارنة كلمة المرور، والتسجيل كـ `AuditAction.FAILED_LOGIN`.
+- ✅ `lib/rate-limit.ts`: `checkMultiLevelRateLimit(user, ip, action)` —
+  IP: 100/نافذة، User: 50/نافذة، Tenant: 500/نافذة، مع تنبيه `RATE_LIMIT_HIT` مكرَّر مرة واحدة.
+
+### Layer 2 — RLS (بدون تطبيق)
+- ✅ إضافة قيم `AuditAction` الجديدة: `SUSPICIOUS_ACCESS`, `RATE_LIMIT_HIT`,
+  `CROSS_TENANT_ATTEMPT`, `FAILED_LOGIN`.
+- ✅ Migration `add_security_audit_actions` (enum فقط) — **طُبِّق فعلياً**.
+- ✅ Migration `enable_row_level_security` بصيغة `--create-only` (ملف فقط):
+  `ENABLE` + `FORCE ROW LEVEL SECURITY` على 11 جدولاً + `CREATE POLICY
+  tenant_isolation_<table>` لكل جدول بدالة `_rls_tenant_context()`.
+  ⚠️ **لم يُطبَّق** بـ`migrate deploy` — جاهز للتطبيق لاحقاً.
+- ✅ `lib/tenancy-db.ts`: `withTenantContext(user, fn)` — utility جاهز غير مستخدم بعد.
+- 🧾 السبب (قرار معماري إلزامي): RLS مع Neon Pooler يتطلب `withTenantContext` في كل
+  Server Action — عمل ضخم مؤجَّل للإصدار التالي.
+
+### Layer 3 — Intrusion Detection + Alerting
+- ✅ `lib/security-alerts.ts`: `raiseSecurityAlert(payload)` —
+  AuditLog (`tenantId: null`) + Pusher `private-super-admin-alerts` + Notifications
+  لكل `SUPER_ADMIN`؛ فشل التنبيه لا يُفشل الطلب (عزل بـ try/catch لكل قناة).
+- ✅ حقن التنبيهات: `lib/tenancy.ts → assertSameTenant → CROSS_TENANT_ATTEMPT`،
+  `lib/rate-limit.ts → RATE_LIMIT_HIT`، `auth.ts → FAILED_LOGIN`.
+- ✅ `app/api/pusher/auth/route.ts`: قناة `private-super-admin-alerts` حصرية لـ `SUPER_ADMIN`
+  (دور المستخدم يُمرَّر إلى `authenticateChannel`).
+- ✅ صفحة `/super-admin/alerts` تعمل (تسميات الفعالية الجديدة + الاشتراك اللحظي).
+
+### Hardening إضافي
+- ✅ `next.config.mjs`: 10 ترويسات أمان (أُضيف X-DNS-Prefetch-Control، X-Download-Options،
+  X-Permitted-Cross-Domain-Policies فوق الـ 7 الموجودة سابقاً).
+- ✅ `pnpm audit --audit-level=moderate`:
+  - ترقية `next` 14.2.35 → **15.5.25** (إصلاح 2 ثغرات **critical** RCE مباشرة) +
+    تكييف async APIs (`headers()`/`params`/`searchParams`).
+  - ترقية `eslint-config-next` → 15.5.25، و`vitest` → 3.2.7 (إصلاح critical dev).
+  - بقية الثغرات: transitive/moderate — **موثّقة** في `SECURITY_ARCHITECTURE.md`
+    (منها `xlsx` مباشر بلا إصلاح على npm — مستخدم في السكريبتات فقط).
+
+### Phase D — التوثيق (4 ملفات)
+- ✅ `MULTI_TENANT_MIGRATION.md` (هذه — Session 4/4).
+- ✅ `SECURITY_ARCHITECTURE.md` (جديد).
+- ✅ `PERFORMANCE_BENCHMARKS.md` (محدَّث).
+- ✅ `PENETRATION_TEST_CHECKLIST.md` (جديد، 8 أقسام).
+
+## التحقّق
+- ✅ `pnpm typecheck` — **0 أخطاء**
+- ✅ `pnpm lint` — **نظيف** (`next lint` أُشير إلى انتهاء صلاحيته في Next 15 — غير مانع)
+- ✅ `pnpm build` — **نجاح** (49 مساراً)
+- ✅ `pnpm prisma validate` + `prisma generate` (بعد إضافة قيم الـ enum) — OK
+
+## ملاحظات (Session 4)
+- ⚠️ **لم يُنفَّذ** `prisma migrate deploy` بعد إنشاء مجلد
+  `20260913110000_enable_row_level_security` — أي deploy لاحق سيطبّق الـ RLS.
+- عرض Branding العام في الواجهة (المذكور بجلسة 3 كأولوية الجلسة 4) **خارج** نطاق
+  Phase C/D حسب o.txt — لم يُنفَّذ بعد.
+- لم يُرفع شيء إلى GitHub (commits محلية فقط).

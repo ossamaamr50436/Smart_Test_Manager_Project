@@ -1,6 +1,7 @@
 import "server-only";
 import type { SessionUser } from "@/lib/security";
 import { Role } from "@prisma/client";
+import { raiseSecurityAlert } from "@/lib/security-alerts";
 
 // ============================================================
 // Multi-Tenant Isolation Helpers
@@ -63,6 +64,15 @@ export function assertSameTenant<T extends { tenantId?: string | null }>(
     return; // SUPER_ADMIN يرى كل شيء
   }
   if (resource.tenantId !== sessionUser.tenantId) {
+    // Layer 3 — رفع تنبيه أمني (مستوى المنصة) عند محاولة وصول عبر المستأجرين.
+    // لا يُفشل التنبيه نفسه العملية أبداً (raiseSecurityAlert معزول بـ try/catch داخلي).
+    raiseSecurityAlert({
+      type: "cross_tenant_attempt",
+      message: "محاولة وصول عبر المستأجرين (Cross-Tenant)",
+      userId: sessionUser.id,
+      tenantId: sessionUser.tenantId ?? null,
+      details: { targetTenantId: resource.tenantId ?? null },
+    });
     throw new Error("غير مصرح: هذا السجل ينتمي لمؤسسة أخرى");
   }
 }

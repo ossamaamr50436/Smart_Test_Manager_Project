@@ -19,9 +19,9 @@ import {
  */
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const certificateId = params.id;
+  const { id: certificateId } = await params;
   if (!certificateId || certificateId.length < 5) {
     return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
   }

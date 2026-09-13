@@ -79,6 +79,10 @@ enum AuditAction {
   APPROVE
   REJECT
   ASSESS
+  SUSPICIOUS_ACCESS
+  RATE_LIMIT_HIT
+  CROSS_TENANT_ATTEMPT
+  FAILED_LOGIN
 }
 
 // ------------------------------------------------------------
@@ -518,7 +522,7 @@ model AuditLog {
   timestamp DateTime    @default(now())
 
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User?  @relation("UserAuditLogs", fields: [userId], references: [id])
+  user   User?   @relation("UserAuditLogs", fields: [userId], references: [id])
 
   @@index([userId])
   @@index([timestamp])
