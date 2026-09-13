@@ -50,6 +50,8 @@ async function assertAllowedHostHeader() {
 const credentialsSchema = z.object({
   email: z
     .string()
+    .trim()
+    .toLowerCase()
     .email()
     .max(254, "البريد الإلكتروني طويل جداً"),
   password: z.string().min(1, "كلمة المرور مطلوبة"),

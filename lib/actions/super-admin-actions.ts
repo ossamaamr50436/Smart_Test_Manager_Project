@@ -55,6 +55,17 @@ const optionalUrl = z.preprocess(
   z.string().url("رابط غير صالح").max(500).optional()
 );
 
+// كلمة المرور في التعديل اختيارية: "" أو فراغات = عدم تغييرها، وإلا تُشفّر بعد التحقق
+const optionalPassword = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z
+    .string()
+    .trim()
+    .min(5, "كلمة المرور يجب أن تكون 5 أحرف/رموز على الأقل")
+    .max(128, "كلمة المرور طويلة جداً")
+    .optional()
+);
+
 const notifySchema = z.object({
   message: z
     .string()
@@ -85,10 +96,37 @@ const createTenantAdminSchema = z.object({
     .max(254, "البريد الإلكتروني طويل جداً"),
   password: z
     .string()
+    .trim()
     .min(5, "كلمة المرور يجب أن تكون 5 أحرف/رموز على الأقل")
     .max(128, "كلمة المرور طويلة جداً"),
 });
 export type CreateTenantAdminInput = z.infer<typeof createTenantAdminSchema>;
+
+const updateTenantAdminSchema = z.object({
+  tenantId: idSchema,
+  adminUserId: idSchema,
+  name: z.string().trim().min(2, "اسم المشرف مطلوب").max(100, "الاسم طويل جداً"),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("بريد إلكتروني غير صالح")
+    .max(254, "البريد الإلكتروني طويل جداً"),
+  password: optionalPassword,
+  // الدور يُرسل كسلسلة نصية ويُتحقق منه في الخادم (خريطة آمنة بلا تحويل قسري)
+  role: z.string().optional(),
+});
+export type UpdateTenantAdminInput = z.infer<typeof updateTenantAdminSchema>;
+
+// الأدوار المسموح بها داخل مؤسسة (SUPER_ADMIN مالك المنصة — غير مسموح)
+const TENANT_ROLE_BY_NAME: Record<string, Role> = {
+  ADMIN: Role.ADMIN,
+  HEAD_OF_AFFAIRS: Role.HEAD_OF_AFFAIRS,
+  CERTIFICATE_SOURCE: Role.CERTIFICATE_SOURCE,
+  TEST_SPECIALIST: Role.TEST_SPECIALIST,
+  EXAMINER: Role.EXAMINER,
+  INSTITUTION: Role.INSTITUTION,
+};
 
 const updateTenantSchema = z.object({
   name: z.string().trim().min(2, "اسم المؤسسة مطلوب").max(200, "الاسم طويل جداً").optional(),
@@ -834,7 +872,87 @@ const resetTenantAdminPasswordSchema = z.object({
 });
 export type ResetTenantAdminPasswordInput = z.infer<typeof resetTenantAdminPasswordSchema>;
 
-/** حذف مشرف من مؤسسة — يمنع حذف آخر مشرف متبقٍ. */
+/** تعديل بيانات مشرف مؤسسة: الاسم، البريد، كلمة المرور (اختيارية)، والدور. */
+export async function updateTenantAdmin(
+  input: UpdateTenantAdminInput
+): Promise<ActionResult> {
+  let user;
+  try {
+    user = await requireSuperAdminUser();
+  } catch (e) {
+    return { success: false, error: errMessage(e) };
+  }
+
+  try {
+    await checkRateLimit(`super-admin:update-admin:${user.id}`, 20);
+  } catch (e) {
+    return { success: false, error: errMessage(e) };
+  }
+
+  const parsed = updateTenantAdminSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: firstError(parsed.error) };
+  const data = parsed.data;
+
+  const admin = await prisma.user.findFirst({
+    where: { id: data.adminUserId, tenantId: data.tenantId },
+    select: { id: true, name: true, email: true, role: true },
+  });
+  if (!admin) return { success: false, error: "المستخدم غير موجود في المؤسسة" };
+
+  if (data.email !== admin.email) {
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+      select: { id: true },
+    });
+    if (existing && existing.id !== admin.id) {
+      return { success: false, error: "هذا البريد الإلكتروني مستخدم مسبقاً" };
+    }
+  }
+
+  const updateData: Prisma.UserUpdateInput = {
+    name: data.name,
+    email: data.email,
+  };
+  if (data.password) {
+    updateData.password = await bcrypt.hash(data.password, 12);
+  }
+  if (data.role !== undefined) {
+    const newRole = TENANT_ROLE_BY_NAME[data.role];
+    if (!newRole) {
+      return { success: false, error: "الدور غير مسموح داخل المؤسسة" };
+    }
+    updateData.role = newRole;
+  }
+
+  try {
+    const updated = await prisma.user.update({
+      where: { id: admin.id },
+      data: updateData,
+    });
+
+    await auditPlatform(user.id, AuditAction.UPDATE, {
+      entity: "TenantAdmin",
+      tenantId: data.tenantId,
+      userId: updated.id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      fields: Object.keys(updateData),
+    });
+
+    revalidatePath(`/super-admin/tenants/${data.tenantId}`);
+    revalidatePath("/super-admin/tenants");
+    return { success: true };
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return { success: false, error: friendlyUniqueMessage(error) };
+    }
+    console.error("updateTenantAdmin failed:", error);
+    return { success: false, error: "حدث خطأ غير متوقع أثناء تعديل المشرف" };
+  }
+}
+
+/** حذف مشرف من مؤسسة — يمسح إشعاراته ثم يحذفه. */
 export async function deleteTenantAdmin(
   input: TenantAdminTarget
 ): Promise<ActionResult> {
@@ -861,13 +979,6 @@ export async function deleteTenantAdmin(
   });
   if (!admin) return { success: false, error: "مشرف المؤسسة غير موجود" };
 
-  const adminsCount = await prisma.user.count({
-    where: { tenantId, role: Role.ADMIN },
-  });
-  if (adminsCount <= 1) {
-    return { success: false, error: "لا يمكن حذف آخر مشرف في المؤسسة" };
-  }
-
   try {
     await auditPlatform(user.id, AuditAction.DELETE, {
       entity: "TenantAdmin",
@@ -876,7 +987,11 @@ export async function deleteTenantAdmin(
       name: admin.name,
     });
 
-    await prisma.user.delete({ where: { id: admin.id } });
+    // حذف الإشعارات أولاً (FK إلزامي على Notification.userId) ثم المستخدم
+    await prisma.$transaction(async (tx) => {
+      await tx.notification.deleteMany({ where: { userId: admin.id } });
+      await tx.user.delete({ where: { id: admin.id } });
+    });
 
     revalidatePath(`/super-admin/tenants/${tenantId}`);
     revalidatePath("/super-admin/tenants");

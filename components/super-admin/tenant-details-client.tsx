@@ -12,13 +12,30 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   createTenantAdmin,
   deleteTenantAdmin,
   getTenantAuditLog,
   getTenantSessions,
   resetTenantAdminPassword,
   updateTenant,
+  updateTenantAdmin,
 } from "@/lib/actions/super-admin-actions";
+
+const ROLE_OPTIONS = [
+  { value: "ADMIN", label: "مشرف المؤسسة" },
+  { value: "HEAD_OF_AFFAIRS", label: "رئيس الشؤون التعليمية" },
+  { value: "CERTIFICATE_SOURCE", label: "مصدر الشهادات" },
+  { value: "TEST_SPECIALIST", label: "أخصائي الاختبارات" },
+  { value: "EXAMINER", label: "المختبر (المعلم)" },
+  { value: "INSTITUTION", label: "الجهة التعليمية" },
+];
 
 interface TenantDetail {
   id: string;
@@ -301,7 +318,12 @@ function UserRow({
 }) {
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState("");
+  const [editMode, setEditMode] = useState(false);
   const [resetPassword, setResetPassword] = useState("");
+  const [editName, setEditName] = useState(user.name);
+  const [editEmail, setEditEmail] = useState(user.email);
+  const [editRole, setEditRole] = useState(user.role);
+  const [editPassword, setEditPassword] = useState("");
 
   function handleReset() {
     setFeedback("");
@@ -332,7 +354,29 @@ function UserRow({
         setFeedback(result.error);
         return;
       }
-      setFeedback("تم حذف المشرف.");
+      setFeedback("تم حذف المستخدم.");
+      location.reload();
+    });
+  }
+
+  function handleEditSubmit() {
+    setFeedback("");
+    startTransition(async () => {
+      const result = await updateTenantAdmin({
+        tenantId,
+        adminUserId: user.id,
+        name: editName,
+        email: editEmail,
+        role: editRole,
+        password: editPassword,
+      });
+      if (!result.success) {
+        setFeedback(result.error);
+        return;
+      }
+      setFeedback("تم تحديث بيانات المستخدم.");
+      setEditPassword("");
+      setEditMode(false);
       location.reload();
     });
   }
@@ -355,22 +399,120 @@ function UserRow({
         </div>
         {isAdmin && (
           <div className="flex items-center gap-2">
-            <Input
-              value={resetPassword}
-              onChange={(e) => setResetPassword(e.target.value)}
-              placeholder="كلمة مرور جديدة"
-              className="h-8 w-40 text-xs"
-              dir="ltr"
-            />
-            <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={handleReset}>
-              تغيير
-            </Button>
-            <Button type="button" size="sm" variant="destructive" disabled={isPending} onClick={handleDelete}>
-              حذف
-            </Button>
+            {editMode ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => {
+                    setEditMode(false);
+                    setFeedback("");
+                  }}
+                >
+                  إلغاء
+                </Button>
+                <Button type="button" size="sm" disabled={isPending} onClick={handleEditSubmit}>
+                  حفظ
+                </Button>
+              </>
+            ) : (
+              <>
+                <Input
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  placeholder="كلمة مرور جديدة"
+                  className="h-8 w-40 text-xs"
+                  dir="ltr"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={handleReset}
+                >
+                  تغيير
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => {
+                    setEditName(user.name);
+                    setEditEmail(user.email);
+                    setEditRole(user.role);
+                    setEditPassword("");
+                    setFeedback("");
+                    setEditMode(true);
+                  }}
+                >
+                  تعديل
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={isPending}
+                  onClick={handleDelete}
+                >
+                  حذف
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
+      {editMode && isAdmin && (
+        <div className="mt-3 grid gap-3 border-t border-dashed pt-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor={`edit-name-${user.id}`}>الاسم</Label>
+            <Input
+              id={`edit-name-${user.id}`}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`edit-email-${user.id}`}>البريد الإلكتروني</Label>
+            <Input
+              id={`edit-email-${user.id}`}
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              dir="ltr"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`edit-role-${user.id}`}>الدور</Label>
+            <Select value={editRole} onValueChange={setEditRole}>
+              <SelectTrigger id={`edit-role-${user.id}`} className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`edit-password-${user.id}`}>كلمة مرور جديدة (اختياري)</Label>
+            <Input
+              id={`edit-password-${user.id}`}
+              type="password"
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+              placeholder="اتركها فارغة لعدم تغييرها"
+              className="h-9 text-sm"
+              dir="ltr"
+            />
+          </div>
+        </div>
+      )}
       {feedback && <p className="mt-2 text-xs text-muted-foreground">{feedback}</p>}
     </div>
   );
