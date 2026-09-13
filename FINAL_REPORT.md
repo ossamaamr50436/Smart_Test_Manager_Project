@@ -441,6 +441,62 @@ TEST_SPECIALIST، EXAMINER، INSTITUTION) — فكان المالك يرى ال�
 > - `fix(super-admin): full tenant-admin editing + login email normalization + allow last-user deletion`
 > - `feat(ui): add show/hide password toggle across all password inputs`
 
+## 15) إصلاحات ما بعد النشر — الجولة السادسة
+
+### المشكلة — خطأ حرج عند حذف مستخدم من `/super-admin/tenants/[id]`
+
+الخطأ الظاهر: "تعرّف تحميل هذه الصفحة — حدث خطأ غير متوقع أثناء عرض البيانات".
+الجدول المسؤول حُدد **تجريبياً** ضد قاعدة بيانات حقيقية: محاولة
+`prisma.user.delete` على مشرف له لجنة وأُثيرت
+`RESTRICT setting of foreign key constraint "committees_teacher1Id_fkey"`.
+
+### تصنيف كل FK يشير إلى `User` (من prisma/schema.prisma)
+
+| الجدول / العلاقة | العمود | onDelete | الحالة |
+| --- | --- | --- | --- |
+| `Committee.teacher1` (CommitteeTeacher1) | `teacher1Id` | **Restrict (افتراضي)** | ⚠️ مشكلة |
+| `Committee.teacher2` (CommitteeTeacher2) | `teacher2Id` | **Restrict (افتراضي)** | ⚠️ مشكلة |
+| `ExamSession.teacher1` (Teacher1) | `teacher1Id` | **Restrict (افتراضي)** | ⚠️ مشكلة |
+| `ExamSession.teacher2` (Teacher2) | `teacher2Id` | **Restrict (افتراضي)** | ⚠️ مشكلة |
+| `Assessment.evaluator` | `evaluatorId` | **Restrict (افتراضي)** | ⚠️ مشكلة |
+| `Notification.user` | `userId` | **Restrict (افتراضي)** | ⚠️ مشكلة |
+| `AuditLog.user` (UserAuditLogs) | `userId?` | SetNull (اختيارية) | ✅ آمن |
+| `Certificate.issuedBy` (CertificateIssuer) | `issuedById?` | SetNull (اختيارية) | ✅ آمن |
+
+### الحل المطبَّق
+
+- **`deleteTenantAdmin`** — داخل `$transaction` واحد يُحذف قبل المستخدم صراحةً:
+  1. `Assessment` حيث `evaluatorId = المستخدم`
+  2. `ExamSession` حيث `teacher1Id أو teacher2Id = المستخدم` (حذف الجلسة ينظّف
+     تقييماتها عبر Cascade ويحرّر الطالب عبر الـFK)
+  3. `Committee` حيث `teacher1Id أو teacher2Id = المستخدم`
+  4. `Notification` حيث `userId = المستخدم`
+  5. ثم `user.delete`
+- **`adminDeleteUser` (admin-panel-actions.ts)** — كانت تحذف المستخدم مباشرة دون
+  إشعاراته (قيد `Notification.userId` يمنعها)؛ الآن تتحقق من كل cliques
+  (جلسات/لجان/تقييمات) وتمنع الحذف عند وجودها، وتحذف الإشعارات أولاً داخل
+  `$transaction`.
+- **`deleteExaminer` (examiner-actions.ts)** — تحذف الإشعارات أولاً قبل
+  `user.delete` داخل الـtransaction.
+- **تشخيص محسّن** — الـcatch في `deleteTenantAdmin` الآن يسجّل `error.code`
+  و`error.meta` (`instanceof Prisma.PrismaClientKnownRequestError`) لمعرفة
+  أي قيد يمنع الحذف مستقبلاً فوراً.
+- `import { Prisma, ... } from "@prisma/client"` (قيمة وقت التشغيل بدل
+  `import type`) لتشغيل فحص `instanceof`.
+
+### الاختبار (تجريبي ضد القاعدة الحقيقية)
+
+| الخطوة | النتيجة |
+| --- | --- |
+| إنشاء مؤسسة تجريبية + مشرف + معلم + لجنة/جلسة/تقييم/إشعارات خاصة بالمشرف | ✅ |
+| محاولة `user.delete` مباشرة | ✅ رفضها القيد — `committees_teacher1Id_fkey` (Restrict) |
+| نفس الـtransaction المُصحَّح | ✅ حذف كامل للمشرف دون خطأ FK |
+| تنظيف المؤسسة التجريبية | ✅ |
+| `pnpm typecheck` / `pnpm lint` / `pnpm build` | ✅ ناجحة |
+
+> Commit: `fix(super-admin): cascade-safe user deletion (handle all FK constraints)`
+> (لم يُدفع إلى GitHub — رفع يدوي من قِبل المالك).
+
 ---
 
 *نهاية التقرير — المستند سيجري مراجعتك ورّفعك اليدوية، لا يُدفع تلقائياً إلى GitHub.*
