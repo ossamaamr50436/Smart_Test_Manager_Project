@@ -113,7 +113,6 @@ model Tenant {
   notifications      Notification[]
   auditLogs          AuditLog[]
   assessmentSettings AssessmentSettings[]
-  questionBankModels QuestionBankModel[]
 
   @@map("tenants")
 }
@@ -305,26 +304,6 @@ model ExamModel {
   @@index([tenantId, branch, seasonId])
   @@index([tenantId, seasonId])
   @@map("exam_models")
-}
-
-// ------------------------------------------------------------
-// بنك الأسئلة — نماذج دائمة (بلا موسم) مشتركة على مستوى المؤسسة
-//煃parate عن ExamModel لأن seasonId جزء من unique constraint فيها
-// ------------------------------------------------------------
-model QuestionBankModel {
-  id            String @id @default(cuid())
-  modelNumber   Int // 1-100 لكل فرع
-  branch        String // الفرع: 5/10/15/20/25/30 جزءاً
-  detailsJSON   Json // المقاطع — حتى 30 مقطعاً
-  segmentsCount Int    @default(10)
-  tenantId      String // Multi-Tenant
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, modelNumber, branch])
-  @@index([tenantId])
-  @@index([tenantId, branch])
-  @@map("question_bank_models")
 }
 
 // ------------------------------------------------------------

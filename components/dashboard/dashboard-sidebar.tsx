@@ -24,6 +24,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/super-admin/tenants", label: "المؤسسات" },
     { href: "/super-admin/tenants/new", label: "إنشاء مؤسسة" },
     { href: "/super-admin/alerts", label: "التنبيهات الأمنية" },
+    { href: "/admin/question-bank", label: "بنك الأسئلة" },
     { href: "/super-admin/settings", label: "إعدادات المنصة" },
   ],
   ADMIN: [
@@ -32,6 +33,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/admin/students", label: "الطلاب" },
     { href: "/admin/seasons", label: "المواسم" },
     { href: "/admin/models", label: "النماذج" },
+    { href: "/admin/question-bank", label: "بنك الأسئلة" },
     { href: "/admin/sessions", label: "الجلسات" },
     { href: "/admin/certificates", label: "الشهادات" },
     { href: "/admin/reports", label: "التقارير والتحليلات" },
@@ -52,6 +54,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/test-specialist/committees", label: "تشكيل اللجان" },
     { href: "/test-specialist/teachers", label: "المعلمون" },
     { href: "/test-specialist/models", label: "إدارة النماذج" },
+    { href: "/admin/question-bank", label: "بنك الأسئلة" },
     { href: "/specialist/entities", label: "إدارة الجهات" },
     { href: "/specialist/entities/create", label: "إنشاء جهة تعليمية" },
     { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
