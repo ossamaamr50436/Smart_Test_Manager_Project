@@ -35,13 +35,13 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${settings.platformName}`,
     },
     description:
-      "منصة رقمية شاملة لإدارة اختبارات حفظ القرآن الكريم وفق لائحة الجمعية — فرع المدينة المنورة.",
+      "منصة رقمية متعددة المستأجرين لإدارة الاختبارات، وتنظيم اللجان، وتقييم الطلاب، وإصدار الشهادات.",
     keywords: [
-      "اختبارات القرآن",
-      "حفظ القرآن",
-      "المدينة المنورة",
-      "جمعية تعليم القرآن",
-      "منصة اختبارات",
+      "منصة إدارة الاختبارات",
+      "اختبارات",
+      "تقييم الطلاب",
+      "لجان اختبار",
+      "إصدار شهادات",
     ],
     metadataBase: new URL(SITE_URL),
     openGraph: {
@@ -51,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: settings.platformName,
       title: settings.platformName,
       description:
-        "إدارة اختبارات حفظ القرآن الكريم ومتابعة تقييم الطلاب واللجان.",
+        "إدارة اختبارات الطلاب، تشكيل اللجان، التقييم، ومتابعة إصدار الشهادات لمؤسسات تعليمية متعددة.",
       images: [
         {
           url: settings.logoUrl || "/logo.png",
@@ -67,17 +67,19 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const organizationSchema = {
-  "@context": "https://schema.org",
-  "@type": "EducationalOrganization",
-  name: "جمعية تعليم القرآن وعلومه — فرع المدينة المنورة",
-  alternateName: "منصة مدير الاختبارات الذكي",
-  url: SITE_URL,
-  description:
-    "منصة رقمية شاملة لإدارة اختبارات حفظ القرآن الكريم وفق لائحة الجمعية — فرع المدينة المنورة.",
-  areaServed: "المدينة المنورة",
-  inLanguage: "ar-SA",
-};
+// هيكل بيانات مُنشأ دينامياً من إعدادات المنصة — محايد ولا يرتبط بجمعية معيّنة
+function buildOrganizationSchema(platformName: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "EducationalOrganization",
+    name: platformName,
+    alternateName: "منصة إدارة الاختبارات الذكية",
+    url: SITE_URL,
+    description:
+      "منصة رقمية متعددة المستأجرين لإدارة الاختبارات وتنظيم اللجان وتقييم الطلاب.",
+    inLanguage: "ar-SA",
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -110,7 +112,9 @@ export default async function RootLayout({
         <script
           nonce={nonce}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(buildOrganizationSchema(settings.platformName)),
+          }}
         />
       </head>
       <body className={`${cairo.variable} font-sans antialiased`}>

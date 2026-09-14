@@ -97,7 +97,7 @@ export function DashboardSidebar({
   const role = (user?.role as RoleKey | undefined) ?? undefined;
   const roleLabel = role ? ROLE_LABELS[role] : "مستخدم";
   const links = role ? ROLE_LINKS[role] ?? [] : [];
-  const platformName = settings?.platformName ?? "تطبيق الاختبارات";
+  const platformName = settings?.platformName ?? "منصة إدارة الاختبارات الذكية";
   const whatsappNumber = settings?.whatsappNumber ?? null;
   const showTutorialSection = settings?.showTutorialSection ?? true;
 

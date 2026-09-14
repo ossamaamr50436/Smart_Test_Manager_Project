@@ -67,7 +67,7 @@ export function CreateTenantForm() {
               id="name"
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
-              placeholder="مثال: جمعية تعليم القرآن - فرع الرياض"
+              placeholder="مثال: مركز الإبداع التعليمي"
             />
           </div>
           <div className="space-y-2">

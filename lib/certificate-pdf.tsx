@@ -131,13 +131,15 @@ export type CertificatePdfData = {
   issuedDate: Date;
   serialNumber: string;
   managerName?: string;
+  /** اسم الجهة/المؤسسة المُصدِرة — تُستكمل من بيانات الطالب (محايد بلا علامة جمعية معيّنة) */
+  organizationName?: string;
 };
 
 /**
  * إنشاء مستند الشهادة (React-PDF)
  */
 function CertificateDocument({ data }: { data: CertificatePdfData }) {
-  const { studentName, finalScore, issuedDate, serialNumber, managerName } = data;
+  const { studentName, finalScore, issuedDate, serialNumber, managerName, organizationName } = data;
   const dateStr = issuedDate.toLocaleDateString("ar-SA", {
     year: "numeric",
     month: "long",
@@ -153,7 +155,7 @@ function CertificateDocument({ data }: { data: CertificatePdfData }) {
         <Text style={styles.serial}>{serialNumber}</Text>
         <Text style={styles.title}>شهادة اجتياز اختبار القرآن الكريم</Text>
         <Text style={styles.subtitle}>
-          جمعية تعليم القرآن وعلومه — فرع المدينة المنورة
+          {organizationName ?? "منصة إدارة الاختبارات الذكية"}
         </Text>
 
         <Text style={styles.body}>
@@ -161,7 +163,7 @@ function CertificateDocument({ data }: { data: CertificatePdfData }) {
         </Text>
         <Text style={styles.studentName}>{studentName}</Text>
         <Text style={styles.body}>
-          قد اجتاز بنجاح اختبار حفظ القرآن الكريم الذي أقامته الجمعية، وقد حصل
+          قد اجتاز بنجاح اختبار حفظ القرآن الكريم، وقد حصل
           على الدرجة التالية:
         </Text>
         <Text style={styles.score}>الدرجة النهائية: {finalScore} / 20</Text>

@@ -10,7 +10,7 @@ export async function GET() {
   } catch {
     return NextResponse.json(
       {
-        platformName: "تطبيق الاختبارات",
+        platformName: "منصة إدارة الاختبارات الذكية",
         logoUrl: null,
         logoFileId: null,
         useTemplateMode: false,

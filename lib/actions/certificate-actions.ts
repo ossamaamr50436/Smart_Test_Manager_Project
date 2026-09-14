@@ -185,6 +185,7 @@ export async function generateCertificate(studentId: string) {
       issuedDate: new Date(),
       serialNumber,
       managerName: "مدير الاختبارات",
+      organizationName: student.institution?.name,
     });
   }
 
