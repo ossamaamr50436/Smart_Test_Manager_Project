@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   getAdminInstitutions,
   createAdminInstitution,
@@ -42,8 +43,8 @@ const EMPTY_FORM = {
   name: "",
   managerName: "",
   supervisorName: "",
-  managerPhone: "",
-  supervisorPhone: "",
+  managerPhone: "+9665",
+  supervisorPhone: "+9665",
   licenseNumber: "",
   district: "",
   email: "",
@@ -241,12 +242,22 @@ export function AdminInstitutionsManager() {
                 <Input value={form.licenseNumber} onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })} dir="ltr" />
               </div>
               <div className="space-y-1">
-                <Label>رقم هاتف المدير *</Label>
-                <Input value={form.managerPhone} onChange={(e) => setForm({ ...form, managerPhone: e.target.value })} dir="ltr" placeholder="+9665XXXXXXXX" />
+                <PhoneInput
+                  id="managerPhone"
+                  label="رقم هاتف المدير"
+                  value={form.managerPhone}
+                  onChange={(v) => setForm({ ...form, managerPhone: v })}
+                  required
+                />
               </div>
               <div className="space-y-1">
-                <Label>رقم هاتف المشرف *</Label>
-                <Input value={form.supervisorPhone} onChange={(e) => setForm({ ...form, supervisorPhone: e.target.value })} dir="ltr" placeholder="+9665XXXXXXXX" />
+                <PhoneInput
+                  id="supervisorPhone"
+                  label="رقم هاتف المشرف"
+                  value={form.supervisorPhone}
+                  onChange={(v) => setForm({ ...form, supervisorPhone: v })}
+                  required
+                />
               </div>
               <div className="space-y-1">
                 <Label>الحي *</Label>
@@ -286,12 +297,20 @@ export function AdminInstitutionsManager() {
                 <Input value={editForm.licenseNumber} onChange={(e) => setEditForm({ ...editForm, licenseNumber: e.target.value })} dir="ltr" />
               </div>
               <div className="space-y-1">
-                <Label>رقم هاتف المدير</Label>
-                <Input value={editForm.managerPhone} onChange={(e) => setEditForm({ ...editForm, managerPhone: e.target.value })} dir="ltr" />
+                <PhoneInput
+                  id="editManagerPhone"
+                  label="رقم هاتف المدير"
+                  value={editForm.managerPhone}
+                  onChange={(v) => setEditForm({ ...editForm, managerPhone: v })}
+                />
               </div>
               <div className="space-y-1">
-                <Label>رقم هاتف المشرف</Label>
-                <Input value={editForm.supervisorPhone} onChange={(e) => setEditForm({ ...editForm, supervisorPhone: e.target.value })} dir="ltr" />
+                <PhoneInput
+                  id="editSupervisorPhone"
+                  label="رقم هاتف المشرف"
+                  value={editForm.supervisorPhone}
+                  onChange={(v) => setEditForm({ ...editForm, supervisorPhone: v })}
+                />
               </div>
               <div className="space-y-1">
                 <Label>الحي</Label>
