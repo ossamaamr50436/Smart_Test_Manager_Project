@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
-import { requireSuperAdmin } from "@/lib/tenancy";
+import { guardSuperAdminPage } from "@/lib/tenancy";
 import { getSuperAdminDashboardStats } from "@/lib/actions/super-admin-actions";
 import {
   Card,
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function SuperAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  requireSuperAdmin(user);
+  await guardSuperAdminPage(user);
 
   const data = await getSuperAdminDashboardStats();
 

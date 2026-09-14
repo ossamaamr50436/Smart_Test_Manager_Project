@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
-import { requireSuperAdmin } from "@/lib/tenancy";
+import { guardSuperAdminPage } from "@/lib/tenancy";
 import { getTenantDetails } from "@/lib/actions/super-admin-actions";
 import { TenantDetailsClient } from "@/components/super-admin/tenant-details-client";
 import { TenantControls } from "@/components/super-admin/tenant-controls";
@@ -19,7 +19,7 @@ export default async function SuperAdminTenantDetailsPage({
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  requireSuperAdmin(user);
+  await guardSuperAdminPage(user);
 
   let tenant;
   try {

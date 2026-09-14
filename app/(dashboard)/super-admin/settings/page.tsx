@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
-import { requireSuperAdmin } from "@/lib/tenancy";
+import { guardSuperAdminPage } from "@/lib/tenancy";
 import { getCachedPlatformSettings } from "@/lib/cache";
 import { PlatformSettingsForm } from "@/components/super-admin/platform-settings-form";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function SuperAdminSettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  requireSuperAdmin(user);
+  await guardSuperAdminPage(user);
 
   const settings = await getCachedPlatformSettings();
 

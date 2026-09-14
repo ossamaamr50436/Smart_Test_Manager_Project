@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
-import { requireSuperAdmin } from "@/lib/tenancy";
+import { guardSuperAdminPage } from "@/lib/tenancy";
 import { getSuperAdminDashboardStats } from "@/lib/actions/super-admin-actions";
 import { SecurityAlertsList } from "@/components/super-admin/security-alerts-list";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function SuperAdminAlertsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  requireSuperAdmin(user);
+  await guardSuperAdminPage(user);
 
   const data = await getSuperAdminDashboardStats();
 

@@ -35,26 +35,44 @@ const ACTION_BY_TYPE: Record<SecurityAlertType, AuditAction> = {
   suspicious_access: AuditAction.SUSPICIOUS_ACCESS,
 };
 
+const OPERATION_BY_TYPE: Record<SecurityAlertType, string> = {
+  cross_tenant_attempt: "CROSS_TENANT_ATTEMPT",
+  rate_limit_hit: "RATE_LIMIT_HIT",
+  failed_login: "FAILED_LOGIN",
+  suspicious_access: "SUSPICIOUS_ACCESS",
+};
+
 /**
  * يرفع تنبيهاً أمنياً على مستوى المنصة:
- *  1) سجل في AuditLog (tenantId: null — مستوى المنصة).
+ *  1) سجل في AuditLog (tenantId: null — مستوى المنصة) مع بيانات موحّدة:
+ *     userId + tenantId + operation + timestamp داخل details.
  *  2) بث لحظي لـ Pusher على القناة private-super-admin-alerts.
  *  3) إشعار داخلي لكل مستخدم SUPER_ADMIN.
  * جميع القنوات معزولة في try/catch — فشل أيٍّ منها لا يُسقط العملية.
  */
 export async function raiseSecurityAlert(payload: SecurityAlertPayload): Promise<void> {
+  // بيانات موحّدة لكل تنبيه (تُفحَص لاحقاً في سجل التدقيق)
+  const normalized = {
+    ...(payload.details ?? {}),
+    alertType: payload.type,
+    message: payload.message,
+    ip: payload.ip ?? null,
+    userId: payload.userId ?? null,
+    tenantId: payload.tenantId ?? null,
+    operation:
+      typeof payload.details?.operation === "string"
+        ? payload.details.operation
+        : OPERATION_BY_TYPE[payload.type],
+    timestamp: new Date().toISOString(),
+  };
+
   // 1) سجل التدقيق (مستوى المنصة)
   try {
     await prisma.auditLog.create({
       data: {
         userId: payload.userId ?? null,
         action: ACTION_BY_TYPE[payload.type],
-        details: {
-          alertType: payload.type,
-          message: payload.message,
-          ip: payload.ip ?? null,
-          ...(payload.details ?? {}),
-        },
+        details: normalized,
         tenantId: null,
       },
     });

@@ -1,4 +1,5 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import type { SessionUser } from "@/lib/security";
 import { Role } from "@prisma/client";
 import { raiseSecurityAlert } from "@/lib/security-alerts";
@@ -48,6 +49,23 @@ export function requireSuperAdmin(user: SessionUser): void {
   if (user.role !== Role.SUPER_ADMIN) {
     throw new Error("غير مصرح: هذه العملية مخصصة لمالك المنصة");
   }
+}
+
+/**
+ * حراسة صفحات المالك على مستوى العرض (Pages):
+ * - غير المالك → تنبيه أمني حصري لـ SUPER_ADMIN (Layer 3) ثم redirect.
+ * لا تُستخدم داخل Server Actions (التي تستخدم requireSuperAdmin).
+ */
+export async function guardSuperAdminPage(user: SessionUser): Promise<void> {
+  if (user.role === Role.SUPER_ADMIN) return;
+  await raiseSecurityAlert({
+    type: "suspicious_access",
+    message: "محاولة وصول غير مصرح إلى منطقة المالك",
+    userId: user.id,
+    tenantId: user.tenantId ?? null,
+    details: { operation: "ACCESS_SUPER_ADMIN_AREA" },
+  });
+  redirect("/");
 }
 
 /**
