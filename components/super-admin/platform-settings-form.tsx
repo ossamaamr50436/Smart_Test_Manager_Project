@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { usePlatformSettings } from "@/components/providers/settings-provider";
 import {
   updatePlatformSettings,
   updateTemplateSettings,
@@ -14,11 +15,13 @@ import {
   updateSupportNumber,
   updateStudentApplicationFileSetting,
   updateTutorialSectionSetting,
+  removePlatformLogo,
   type PlatformSettings,
 } from "@/lib/actions/settings-actions";
 
 export function PlatformSettingsForm({ initial }: { initial: PlatformSettings }) {
   const router = useRouter();
+  const { refreshSettings } = usePlatformSettings();
   const [isPending, startTransition] = useTransition();
   const [platformName, setPlatformName] = useState(initial.platformName);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -74,9 +77,29 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
           await updatePlatformSettings(platformName);
         }
         setSuccess("تم حفظ إعدادات المنصة بنجاح");
+        setLogoFile(null);
         router.refresh();
+        await refreshSettings();
       } catch (e) {
         setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
+      }
+    });
+  }
+
+  async function handleRemoveLogo() {
+    if (isPending) return;
+    setError("");
+    setSuccess("");
+    startTransition(async () => {
+      try {
+        await removePlatformLogo();
+        setLogoPreview(null);
+        setLogoFile(null);
+        setSuccess("تمت إزالة الشعار — سيُستخدم الشعار الافتراضي");
+        router.refresh();
+        await refreshSettings();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "حدث خطأ أثناء إزالة الشعار");
       }
     });
   }
@@ -230,14 +253,27 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
                   className="hidden"
                   onChange={handleLogoChange}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => logoInputRef.current?.click()}
-                >
-                  اختيار شعار جديد
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    اختيار شعار جديد
+                  </Button>
+                  {initial.logoUrl && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveLogo}
+                      disabled={isPending}
+                    >
+                      إزالة الشعار
+                    </Button>
+                  )}
+                </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   PNG، JPG، أو WEBP
                 </p>

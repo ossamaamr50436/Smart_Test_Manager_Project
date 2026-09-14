@@ -4,7 +4,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { uploadFileToDrive } from "@/lib/google-drive";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { validateFileUpload } from "@/lib/upload-security";
@@ -111,8 +111,17 @@ export async function updatePlatformSettings(
         logoFile.fileName,
         logoFile.mimeType
       );
-      data.logoUrl = uploaded.webViewLink;
-      data.logoFileId = uploaded.fileId;
+      // تخزين رابط صورة مباشر (Thumbnail) بدلاً من webViewLink — لأن webViewLink
+      // صفحة HTML ولا يمكن عرضها عبر next/image ولا favicon:
+      // أ) next/image يحتاج بايتات صورة؛ ب) رابط العرض المباشر أسرع وأخف.
+      // https://drive.google.com/thumbnail?id=<fileId>&sz=w512 — لا يتطلب إذناً عاماً
+      if (uploaded.fileId) {
+        data.logoUrl = `https://drive.google.com/thumbnail?id=${uploaded.fileId}&sz=w512`;
+        data.logoFileId = uploaded.fileId;
+      } else {
+        data.logoUrl = uploaded.webViewLink;
+        data.logoFileId = uploaded.fileId;
+      }
     } catch {
       throw new Error("تعذر رفع الشعار على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً");
     }
@@ -138,10 +147,52 @@ export async function updatePlatformSettings(
     },
   });
 
+  revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
   revalidatePath("/admin");
   revalidatePath("/");
   revalidatePath("/login");
+
+  return { success: true };
+}
+
+/**
+ * إزالة شعار المنصة والعودة إلى الشعار الافتراضي (SUPER_ADMIN فقط)
+ */
+export async function removePlatformLogo(): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.SUPER_ADMIN]);
+
+  await checkRateLimit(`settings-update:${user.id}`, 10);
+
+  const current = await prisma.appSettings.findUnique({
+    where: { id: "singleton" },
+    select: { logoFileId: true },
+  });
+
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    update: { logoUrl: null, logoFileId: null },
+    create: { id: "singleton" },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "AppSettings",
+        action: "remove-logo",
+        removedFileId: current?.logoFileId ?? null,
+      }),
+    },
+  });
+
+  revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
   revalidatePath("/");
+  revalidatePath("/login");
 
   return { success: true };
 }
@@ -206,7 +257,10 @@ export async function updateTemplateSettings(
     },
   });
 
+  revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
   revalidatePath("/admin");
+  revalidatePath("/");
 
   return { success: true };
 }
@@ -264,8 +318,9 @@ export async function updateAppearanceSettings(input: {
     },
   });
 
+revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
   revalidatePath("/admin");
-  revalidatePath("/");
   revalidatePath("/");
   revalidatePath("/login");
 
@@ -274,7 +329,6 @@ export async function updateAppearanceSettings(input: {
 
 /**
  * تحديث رقم الدعم الفني (WhatsApp) — SUPER_ADMIN فقط
- * يُقرأ من إعدادات المنصة العامة ويعرضه الشريط الجانبي لجميع المستخدمين.
  */
 export async function updateSupportNumber(
   whatsappNumber: string
@@ -305,6 +359,8 @@ export async function updateSupportNumber(
     },
   });
 
+revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
   revalidatePath("/admin");
   revalidatePath("/");
   revalidatePath("/login");
@@ -314,8 +370,6 @@ export async function updateSupportNumber(
 
 /**
  * تفعيل/تعطيل رفع نموذج اختبار الطالب (PDF) في طلب الترشيح
- * - عند التفعيل يصبح رفع النموذج إجبارياً على الجهة المُرشِّحة
- * - السجلات القديمة التي لم تُرفع تبقى دون ملف حتى يحدث تحديث
  */
 export async function updateStudentApplicationFileSetting(
   enabled: boolean
@@ -342,6 +396,8 @@ export async function updateStudentApplicationFileSetting(
     },
   });
 
+revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
   revalidatePath("/admin/settings");
   revalidatePath("/");
 
@@ -350,7 +406,6 @@ export async function updateStudentApplicationFileSetting(
 
 /**
  * تفعيل/تعطيل قسم التعليم والدور في صفحة الإعدادات
- * - عند التفعيل يظهر رابط التعليم في صفحة الإعدادات وفي الشريط الجانبي
  */
 export async function updateTutorialSectionSetting(
   enabled: boolean
@@ -377,6 +432,8 @@ export async function updateTutorialSectionSetting(
     },
   });
 
+  revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
   revalidatePath("/admin/settings");
   revalidatePath("/settings");
   revalidatePath("/");

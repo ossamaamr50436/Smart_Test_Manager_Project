@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCachedPlatformSettings } from "@/lib/cache";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     // الإعدادات العامة متاحة لجميع المستخدمين (بما فيهم صفحة تسجيل الدخول)

@@ -171,5 +171,5 @@ export const getCachedPlatformSettings = unstable_cache(
     };
   },
   ["platform-settings"],
-  { revalidate: 60 }
+  { revalidate: 60, tags: ["platform-settings"] }
 );
