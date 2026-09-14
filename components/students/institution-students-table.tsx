@@ -26,6 +26,7 @@ type InstitutionStudent = {
   status: string;
   teacherName: string;
   parentPhone: string | null;
+  submittedById: string | null;
   createdAt: Date;
 };
 
@@ -62,6 +63,7 @@ export function InstitutionStudentsTable({
                 <th className="pb-2 font-medium">الفرع</th>
                 <th className="pb-2 font-medium">اسم المعلم</th>
                 <th className="pb-2 font-medium">رقم ولي الأمر</th>
+                <th className="pb-2 font-medium">المنشئ</th>
                 <th className="pb-2 font-medium">الحالة</th>
                 <th className="pb-2 font-medium">تاريخ الترشيح</th>
               </tr>
@@ -76,6 +78,17 @@ export function InstitutionStudentsTable({
                   <td className="py-3">{student.teacherName}</td>
                   <td className="py-3" dir="ltr">
                     {student.parentPhone || "—"}
+                  </td>
+                  <td className="py-3">
+                    <span
+                      className={
+                        student.submittedById
+                          ? "inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700"
+                          : "inline-flex rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700"
+                      }
+                    >
+                      {student.submittedById ? "أخصائي الاختبارات" : "الجهة التعليمية"}
+                    </span>
                   </td>
                   <td className="py-3">
                     <span className="inline-flex rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700">

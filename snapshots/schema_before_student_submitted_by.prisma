@@ -144,7 +144,6 @@ model User {
   committeesAsTeacher2 Committee[]    @relation("CommitteeTeacher2")
   assessments          Assessment[]
   certificatesIssued   Certificate[]  @relation("CertificateIssuer")
-  studentNominations   Student[]      @relation("StudentNominations")
 
   @@index([institutionId])
   @@index([tenantId])
@@ -196,7 +195,6 @@ model Student {
   status        StudentStatus @default(PENDING)
   institutionId String
   committeeId   String? // اللجنة المرتبطة بالطالب (المهمة 1)
-  submittedById String? // من رشّح الطالب (أخصائي أو مستخدم جهة) — null تعني الجهة نفسها
   tenantId      String // Multi-Tenant
   createdAt     DateTime      @default(now()) // تاريخ الترشيح
   updatedAt     DateTime      @updatedAt
@@ -204,7 +202,6 @@ model Student {
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   institution  Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   committee    Committee?    @relation(fields: [committeeId], references: [id])
-  submittedBy  User?         @relation("StudentNominations", fields: [submittedById], references: [id])
   examSessions ExamSession[]
   certificates Certificate[]
 
@@ -219,7 +216,6 @@ model Student {
   @@index([tenantId, status])
   @@index([tenantId, institutionId])
   @@index([tenantId, committeeId])
-  @@index([tenantId, submittedById])
   @@index([tenantId, createdAt])
   @@map("students")
 }

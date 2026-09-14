@@ -417,3 +417,153 @@ export async function assignCommittee(input: CommitteeInput) {
 
   return { success: true, sessionId: session.id };
 }
+
+/**
+ * ترشيح طالب من قبل أخصائي الاختبارات — يختار الجهة المرجعية
+ * الحالة تبدأ PENDING ثم تُعتمد مباشرة (الأخصائي هو المُراجع الأصلي)
+ */
+export async function createStudentApplicationBySpecialist(
+  input: StudentApplicationInput & { institutionId: string },
+  applicationFile?: {
+    buffer: ArrayBuffer;
+    fileName: string;
+    mimeType: string;
+  }
+): Promise<CreateStudentApplicationResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
+
+  try {
+    await checkRateLimit(`specialist-nominate:${user.id}`, 20);
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+    };
+  }
+
+  const parsed = studentApplicationSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
+  }
+  const data = parsed.data;
+
+  if (!input.institutionId) {
+    return { success: false, error: "اختر الجهة التعليمية" };
+  }
+
+  const institution = await prisma.institution.findUnique({
+    where: { id: input.institutionId },
+    select: { id: true, name: true, tenantId: true },
+  });
+  if (!institution || institution.tenantId !== requireTenantId(user)) {
+    return { success: false, error: "الجهة التعليمية غير موجودة أو لا تنتمي لمؤسستك" };
+  }
+
+  const settings = await getPlatformSettings();
+  const requireFile = settings.requireStudentApplicationFile;
+
+  let applicationFileId: string | null = null;
+  let applicationFileUrl: string | null = null;
+
+  if (requireFile || applicationFile) {
+    if (!applicationFile) {
+      return { success: false, error: "يجب رفع نموذج اختبار الطالب (PDF) لإكمال الترشيح" };
+    }
+    const buffer = Buffer.from(applicationFile.buffer);
+    try {
+      validateFileUpload(buffer, applicationFile.mimeType, applicationFile.fileName, {
+        maxBytes: 20 * 1024 * 1024,
+        allowedMimes: ["application/pdf"],
+      });
+    } catch {
+      return { success: false, error: "نموذج الاختبار يجب أن يكون ملف PDF (الحد الأقصى 20MB)" };
+    }
+    try {
+      const folderId = await ensureDriveFolder(institution.name);
+      const uploaded = await uploadFileToDriveFolder(
+        buffer,
+        `نموذج اختبار الطالب (${data.name}).pdf`,
+        "application/pdf",
+        folderId
+      );
+      applicationFileId = uploaded.fileId;
+      applicationFileUrl = uploaded.webViewLink;
+    } catch {
+      return {
+        success: false,
+        error: "تعذر رفع نموذج الاختبار على Google Drive — تحقق من اتصال النظام ثم أعد المحاولة",
+      };
+    }
+  }
+
+  let student;
+  try {
+    student = await prisma.$transaction(async (tx) => {
+      const created = await tx.student.create({
+        data: {
+          name: data.name,
+          age: data.age,
+          branch: data.branch,
+          nationality: data.nationality,
+          teacherName: data.teacherName,
+          parentPhone: data.parentPhone,
+          address: data.address ?? null,
+          phone: data.phone ?? null,
+          status: StudentStatus.APPROVED,
+          institutionId: input.institutionId,
+          submittedById: user.id,
+          applicationFileId,
+          applicationFileUrl,
+          tenantId: requireTenantId(user),
+        },
+      });
+      return created;
+    });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء حفظ الطلب — أعد المحاولة" };
+  }
+
+  try {
+    const institutionUsers = await prisma.user.findMany({
+      where: { role: Role.INSTITUTION, institutionId: input.institutionId },
+      select: { id: true },
+    });
+    if (size(institutionUsers) > 0) {
+      await prisma.notification.createMany({
+        data: institutionUsers.map((u) => ({
+          userId: u.id,
+          message: `تم ترشيح الطالب «${student.name}» من قبل أخصائي الاختبارات — جاهز للتوزيع على لجنة`,
+          type: NotificationType.RECRUITMENT,
+          tenantId: requireTenantId(user),
+        })),
+      });
+    }
+  } catch {
+    // غير حاسم
+  }
+
+  try {
+    await recordAudit(user.id, AuditAction.CREATE, {
+      entity: "Student",
+      studentId: student.id,
+      name: student.name,
+      source: "specialist_nomination",
+      institutionId: input.institutionId,
+    });
+  } catch {
+    // فشل سجل التدقيق لا يمنع النجاح
+  }
+
+  revalidatePath("/test-specialist/requests");
+  revalidatePath("/test-specialist/committees");
+  revalidatePath("/institution");
+  revalidatePath("/admin/students");
+
+  return { success: true, studentId: student.id };
+}

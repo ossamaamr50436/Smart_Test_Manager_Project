@@ -27,9 +27,11 @@ export default async function InstitutionDashboardPage() {
           name: true,
           age: true,
           branch: true,
+          nationality: true,
           status: true,
           teacherName: true,
           parentPhone: true,
+          submittedById: true,
           createdAt: true,
         },
       })
