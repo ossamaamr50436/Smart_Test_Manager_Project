@@ -1,4 +1,5 @@
 import { getBranchLabel } from "@/lib/utils";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -71,7 +72,14 @@ export function InstitutionStudentsTable({
             <tbody>
               {students.map((student) => (
                 <tr key={student.id} className="border-b last:border-0">
-                  <td className="py-3 font-medium">{student.name}</td>
+                  <td className="py-3 font-medium">
+                    <Link
+                      href={`/institution/students/${student.id}`}
+                      className="text-primary hover:underline"
+                    >
+                      {student.name}
+                    </Link>
+                  </td>
                   <td className="py-3">{student.age}</td>
                   <td className="py-3">{student.nationality || "—"}</td>
                   <td className="py-3">{getBranchLabel(student.branch)}</td>

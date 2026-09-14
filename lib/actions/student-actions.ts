@@ -228,7 +228,10 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
 
   await prisma.student.update({
     where: { id: studentId },
-    data: { status },
+    data: {
+      status,
+      approvedAt: decision === "APPROVED" ? new Date() : undefined,
+    },
   });
 
   // إشعار الجهة بالنتيجة
@@ -353,7 +356,7 @@ export async function assignCommittee(input: CommitteeInput) {
   const session = await prisma.$transaction(async (tx) => {
     const updated = await tx.student.updateMany({
       where: { id: data.studentId, status: StudentStatus.APPROVED },
-      data: { status: StudentStatus.ASSIGNED },
+      data: { status: StudentStatus.ASSIGNED, assignedAt: new Date() },
     });
 
     if (updated.count !== 1) {
@@ -516,6 +519,7 @@ export async function createStudentApplicationBySpecialist(
           address: data.address ?? null,
           phone: data.phone ?? null,
           status: StudentStatus.APPROVED,
+          approvedAt: new Date(),
           institutionId: input.institutionId,
           submittedById: user.id,
           applicationFileId,

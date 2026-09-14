@@ -127,7 +127,7 @@ export async function headOfAffairsFinalApprove(studentId: string) {
   // تحديث حالة الطالب إلى READY_FOR_CERTIFICATE
   await prisma.student.update({
     where: { id: studentId },
-    data: { status: StudentStatus.READY_FOR_CERTIFICATE },
+    data: { status: StudentStatus.READY_FOR_CERTIFICATE, finalizedAt: new Date() },
   });
 
   // تحديث سجل التقييم المعتمد إلى NOTIFIED

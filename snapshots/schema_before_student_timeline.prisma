@@ -197,9 +197,6 @@ model Student {
   institutionId String
   committeeId   String? // اللجنة المرتبطة بالطالب (المهمة 1)
   submittedById String? // من رشّح الطالب (أخصائي أو مستخدم جهة) — null تعني الجهة نفسها
-  approvedAt    DateTime? // تاريخ القبول
-  assignedAt    DateTime? // تاريخ التوزيع على لجنة
-  finalizedAt   DateTime? // تاريخ الاعتماد النهائي
   tenantId      String // Multi-Tenant
   createdAt     DateTime      @default(now()) // تاريخ الترشيح
   updatedAt     DateTime      @updatedAt
