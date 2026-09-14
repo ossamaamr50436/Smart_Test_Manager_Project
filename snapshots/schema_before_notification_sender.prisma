@@ -139,7 +139,6 @@ model User {
   institution          Institution?   @relation(fields: [institutionId], references: [id])
   auditLogs            AuditLog[]     @relation("UserAuditLogs")
   notifications        Notification[]
-  sentNotifications    Notification[] @relation("NotificationSender")
   sessionsAsTeacher1   ExamSession[]  @relation("Teacher1")
   sessionsAsTeacher2   ExamSession[]  @relation("Teacher2")
   committeesAsTeacher1 Committee[]    @relation("CommitteeTeacher1")
@@ -505,12 +504,10 @@ model Notification {
   isRead        Boolean          @default(false)
   examSessionId String?
   tenantId      String? // Multi-Tenant — nullable لسجلات مستوى المنصة (SUPER_ADMIN)
-  senderId      String? // مُرسل الإشعار (SUPER_ADMIN عند التنبيهات العامة)
   createdAt     DateTime         @default(now())
 
   tenant      Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user        User?        @relation(fields: [userId], references: [id])
-  sender      User?        @relation("NotificationSender", fields: [senderId], references: [id])
   examSession ExamSession? @relation(fields: [examSessionId], references: [id])
 
   @@index([userId])

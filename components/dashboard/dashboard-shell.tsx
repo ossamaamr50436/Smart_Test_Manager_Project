@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { DashboardTopBar } from "@/components/dashboard/dashboard-topbar";
+import { PlatformAlertBanner } from "@/components/notification/platform-alert-banner";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -22,7 +23,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       />
       <div className="flex flex-1 flex-col">
         <DashboardTopBar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <PlatformAlertBanner />
+          <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        </div>
       </div>
     </div>
   );

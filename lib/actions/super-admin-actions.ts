@@ -1072,6 +1072,7 @@ export async function notifyTenantAdmins(
         message: data.message,
         type: data.type,
         tenantId: a.tenantId,
+        senderId: user.id,
       })),
       skipDuplicates: true,
     });
@@ -1136,6 +1137,7 @@ export async function notifyAllTenantUsers(
         message: data.message,
         type: data.type,
         tenantId: r.tenantId,
+        senderId: user.id,
       })),
       skipDuplicates: true,
     });
@@ -1259,6 +1261,7 @@ export async function broadcastToAllUsers(
         message: data.message,
         type: data.type,
         tenantId: r.tenantId,
+        senderId: user.id,
       })),
       skipDuplicates: true,
     });

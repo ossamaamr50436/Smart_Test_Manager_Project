@@ -2,8 +2,67 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/security";
+import { Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
+
+export type PlatformAlert = {
+  id: string;
+  message: string;
+  createdAt: Date;
+};
+
+/**
+ * جلب أحدث تنبيه عام غير مقروء مرسَل من مالك النظام (SUPER_ADMIN)
+ * يُعرض في شريط علوي داخل لوحة التحكم فقط.
+ */
+export async function getPlatformAlert(): Promise<PlatformAlert | null> {
+  const user = await requireUser();
+
+  const alert = await prisma.notification.findFirst({
+    where: {
+      userId: user.id,
+      isRead: false,
+      sender: { role: Role.SUPER_ADMIN },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, message: true, createdAt: true },
+  });
+
+  return alert;
+}
+
+/**
+ * إغلاق تنبيه مالك النظام — يقبل إشعاراً من SUPER_ADMIN فقط
+ */
+export async function dismissPlatformAlert(notificationId: string) {
+  const user = await requireUser();
+
+  const notification = await prisma.notification.findUnique({
+    where: { id: notificationId },
+    select: { id: true, userId: true, sender: { select: { role: true } } },
+  });
+
+  if (!notification) {
+    throw new Error("الإشعار غير موجود");
+  }
+  if (notification.userId !== user.id) {
+    throw new Error("غير مصرح: هذا الإشعار ليس لك");
+  }
+  if (notification.sender?.role !== Role.SUPER_ADMIN) {
+    throw new Error("غير مصرح: هذا الإشعار ليس تنبيهاً من مالك النظام");
+  }
+
+  await checkRateLimit(`notifications-dismiss:${user.id}`, 30);
+
+  await prisma.notification.update({
+    where: { id: notificationId },
+    data: { isRead: true },
+  });
+
+  revalidatePath("/notifications");
+  return { success: true };
+}
 
 // ============================================================
 // نظام الإشعارات (المادة 8 — عزل الصلاحيات)
