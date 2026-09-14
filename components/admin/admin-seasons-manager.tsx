@@ -1,14 +1,25 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
   getAdminSeasons,
   createAdminSeason,
   updateAdminSeason,
+  deleteAdminSeason,
 } from "@/lib/actions/admin-panel-actions";
 
 type Season = {
@@ -18,7 +29,12 @@ type Season = {
   endDate: Date;
   isActive: boolean;
   createdAt: Date;
-  _count: { sessions: number; models: number };
+  _count: {
+    sessions: number;
+    models: number;
+    committees: number;
+    modelAllocations: number;
+  };
 };
 
 export function AdminSeasonsManager() {
@@ -29,6 +45,7 @@ export function AdminSeasonsManager() {
   const [success, setSuccess] = useState("");
 
   const [showCreate, setShowCreate] = useState(false);
+  const [seasonToDelete, setSeasonToDelete] = useState<Season | null>(null);
   const [form, setForm] = useState({ name: "", startDate: "", endDate: "", isActive: false });
 
   async function load() {
@@ -76,6 +93,27 @@ export function AdminSeasonsManager() {
         load();
       } catch (e) {
         setError(e instanceof Error ? e.message : "فشل التحديث");
+      }
+    });
+  }
+
+  function handleDeleteClick(season: Season) {
+    setError("");
+    setSuccess("");
+    setSeasonToDelete(season);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!seasonToDelete || isPending) return;
+    startTransition(async () => {
+      try {
+        await deleteAdminSeason(seasonToDelete.id);
+        setSuccess(`تم حذف الموسم «${seasonToDelete.name}» بنجاح`);
+        setSeasonToDelete(null);
+        load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "فشل حذف الموسم");
+        setSeasonToDelete(null);
       }
     });
   }
@@ -162,15 +200,72 @@ export function AdminSeasonsManager() {
                       {season._count.sessions} جلسة — {season._count.models} نموذج
                     </p>
                   </div>
-                  <Button size="sm" variant={season.isActive ? "outline" : "default"} disabled={isPending} onClick={() => toggleActive(season)}>
-                    {season.isActive ? "إلغاء التفعيل" : "تفعيل"}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant={season.isActive ? "outline" : "default"} disabled={isPending} onClick={() => toggleActive(season)}>
+                      {season.isActive ? "إلغاء التفعيل" : "تفعيل"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={isPending}
+                      onClick={() => handleDeleteClick(season)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      حذف
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(seasonToDelete)} onOpenChange={(open) => !open && setSeasonToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>حذف الموسم</DialogTitle>
+            <DialogDescription>
+              {seasonToDelete && (
+                <>
+                  هل أنت متأكد من حذف الموسم «{seasonToDelete.name}»؟ لا يمكن التراجع عن
+                  هذا الإجراء.
+                  {seasonToDelete._count.sessions +
+                    seasonToDelete._count.models +
+                    seasonToDelete._count.committees +
+                    seasonToDelete._count.modelAllocations >
+                    0 && (
+                    <span className="mt-3 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      ⚠️ الموسم مرتبط ببيانات:
+                      {[
+                        seasonToDelete._count.sessions > 0 &&
+                          `${seasonToDelete._count.sessions} جلسة`,
+                        seasonToDelete._count.models > 0 &&
+                          `${seasonToDelete._count.models} نموذج`,
+                        seasonToDelete._count.committees > 0 &&
+                          `${seasonToDelete._count.committees} لجنة`,
+                        seasonToDelete._count.modelAllocations > 0 &&
+                          `${seasonToDelete._count.modelAllocations} تخصيص`,
+                      ]
+                        .filter(Boolean)
+                        .join("، ")}{" "}
+                      — لا يمكن الحذف حتى تُحذف هذه البيانات أولاً.
+                    </span>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">إلغاء</Button>
+            </DialogClose>
+            <Button variant="destructive" disabled={isPending} onClick={handleDeleteConfirm}>
+              {isPending ? "جارٍ الحذف..." : "حذف نهائي"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

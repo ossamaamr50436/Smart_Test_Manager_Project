@@ -641,7 +641,9 @@ export async function getAdminSeasons() {
     orderBy: { startDate: "desc" },
     take: 100,
     include: {
-      _count: { select: { sessions: true, models: true } },
+      _count: {
+        select: { sessions: true, models: true, committees: true, modelAllocations: true },
+      },
     },
   });
 
@@ -752,8 +754,59 @@ export async function updateAdminSeason(
 }
 
 // ------------------------------------------------------------
-// 5) إدارة النماذج
+// 4.1) حذف الموسم مع معالجة العلاقات
+// - يمنع حذف الموسم النشط (يجب إلغاء التفعيل أولاً)
+// - يمنع الحذف عند وجود بيانات مرتبطة مع عرض عددها
+// - معزول ضمن نفس المستأجر فقط (لا يؤثر على مؤسسة أخرى)
 // ------------------------------------------------------------
+export async function deleteAdminSeason(seasonId: string) {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+
+  if (!seasonId || typeof seasonId !== "string" || seasonId.length < 1 || seasonId.length > 64) {
+    throw new Error("معرّف الموسم غير صالح");
+  }
+
+  const season = await prisma.examSeason.findUnique({
+    where: { id: seasonId },
+    include: {
+      _count: {
+        select: { sessions: true, models: true, committees: true, modelAllocations: true },
+      },
+    },
+  });
+  if (!season) throw new Error("الموسم غير موجود");
+  assertSameTenant(user, season);
+
+  if (season.isActive) {
+    throw new Error("لا يمكن حذف موسوم نشط — ألغِ تفعيله أولاً");
+  }
+
+  const counts: { label: string; value: number }[] = [];
+  if (season._count.sessions > 0) counts.push({ label: "جلسة", value: season._count.sessions });
+  if (season._count.models > 0) counts.push({ label: "نموذج", value: season._count.models });
+  if (season._count.committees > 0) counts.push({ label: "لجنة", value: season._count.committees });
+  if (season._count.modelAllocations > 0)
+    counts.push({ label: "تخصيص نموذج", value: season._count.modelAllocations });
+
+  if (counts.length > 0) {
+    const summary = counts.map((c) => `${c.value} ${c.label}`).join("، ");
+    throw new Error(
+      `لا يمكن حذف الموسم «${season.name}» — لديه بيانات مرتبطة: ${summary}. احذفها أولاً أو عدّل الموسم بدلاً من ذلك.`
+    );
+  }
+
+  await prisma.examSeason.delete({ where: { id: seasonId } });
+
+  await recordAudit(user.id, AuditAction.DELETE, {
+    entity: "ExamSeason",
+    seasonId,
+    name: season.name,
+  });
+
+  revalidatePath("/admin/seasons");
+  return { success: true };
+}
 export async function getAdminModels(params: {
   page?: number;
   pageSize?: number;
