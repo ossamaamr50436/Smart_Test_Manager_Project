@@ -68,6 +68,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
   INSTITUTION: [
     { href: "/institution", label: "طلاب جهتي" },
     { href: "/institution/students/new", label: "ترشيح طالب جديد" },
+    { href: "/institution/certificates", label: "شهادات الطلاب" },
     { href: "/institution/reports", label: "تقارير الجهة" },
   ],
 };
