@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { MessageCircle, GraduationCap, X } from "lucide-react";
@@ -120,11 +119,12 @@ export function DashboardSidebar({
       >
         <div className="flex items-center justify-between border-b border-white/10 p-4">
           <div className="flex items-center gap-2">
-            <Image
-              src={settings?.logoUrl || "/logo.png"}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={settings?.logoUrl || "/logo.svg"}
               alt={platformName}
-              width={36}
               height={36}
+              width={36}
               className="h-9 w-9 rounded-lg bg-white/90 object-contain p-0.5"
             />
             <p className="text-lg font-bold text-white">{platformName}</p>

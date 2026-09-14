@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { LoginForm } from "@/components/auth/login-form";
 import { getPlatformSettings } from "@/lib/actions/settings-actions";
 
@@ -15,12 +14,12 @@ export default async function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 shadow-lg shadow-primary-900/40">
-            <Image
-              src={settings.logoUrl || "/logo.png"}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={settings.logoUrl || "/logo.svg"}
               alt={settings.platformName}
-              width={96}
               height={96}
-              priority
+              width={96}
               className="h-full w-full object-contain"
             />
           </div>

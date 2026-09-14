@@ -54,7 +54,7 @@ export async function generateMetadata(): Promise<Metadata> {
         "إدارة اختبارات الطلاب، تشكيل اللجان، التقييم، ومتابعة إصدار الشهادات لمؤسسات تعليمية متعددة.",
       images: [
         {
-          url: settings.logoUrl || "/logo.png",
+          url: settings.logoUrl || "/logo.svg",
           width: 512,
           height: 512,
           alt: settings.platformName,
@@ -101,9 +101,8 @@ export default async function RootLayout({
             --secondary: ${secondaryColor};
           }
         `}</style>
-        <link rel="icon" href={settings.logoUrl || "/icon.png"} />
+        <link rel="icon" href={settings.logoUrl || "/logo.svg"} />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="application-name" content={settings.platformName} />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

@@ -9,8 +9,7 @@ const APP_SHELL = [
   "/login",
   "/dashboard",
   "/manifest.json",
-  "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png",
+  "/logo.svg",
 ];
 
 self.addEventListener("install", (event) => {

@@ -240,7 +240,7 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
-                  src="/logo.png"
+                  src="/logo.svg"
                   alt="الشعار الافتراضي"
                   className="h-16 w-16 rounded-lg border object-contain"
                 />

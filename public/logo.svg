@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="منصة مجتاز للاختبارات المرحلية">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#015e63"/>
+      <stop offset="1" stop-color="#12808a"/>
+    </linearGradient>
+    <linearGradient id="letter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e3f2f2"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+  <rect x="18" y="18" width="476" height="476" rx="90" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="7"/>
+  <rect x="34" y="34" width="444" height="444" rx="76" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="5"/>
+  <text
+    x="258"
+    y="374"
+    text-anchor="middle"
+    font-family="'Cairo','Noto Kufi Arabic','Segoe UI',system-ui,sans-serif"
+    font-size="330"
+    font-weight="700"
+    fill="url(#letter)"
+  >م</text>
+</svg>
