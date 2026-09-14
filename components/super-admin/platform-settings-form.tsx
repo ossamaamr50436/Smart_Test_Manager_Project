@@ -11,6 +11,7 @@ import {
   updatePlatformSettings,
   updateTemplateSettings,
   updateAppearanceSettings,
+  updateSupportNumber,
   updateStudentApplicationFileSetting,
   updateTutorialSectionSetting,
   type PlatformSettings,
@@ -113,10 +114,24 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
         await updateAppearanceSettings({
           primaryColor,
           secondaryColor,
-          whatsappNumber,
           darkModeEnabled,
         });
         setSuccess("تم حفظ إعدادات المظهر والحوكمة بنجاح");
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
+      }
+    });
+  }
+
+  async function handleSaveSupportNumber() {
+    if (isPending) return;
+    setError("");
+    setSuccess("");
+    startTransition(async () => {
+      try {
+        await updateSupportNumber(whatsappNumber);
+        setSuccess("تم حفظ رقم الدعم الفني بنجاح");
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
@@ -293,6 +308,10 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
               بصيغة دولية بدون + أو أصفار بادئة — يُستخدم في الشريط الجانبي
             </p>
           </div>
+
+          <Button onClick={handleSaveSupportNumber} disabled={isPending}>
+            {isPending ? "جارٍ الحفظ..." : "حفظ رقم الدعم الفني"}
+          </Button>
 
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>

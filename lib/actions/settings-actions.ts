@@ -61,8 +61,8 @@ export const getPlatformSettings = cache(
 );
 
 /**
- * تحديث إعدادات المنصة (ADMIN فقط — المادة 8)
- * - يسمح بتغيير الاسم والشعار
+ * تحديث إعدادات المنصة (SUPER_ADMIN فقط)
+ * - يسمح بتغيير الاسم والشعار (إعدادات عامة على مستوى المنصة)
  * - يرفع الشعار الجديد إلى Google Drive (المادة 3)
  * - يسجّل العملية في AuditLog
  */
@@ -71,7 +71,7 @@ export async function updatePlatformSettings(
   logoFile?: { buffer: ArrayBuffer; fileName: string; mimeType: string }
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN]);
+  requireRole(user, [Role.SUPER_ADMIN]);
 
   if (!platformName || platformName.trim().length === 0) {
     throw new Error("اسم المنصة مطلوب");
@@ -214,13 +214,11 @@ export async function updateTemplateSettings(
 /**
  * تحديث إعدادات المظهر والحوكمة (ADMIN فقط)
  * - الألوان (primary/secondary)
- * - رقم واتساب الدعم الفني
  * - الوضع المظلم
  */
 export async function updateAppearanceSettings(input: {
   primaryColor: string;
   secondaryColor: string;
-  whatsappNumber: string;
   darkModeEnabled: boolean;
 }): Promise<{ success: boolean }> {
   const user = await requireUser();
@@ -228,7 +226,6 @@ export async function updateAppearanceSettings(input: {
 
   const primaryColor = (input.primaryColor || "#015e63").trim();
   const secondaryColor = (input.secondaryColor || "#d3bb8b").trim();
-  const whatsappNumber = input.whatsappNumber.trim().replace(/\D/g, "");
   const darkModeEnabled = !!input.darkModeEnabled;
 
   if (!/^#[0-9a-fA-F]{6}$/.test(primaryColor)) {
@@ -237,23 +234,18 @@ export async function updateAppearanceSettings(input: {
   if (!/^#[0-9a-fA-F]{6}$/.test(secondaryColor)) {
     throw new Error("اللون الثانوي غير صالح — استخدم صيغة HEX مثل #d3bb8b");
   }
-  if (whatsappNumber && (whatsappNumber.length < 8 || whatsappNumber.length > 15)) {
-    throw new Error("رقم الواتساب غير صالح — أدخل الرقم الدولي بدون + أو أصفار بادئة");
-  }
 
   await prisma.appSettings.upsert({
     where: { id: "singleton" },
     update: {
       primaryColor,
       secondaryColor,
-      whatsappNumber: whatsappNumber || null,
       darkModeEnabled,
     },
     create: {
       id: "singleton",
       primaryColor,
       secondaryColor,
-      whatsappNumber: whatsappNumber || null,
       darkModeEnabled,
     },
   });
@@ -267,7 +259,6 @@ export async function updateAppearanceSettings(input: {
         entity: "AppSettings",
         primaryColor,
         secondaryColor,
-        whatsappUpdated: !!whatsappNumber,
         darkModeEnabled,
       }),
     },
@@ -275,6 +266,46 @@ export async function updateAppearanceSettings(input: {
 
   revalidatePath("/admin");
   revalidatePath("/");
+  revalidatePath("/");
+  revalidatePath("/login");
+
+  return { success: true };
+}
+
+/**
+ * تحديث رقم الدعم الفني (WhatsApp) — SUPER_ADMIN فقط
+ * يُقرأ من إعدادات المنصة العامة ويعرضه الشريط الجانبي لجميع المستخدمين.
+ */
+export async function updateSupportNumber(
+  whatsappNumber: string
+): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.SUPER_ADMIN]);
+
+  const normalized = whatsappNumber.trim().replace(/\D/g, "");
+  if (normalized && (normalized.length < 8 || normalized.length > 15)) {
+    throw new Error("رقم الواتساب غير صالح — أدخل الرقم الدولي بدون + أو أصفار بادئة");
+  }
+
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    update: { whatsappNumber: normalized || null },
+    create: { id: "singleton", whatsappNumber: normalized || null },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "AppSettings",
+        whatsappUpdated: !!normalized,
+      }),
+    },
+  });
+
+  revalidatePath("/admin");
   revalidatePath("/");
   revalidatePath("/login");
 

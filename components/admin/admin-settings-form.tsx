@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  updatePlatformSettings,
   updateTemplateSettings,
   updateAppearanceSettings,
   updateStudentApplicationFileSetting,
@@ -16,38 +15,28 @@ import {
 } from "@/lib/actions/settings-actions";
 
 type Props = {
-  initialPlatformName: string;
-  initialLogoUrl: string | null;
   initialUseTemplateMode: boolean;
   initialPrimaryColor: string;
   initialSecondaryColor: string;
-  initialWhatsappNumber: string | null;
   initialDarkModeEnabled: boolean;
   initialRequireStudentApplicationFile: boolean;
   initialShowTutorialSection: boolean;
 };
 
 export function AdminSettingsForm({
-  initialPlatformName,
-  initialLogoUrl,
   initialUseTemplateMode,
   initialPrimaryColor,
   initialSecondaryColor,
-  initialWhatsappNumber,
   initialDarkModeEnabled,
   initialRequireStudentApplicationFile,
   initialShowTutorialSection,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [platformName, setPlatformName] = useState(initialPlatformName);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(initialLogoUrl);
   const [useTemplateMode, setUseTemplateMode] = useState(initialUseTemplateMode);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [primaryColor, setPrimaryColor] = useState(initialPrimaryColor);
   const [secondaryColor, setSecondaryColor] = useState(initialSecondaryColor);
-  const [whatsappNumber, setWhatsappNumber] = useState(initialWhatsappNumber ?? "");
   const [darkModeEnabled, setDarkModeEnabled] = useState(initialDarkModeEnabled);
   const [requireStudentApplicationFile, setRequireStudentApplicationFile] = useState(
     initialRequireStudentApplicationFile
@@ -57,48 +46,13 @@ export function AdminSettingsForm({
   );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const logoInputRef = useRef<HTMLInputElement>(null);
   const templateInputRef = useRef<HTMLInputElement>(null);
-
-  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
-  }
 
   function handleTemplateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
       setTemplateFile(file);
     }
-  }
-
-  async function handleSavePlatform() {
-    if (isPending) return;
-    setError("");
-    setSuccess("");
-    startTransition(async () => {
-      try {
-        if (logoFile) {
-          const arrayBuffer = await logoFile.arrayBuffer();
-          await updatePlatformSettings(platformName, {
-            buffer: arrayBuffer,
-            fileName: logoFile.name,
-            mimeType: logoFile.type,
-          });
-        } else {
-          await updatePlatformSettings(platformName);
-        }
-        setSuccess("تم حفظ إعدادات المنصة بنجاح");
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
-      }
-    });
   }
 
   async function handleSaveTemplate() {
@@ -134,7 +88,6 @@ export function AdminSettingsForm({
         await updateAppearanceSettings({
           primaryColor,
           secondaryColor,
-          whatsappNumber,
           darkModeEnabled,
         });
         setSuccess("تم حفظ إعدادات المظهر والحوكمة بنجاح");
@@ -193,75 +146,9 @@ export function AdminSettingsForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>الاسم والشعار</CardTitle>
-          <CardDescription>
-            غيّر اسم المنصة وشعارها — ينعكس التغيير فوراً على جميع الصفحات
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="platformName">اسم المنصة</Label>
-            <Input
-              id="platformName"
-              value={platformName}
-              onChange={(e) => setPlatformName(e.target.value)}
-              placeholder="اسم المنصة"
-              dir="rtl"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>الشعار الحالي</Label>
-            <div className="flex items-center gap-4">
-              {logoPreview ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={logoPreview}
-                  alt="الشعار"
-                  className="h-16 w-16 rounded-lg border object-contain"
-                />
-              ) : (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src="/logo.png"
-                  alt="الشعار الافتراضي"
-                  className="h-16 w-16 rounded-lg border object-contain"
-                />
-              )}
-              <div>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={handleLogoChange}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => logoInputRef.current?.click()}
-                >
-                  اختيار شعار جديد
-                </Button>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  PNG، JPG، أو WEBP
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <Button onClick={handleSavePlatform} disabled={isPending}>
-            {isPending ? "جارٍ الحفظ..." : "حفظ إعدادات المنصة"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>الحوكمة والمظهر</CardTitle>
           <CardDescription>
-            تحكّم كامل بألوان المنصة ورقم الدعم الفني والوضع المظلم — يُطبَّق فوراً
+            تحكّم كامل بألوان المنصة والوضع المظلم — يُطبَّق فوراً
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -300,19 +187,6 @@ export function AdminSettingsForm({
                 />
               </div>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>رقم الواتساب (الدعم الفني)</Label>
-            <Input
-              value={whatsappNumber}
-              onChange={(e) => setWhatsappNumber(e.target.value)}
-              placeholder="966501234567"
-              dir="ltr"
-            />
-            <p className="text-xs text-muted-foreground">
-              بصيغة دولية بدون + أو أصفار بادئة — يُستخدم في الشريط الجانبي
-            </p>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-4">

@@ -26,12 +26,9 @@ export default async function AdminSettingsPage() {
       </div>
 
       <AdminSettingsForm
-        initialPlatformName={settings.platformName}
-        initialLogoUrl={settings.logoUrl}
         initialUseTemplateMode={settings.useTemplateMode}
         initialPrimaryColor={settings.primaryColor}
         initialSecondaryColor={settings.secondaryColor}
-        initialWhatsappNumber={settings.whatsappNumber}
         initialDarkModeEnabled={settings.darkModeEnabled}
         initialRequireStudentApplicationFile={settings.requireStudentApplicationFile}
         initialShowTutorialSection={settings.showTutorialSection}
