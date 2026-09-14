@@ -95,6 +95,35 @@ export type SecurityAlertPushPayload = {
   ip?: string | null;
 };
 
+/** شكل بيانات "قراءة إشعار" اللحظي (نقصان فوري للعداد) */
+export type NotificationReadPushPayload = {
+  id?: string;
+  /** true عند تحديد الكل كمقروء/حذف الكل — نُصفِّر العداد */
+  all?: boolean;
+  /** عدد الإشعارات المتأثرة (اختياري للمزامنة) */
+  count?: number;
+  /** true عند حذف الإشعارات */
+  cleared?: boolean;
+};
+
+/**
+ * الاشتراك في قناة "قراءة إشعار" لمستخدم معيّن (قناة خاصة)
+ * تُنقص الشارة فوراً عند تمييز إشعار كمقروء في أي تبويب آخر.
+ */
+export function subscribeToUserNotificationRead(
+  userId: string,
+  onRead: (payload: NotificationReadPushPayload) => void
+): () => void {
+  const client = getPusher();
+  if (!client) return () => {};
+  const channel: Channel = client.subscribe(`private-user-${userId}`);
+  channel.bind("notification:read", onRead);
+  return () => {
+    channel.unbind("notification:read", onRead);
+    client.unsubscribe(`private-user-${userId}`);
+  };
+}
+
 /**
  * الاشتراك في قناة تنبيهات مالك المنصة (قناة خاصة — SUPER_ADMIN فقط).
  * يُستدعى من صفحة /super-admin/alerts لتحديث القائمة لحظياً عند رفع تنبيه.

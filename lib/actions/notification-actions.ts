@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/security";
 import { Role } from "@prisma/client";
+import { pushUserNotificationRead } from "@/lib/realtime";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -58,6 +59,10 @@ export async function dismissPlatformAlert(notificationId: string) {
   await prisma.notification.update({
     where: { id: notificationId },
     data: { isRead: true },
+  });
+
+  await pushUserNotificationRead(user.id, { id: notificationId }).catch(() => {
+    /* فشل القناة اللحظية لا يُسقط العملية */
   });
 
   revalidatePath("/notifications");
@@ -129,6 +134,7 @@ export async function getUnreadCount(): Promise<number> {
 
 /**
  * تحديد إشعار واحد كمقروء
+ * DB + بث لحظي (Pusher) → تُنقص الشارة فوراً في كل الألسنة.
  */
 export async function markNotificationAsRead(notificationId: string) {
   const user = await requireUser();
@@ -151,20 +157,33 @@ export async function markNotificationAsRead(notificationId: string) {
     data: { isRead: true },
   });
 
+  await pushUserNotificationRead(user.id, { id: notificationId }).catch(() => {
+    /* فشل القناة اللحظية لا يُسقط العملية */
+  });
+
   revalidatePath("/notifications");
   return { success: true };
 }
 
 /**
  * تحديد جميع إشعارات المستخدم كمقروءة
+ * DB + بث لحظي (Pusher) → تُصفَّر الشارة فوراً.
  */
 export async function markAllNotificationsAsRead() {
   const user = await requireUser();
 
-  await prisma.notification.updateMany({
+  const result = await prisma.notification.updateMany({
     where: { userId: user.id, isRead: false },
     data: { isRead: true },
   });
+
+  if (result.count > 0) {
+    await pushUserNotificationRead(user.id, { all: true, count: result.count }).catch(
+      () => {
+        /* فشل القناة اللحظية لا يُسقط العملية */
+      }
+    );
+  }
 
   revalidatePath("/notifications");
   return { success: true };
@@ -172,6 +191,7 @@ export async function markAllNotificationsAsRead() {
 
 /**
  * حذف جميع إشعارات المستخدم
+ * DB + بث لحظي (Pusher) → تُصفَّر الشارة فوراً.
  */
 export async function clearAllNotifications() {
   const user = await requireUser();
@@ -179,9 +199,17 @@ export async function clearAllNotifications() {
   // منع إساءة الاستخدام
   await checkRateLimit(`notifications-clear:${user.id}`, 10);
 
-  await prisma.notification.deleteMany({
+  const result = await prisma.notification.deleteMany({
     where: { userId: user.id },
   });
+
+  if (result.count > 0) {
+    await pushUserNotificationRead(user.id, { all: true, cleared: true, count: result.count }).catch(
+      () => {
+        /* فشل القناة اللحظية لا يُسقط العملية */
+      }
+    );
+  }
 
   revalidatePath("/notifications");
   return { success: true };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, X } from "lucide-react";
 import {
   getPlatformAlert,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/actions/notification-actions";
 
 export function PlatformAlertBanner() {
+  const router = useRouter();
   const [alert, setAlert] = useState<PlatformAlert | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -31,11 +33,16 @@ export function PlatformAlertBanner() {
   function handleDismiss() {
     const current = alert;
     if (!current) return;
+    // إخفاء فوري (Optimistic)
     setDismissed(true);
     setAlert(null);
-    dismissPlatformAlert(current.id).catch(() => {
-      /* لا حاجة لاتخاذ إجراء إضافي — ستُنعش الشارة عند إعادة التحميل */
-    });
+    // نقصان فوري للشارة + مزامنة مع أي تبويب آخر
+    window.dispatchEvent(new CustomEvent("notification:read"));
+    void dismissPlatformAlert(current.id)
+      .then(() => router.refresh())
+      .catch(() => {
+        /* لا حاجة لاتخاذ إجراء إضافي — ستُنعش الشارة عند إعادة التحميل */
+      });
   }
 
   return (

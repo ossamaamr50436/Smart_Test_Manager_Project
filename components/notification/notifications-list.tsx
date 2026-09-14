@@ -74,10 +74,13 @@ export function NotificationsList() {
   function handleMarkAsRead(id: string) {
     startTransition(async () => {
       try {
-        await markNotificationAsRead(id);
+        // الحالة تتحدث فوراً (Optimistic) — الشارة تنقص دون انتظار الخادم
         setNotifications((prev) =>
           prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
         );
+        window.dispatchEvent(new CustomEvent("notification:read"));
+        await markNotificationAsRead(id);
+        router.refresh();
       } catch {
         setError("تعذر تحديث الإشعار");
       }
@@ -87,9 +90,16 @@ export function NotificationsList() {
   function handleMarkAllAsRead() {
     startTransition(async () => {
       try {
-        await markAllNotificationsAsRead();
+        const unread = notifications.filter((n) => !n.isRead).length;
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+        if (unread > 0) {
+          window.dispatchEvent(
+            new CustomEvent("notification:read", { detail: { all: true } })
+          );
+        }
+        await markAllNotificationsAsRead();
         setSuccess("تم تحديد الكل كمقروء");
+        router.refresh();
       } catch {
         setError("تعذر تحديث الإشعارات");
       }
@@ -100,9 +110,11 @@ export function NotificationsList() {
     if (!confirm("هل أنت متأكد من حذف جميع الإشعارات؟")) return;
     startTransition(async () => {
       try {
-        await clearAllNotifications();
         setNotifications([]);
+        window.dispatchEvent(new CustomEvent("notification:clear"));
+        await clearAllNotifications();
         setSuccess("تم حذف جميع الإشعارات");
+        router.refresh();
       } catch {
         setError("تعذر حذف الإشعارات");
       }

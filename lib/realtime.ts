@@ -87,6 +87,19 @@ export async function pushUserNotification(
 }
 
 /**
+ * بث "قراءة إشعار" لحظي لمستخدم محدد — تُنقص الشارة فوراً في كل
+ * الألسنة المفتوحة (Optimistic Sync عبر Pusher).
+ */
+export async function pushUserNotificationRead(
+  userId: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  const s = getServer();
+  if (!s) return; // بيئة بلا إعدادات — لا بث
+  await s.trigger(userChannelNameFor(userId), "notification:read", payload);
+}
+
+/**
  * بث تحديث تقييم إلى لجنة معينة (المقيّمون في نفس الجلسة فقط)
  * تُستدعى من lib/actions/assessment-actions.ts بعد كل حفظ.
  */
