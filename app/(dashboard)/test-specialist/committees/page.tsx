@@ -5,10 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
 import { CommitteeManager } from "@/components/specialist/committee-manager";
 import { getCachedExaminers } from "@/lib/cache";
+import { getTenantFilter } from "@/lib/tenancy";
 
 export const metadata: Metadata = {
   title: "تشكيل اللجان",
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function CommitteesPage() {
   const user = await getCurrentUser();
@@ -17,18 +20,21 @@ export default async function CommitteesPage() {
     redirect("/test-specialist");
   }
 
+  const tenantFilter = getTenantFilter(user);
+
   // الطلاب المقبولون (بانتظار التوزيع على لجنة)
   const approvedStudents = await prisma.student.findMany({
-    where: { status: StudentStatus.APPROVED },
+    where: { ...tenantFilter, status: StudentStatus.APPROVED },
     select: { id: true, name: true, branch: true },
     orderBy: { name: "asc" },
   });
 
-  // جميع المعلمين (المختبرين)
-  const examiners = await getCachedExaminers();
+  // جميع المعلمين (المختبرين) ضمن نفس المؤسسة
+  const examiners = await getCachedExaminers(user.tenantId ?? undefined);
 
   // اللجان القائمة
   const committees = await prisma.committee.findMany({
+    where: tenantFilter,
     include: {
       teacher1: { select: { id: true, name: true } },
       teacher2: { select: { id: true, name: true } },
@@ -43,6 +49,7 @@ export default async function CommitteesPage() {
 
   // المواسم النشطة
   const seasons = await prisma.examSeason.findMany({
+    where: tenantFilter,
     select: { id: true, name: true },
     orderBy: { createdAt: "desc" },
   });

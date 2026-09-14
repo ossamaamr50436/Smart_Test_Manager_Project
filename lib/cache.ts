@@ -70,9 +70,12 @@ export const getCachedActiveSeason = unstable_cache(
  * البيانات شبه ثابتة — تُحدّث كل 10 دقائق
  */
 export const getCachedExaminers = unstable_cache(
-  async () => {
+  async (tenantId?: string) => {
     return prisma.user.findMany({
-      where: { role: "EXAMINER" },
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        role: "EXAMINER",
+      },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
