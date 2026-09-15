@@ -11,7 +11,7 @@ import {
 } from "@/lib/validations/assessment";
 import { z } from "zod";
 
-const VALID_ROLES: Role[] = [Role.ADMIN, Role.TEST_SPECIALIST, Role.SUPER_ADMIN];
+const VALID_ROLES: Role[] = [Role.ADMIN, Role.TEST_SPECIALIST];
 
 const questionBankSchema = z.object({
   modelNumber: z.coerce

@@ -23,7 +23,6 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/super-admin/tenants", label: "المؤسسات" },
     { href: "/super-admin/tenants/new", label: "إنشاء مؤسسة" },
     { href: "/super-admin/alerts", label: "التنبيهات الأمنية" },
-    { href: "/admin/question-bank", label: "بنك الأسئلة" },
     { href: "/super-admin/settings", label: "إعدادات المنصة" },
   ],
   ADMIN: [

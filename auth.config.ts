@@ -123,6 +123,11 @@ export const authConfig = {
         return role === "ADMIN" || role === "HEAD_OF_AFFAIRS" || role === "TEST_SPECIALIST";
       }
 
+      // بنك الأسئلة — مشترك للمشرف والأخصائي فقط (ممنوع عن SUPER_ADMIN)
+      if (path === "/admin/question-bank") {
+        return role === "ADMIN" || role === "TEST_SPECIALIST";
+      }
+
       // إدارة الجهات التعليمية — خاص بالأخصائي/الأدمن
       if (path.startsWith("/specialist/")) {
         return role === "TEST_SPECIALIST" || role === "ADMIN";
