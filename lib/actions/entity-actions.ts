@@ -100,7 +100,7 @@ export async function createInstitutionBySpecialist(input: {
   const plainPassword = licenseNumber;
   const hashedPassword = await bcrypt.hash(plainPassword, 12);
 
-  // معاملة ذرّية: إنشاء الجهة + حسابها المرتبط (مع إجبار تغيير كلمة المرور)
+  // معاملة ذرّية: إنشاء الجهة + حسابها المرتبط (دخول مباشر بدون إجبار تغيير كلمة المرور)
   let result: { institutionId: string };
   try {
     result = await prisma.$transaction(async (tx) => {
@@ -125,7 +125,7 @@ export async function createInstitutionBySpecialist(input: {
           role: Role.INSTITUTION,
           birthDate: new Date("1990-01-01"),
           institutionId: institution.id,
-          mustChangePassword: true,
+          mustChangePassword: false,
           tenantId: requireTenantId(user),
         },
       });

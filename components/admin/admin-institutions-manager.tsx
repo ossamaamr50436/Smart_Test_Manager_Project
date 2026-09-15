@@ -220,7 +220,7 @@ export function AdminInstitutionsManager() {
           <CardHeader>
             <CardTitle className="text-base">إضافة جهة</CardTitle>
             <CardDescription>
-              كلمة المرور التلقائية = رقم التصريح، مع إجبار التغيير بعد أول دخول
+              كلمة المرور التلقائية = رقم التصريح، مع دخول مباشر دون طلب تغييرها
             </CardDescription>
           </CardHeader>
           <CardContent>

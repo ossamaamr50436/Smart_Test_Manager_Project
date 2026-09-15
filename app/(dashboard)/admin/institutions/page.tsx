@@ -16,7 +16,7 @@ export default async function AdminInstitutionsPage() {
       <div>
         <h1 className="text-2xl font-bold">إدارة الجهات</h1>
         <p className="mt-1 text-muted-foreground">
-          إنشاء وتعديل وحذف الجهات التعليمية — كلمة المرور التلقائية للجهة تُجبر على التغيير عند أول دخول.
+          إنشاء وتعديل وحذف الجهات التعليمية — كلمة المرور التلقائية للجهة هي رقم التصريح، مع دخول مباشر دون طلب تغييرها.
         </p>
       </div>
       <AdminInstitutionsManager />

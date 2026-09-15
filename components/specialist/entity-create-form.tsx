@@ -77,7 +77,7 @@ export function EntityCreateForm() {
         <CardHeader>
           <CardTitle>إنشاء جهة تعليمية</CardTitle>
           <CardDescription>
-            كلمة المرور التلقائية للجهة = رقم التصريح، وسيُطلب منها التغيير عند أول تسجيل دخول
+            كلمة المرور التلقائية للجهة = رقم التصريح، مع دخول مباشر دون طلب تغييرها
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -212,7 +212,7 @@ export function EntityCreateForm() {
                   </Button>
                 </div>
                 <p className="text-xs text-emerald-700">
-                  ستُجبر الجهة على تغيير كلمة المرور عند أول تسجيل دخول.
+                  تدخل الجهة مباشرة بهذه البيانات دون طلب تغيير كلمة المرور.
                 </p>
               </div>
             </div>

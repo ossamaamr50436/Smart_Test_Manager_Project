@@ -543,7 +543,7 @@ export async function createAdminInstitution(input: {
           role: Role.INSTITUTION,
           birthDate: new Date("1990-01-01"),
           institutionId: institution.id,
-          mustChangePassword: true,
+          mustChangePassword: false,
           tenantId: requireTenantId(user),
         },
       });
