@@ -1,4 +1,4 @@
-import Pusher from "pusher";
+﻿import Pusher from "pusher";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
@@ -133,12 +133,12 @@ export async function authenticateChannel(
     if (role !== Role.SUPER_ADMIN) {
       throw new Error("غير مصرح: قناة التنبيهات الأمنية مخصصة لمالك المنصة");
     }
-    return s.authorizeChannel(requestChannel, socketId);
+    return s.authorizeChannel(socketId, requestChannel);
   }
 
   // 1) القناة الخاصة بإشعارات المستخدم: يُسمح للمستخدم بقناته فقط
   if (requestChannel === userChannelNameFor(userId)) {
-    return s.authorizeChannel(requestChannel, socketId);
+    return s.authorizeChannel(socketId, requestChannel);
   }
 
   // 2) قناة التقييم: فقط المقيّمون في لجنة هذه الجلسة (المادة 8/2)
@@ -159,7 +159,7 @@ export async function authenticateChannel(
       throw new Error("غير مصرح: لا يمكنك الاشتراك في جلسة ليست من لجنتك");
     }
 
-    return s.authorizeChannel(requestChannel, socketId);
+    return s.authorizeChannel(socketId, requestChannel);
   }
 
   // 3) أي قناة أخرى: مرفوض
