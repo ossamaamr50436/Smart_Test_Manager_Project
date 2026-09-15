@@ -54,6 +54,58 @@ export function sanitizeFileName(fileName: string, fallback = "file"): string {
 }
 
 /**
+ * ترجمة أخطاء Google Drive API الشائعة إلى رسائل عربية مفهومة وقابلة للتنفيذ
+ * (بدلاً من إخفاء السبب الحقيقي خلف رسالة عامة)
+ */
+export function mapDriveError(error: unknown): Error {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const lower = raw.toLowerCase();
+
+  // نقص مساحة التخزين (My Drive لخدمة الحساب = صفر) — الحل: Shared Drive
+  if (lower.includes("storage quota") || lower.includes("no storage space")) {
+    return new Error(
+      "تعذر رفع الملف على Google Drive: حساب الخدمة لا يملك مساحة تخزين في المسار الحالي. الحل: انقل مجلد التخزين إلى Shared Drive وأضف بريد حساب الخدمة كمحرر (Content Manager) فيه، ثم حدّث GOOGLE_DRIVE_FOLDER_ID."
+    );
+  }
+
+  // عدم الوصول للمجلد (لم يُشارَك المجلد مع حساب الخدمة أو المعرف خاطئ)
+  if (lower.includes("file not found") || lower.includes("not found")) {
+    return new Error(
+      "تعذر الوصول إلى مجلد Google Drive: تأكد من صحة GOOGLE_DRIVE_FOLDER_ID ومن مشاركة المجلد مع حساب الخدمة (بأذونات محرر)."
+    );
+  }
+
+  // نطاق صلاحيات غير كافٍ
+  if (
+    lower.includes("insufficient authentication scopes") ||
+    lower.includes("permission denied") ||
+    lower.includes("forbidden")
+  ) {
+    return new Error(
+      "تعذر رفع الملف على Google Drive: صلاحيات حساب الخدمة غير كافية على المجلد. تأكد من مشاركة المجلد مع بريد حساب الخدمة."
+    );
+  }
+
+  // تجاوز حد الطلبات (Quota per-minute)
+  if (lower.includes("quota exceeded") || lower.includes("user rate limit")) {
+    return new Error(
+      "بلغت طلبات Google Drive الحد المسموح مؤقتاً — حاول مرة أخرى بعد قليل."
+    );
+  }
+
+  // خطأ مصادقة مفاتيح الحساب
+  if (lower.includes("invalid_grant") || lower.includes("invalid credentials")) {
+    return new Error(
+      "بيانات اعتماد Google Drive غير صالحة: تحقق من GOOGLE_PRIVATE_KEY و GOOGLE_CLIENT_EMAIL."
+    );
+  }
+
+  return error instanceof Error
+    ? error
+    : new Error("خطأ غير معروف في Google Drive");
+}
+
+/**
  * رفع ملف إلى Google Drive داخل المجلد المحدد.
  *
  * @param fileBuffer محتوى الملف (على سبيل المثال PDF الشهادة)
@@ -91,27 +143,32 @@ export async function uploadFileToDriveFolder(
     ? [parentFolderId]
     : [getDriveFolderId()];
 
-  const response = await drive.files.create({
-    requestBody: {
-      name: sanitizeFileName(fileName, "file"),
-      parents,
-      mimeType,
-    },
-    media: {
-      mimeType,
-      body: Readable.from(fileBuffer),
-    },
-    fields: "id, webViewLink",
-  });
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: sanitizeFileName(fileName, "file"),
+        parents,
+        mimeType,
+      },
+      media: {
+        mimeType,
+        body: Readable.from(fileBuffer),
+      },
+      fields: "id, webViewLink",
+      supportsAllDrives: true,
+    });
 
-  if (!response.data.id) {
-    throw new Error("فشل رفع الملف إلى Google Drive");
+    if (!response.data.id) {
+      throw new Error("فشل رفع الملف إلى Google Drive");
+    }
+
+    return {
+      fileId: response.data.id,
+      webViewLink: response.data.webViewLink ?? "",
+    };
+  } catch (error) {
+    throw mapDriveError(error);
   }
-
-  return {
-    fileId: response.data.id,
-    webViewLink: response.data.webViewLink ?? "",
-  };
 }
 
 /**
@@ -122,28 +179,35 @@ export async function ensureDriveFolder(folderName: string): Promise<string> {
   const parentId = getDriveFolderId();
   const safeName = sanitizeFileName(folderName, "entity");
 
-  const list = await drive.files.list({
-    q: `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and name='${safeName.replace(/'/g, "\\'")}' and trashed=false`,
-    fields: "files(id, name)",
-    pageSize: 1,
-  });
+  try {
+    const list = await drive.files.list({
+      q: `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and name='${safeName.replace(/'/g, "\\'")}' and trashed=false`,
+      fields: "files(id, name)",
+      pageSize: 1,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
 
-  const existing = list.data.files?.[0];
-  if (existing?.id) return existing.id;
+    const existing = list.data.files?.[0];
+    if (existing?.id) return existing.id;
 
-  const created = await drive.files.create({
-    requestBody: {
-      name: safeName,
-      parents: [parentId],
-      mimeType: "application/vnd.google-apps.folder",
-    },
-    fields: "id",
-  });
+    const created = await drive.files.create({
+      requestBody: {
+        name: safeName,
+        parents: [parentId],
+        mimeType: "application/vnd.google-apps.folder",
+      },
+      fields: "id",
+      supportsAllDrives: true,
+    });
 
-  if (!created.data.id) {
-    throw new Error("فشل إنشاء المجلد على Google Drive");
+    if (!created.data.id) {
+      throw new Error("فشل إنشاء المجلد على Google Drive");
+    }
+    return created.data.id;
+  } catch (error) {
+    throw mapDriveError(error);
   }
-  return created.data.id;
 }
 
 /**
@@ -181,6 +245,7 @@ export async function getDriveFileMimeType(fileId: string): Promise<string | nul
     const response = await drive.files.get({
       fileId,
       fields: "mimeType, name",
+      supportsAllDrives: true,
     });
     return response.data.mimeType ?? null;
   } catch {
@@ -194,11 +259,16 @@ export async function getDriveFileMimeType(fileId: string): Promise<string | nul
 export async function getPublicUrl(fileId: string): Promise<string> {
   const auth = getAuthClient();
   const drive = google.drive({ version: "v3", auth });
-  const response = await drive.files.get({
-    fileId,
-    fields: "webViewLink",
-  });
-  return response.data.webViewLink ?? "";
+  try {
+    const response = await drive.files.get({
+      fileId,
+      fields: "webViewLink",
+      supportsAllDrives: true,
+    });
+    return response.data.webViewLink ?? "";
+  } catch (error) {
+    throw mapDriveError(error);
+  }
 }
 
 /**
@@ -212,25 +282,30 @@ export async function downloadFileFromDrive(fileId: string, maxSize?: number): P
   const auth = getAuthClient();
   const drive = google.drive({ version: "v3", auth });
 
-  // جلب حجم الملف أولاً للتحقق من الحد قبل التحميل
-  const meta = await drive.files.get({
-    fileId,
-    fields: "size",
-  });
-  const size = Number(meta.data.size ?? 0);
-  if (size > limit) {
-    throw new Error("حجم الملف أكبر من الحد المسموح");
-  }
+  try {
+    // جلب حجم الملف أولاً للتحقق من الحد قبل التحميل
+    const meta = await drive.files.get({
+      fileId,
+      fields: "size",
+      supportsAllDrives: true,
+    });
+    const size = Number(meta.data.size ?? 0);
+    if (size > limit) {
+      throw new Error("حجم الملف أكبر من الحد المسموح");
+    }
 
-  const response = await drive.files.get(
-    { fileId, alt: "media" },
-    { responseType: "arraybuffer" }
-  );
-  const buffer = Buffer.from(response.data as ArrayBuffer);
-  if (buffer.byteLength > limit) {
-    throw new Error("حجم الملف أكبر من الحد المسموح");
+    const response = await drive.files.get(
+      { fileId, alt: "media", supportsAllDrives: true },
+      { responseType: "arraybuffer" }
+    );
+    const buffer = Buffer.from(response.data as ArrayBuffer);
+    if (buffer.byteLength > limit) {
+      throw new Error("حجم الملف أكبر من الحد المسموح");
+    }
+    return buffer;
+  } catch (error) {
+    throw mapDriveError(error);
   }
-  return buffer;
 }
 
 /**
@@ -239,7 +314,11 @@ export async function downloadFileFromDrive(fileId: string, maxSize?: number): P
 export async function deleteFileFromDrive(fileId: string): Promise<void> {
   const auth = getAuthClient();
   const drive = google.drive({ version: "v3", auth });
-  await drive.files.delete({ fileId });
+  try {
+    await drive.files.delete({ fileId, supportsAllDrives: true });
+  } catch (error) {
+    throw mapDriveError(error);
+  }
 }
 
 /**
@@ -249,19 +328,24 @@ export async function createDriveFolder(folderName: string): Promise<string> {
   const drive = google.drive({ version: "v3", auth: getAuthClient() });
   const folderId = getDriveFolderId();
 
-  const response = await drive.files.create({
-    requestBody: {
-      name: folderName,
-      parents: [folderId],
-      mimeType: "application/vnd.google-apps.folder",
-    },
-    fields: "id",
-  });
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: folderName,
+        parents: [folderId],
+        mimeType: "application/vnd.google-apps.folder",
+      },
+      fields: "id",
+      supportsAllDrives: true,
+    });
 
-  if (!response.data.id) {
-    throw new Error("فشل إنشاء المجلد على Google Drive");
+    if (!response.data.id) {
+      throw new Error("فشل إنشاء المجلد على Google Drive");
+    }
+    return response.data.id;
+  } catch (error) {
+    throw mapDriveError(error);
   }
-  return response.data.id;
 }
 
 /**
@@ -277,27 +361,32 @@ export async function uploadExamModelFile(
   const drive = google.drive({ version: "v3", auth });
   const parentFolder = process.env.GOOGLE_DRIVE_MODELS_FOLDER_ID || getDriveFolderId();
 
-  const response = await drive.files.create({
-    requestBody: {
-      name: sanitizeFileName(fileName, "exam-model"),
-      parents: [parentFolder],
-      mimeType,
-    },
-    media: {
-      mimeType,
-      body: Readable.from(buffer),
-    },
-    fields: "id, webViewLink",
-  });
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: sanitizeFileName(fileName, "exam-model"),
+        parents: [parentFolder],
+        mimeType,
+      },
+      media: {
+        mimeType,
+        body: Readable.from(buffer),
+      },
+      fields: "id, webViewLink",
+      supportsAllDrives: true,
+    });
 
-  if (!response.data.id) {
-    throw new Error("فشل رفع النموذج إلى Google Drive");
+    if (!response.data.id) {
+      throw new Error("فشل رفع النموذج إلى Google Drive");
+    }
+
+    return {
+      fileId: response.data.id,
+      webViewLink: response.data.webViewLink ?? "",
+    };
+  } catch (error) {
+    throw mapDriveError(error);
   }
-
-  return {
-    fileId: response.data.id,
-    webViewLink: response.data.webViewLink ?? "",
-  };
 }
 
 /**
@@ -307,11 +396,18 @@ export async function getExamModelsFromDrive(folderId?: string) {
   const drive = google.drive({ version: "v3", auth: getAuthClient() });
   const parentFolder = folderId || process.env.GOOGLE_DRIVE_MODELS_FOLDER_ID || getDriveFolderId();
 
-  const response = await drive.files.list({
-    q: `'${parentFolder}' in parents and mimeType='application/json' and trashed=false`,
-    fields: "files(id, name, webViewLink, mimeType, size, modifiedTime)",
-    orderBy: "name",
-  });
+  let response;
+  try {
+    response = await drive.files.list({
+      q: `'${parentFolder}' in parents and mimeType='application/json' and trashed=false`,
+      fields: "files(id, name, webViewLink, mimeType, size, modifiedTime)",
+      orderBy: "name",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+  } catch (error) {
+    throw mapDriveError(error);
+  }
 
   return (response.data.files ?? []).map((f) => ({
     fileId: f.id ?? "",

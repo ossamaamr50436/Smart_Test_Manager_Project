@@ -85,7 +85,12 @@ export async function createStudentApplication(
   const data = parsed.data;
 
   // إعدادات المنصة: هل رفع نموذج اختبار الطالب إجباري؟
-  const settings = await getPlatformSettings();
+  let settings;
+  try {
+    settings = await getPlatformSettings();
+  } catch {
+    return { success: false, error: "تعذر تحميل إعدادات المنصة — حاول مرة أخرى" };
+  }
   const requireFile = settings.requireStudentApplicationFile;
 
   let applicationFileId: string | null = null;
@@ -108,10 +113,15 @@ export async function createStudentApplication(
     }
 
     // مجلد خاص بالجهة داخل مجلد الجذر (يُنشأ عند الحاجة)
-    const institution = await prisma.institution.findUnique({
-      where: { id: user.institutionId },
-      select: { name: true },
-    });
+    let institution;
+    try {
+      institution = await prisma.institution.findUnique({
+        where: { id: user.institutionId },
+        select: { name: true },
+      });
+    } catch {
+      return { success: false, error: "تعذر قراءة بيانات الجهة — حاول مرة أخرى" };
+    }
     if (!institution) {
       return { success: false, error: "الجهة التعليمية غير موجودة" };
     }
@@ -126,10 +136,13 @@ export async function createStudentApplication(
       );
       applicationFileId = uploaded.fileId;
       applicationFileUrl = uploaded.webViewLink;
-    } catch {
+    } catch (error) {
       return {
         success: false,
-        error: "تعذر رفع نموذج الاختبار على Google Drive — تحقق من اتصال النظام ثم أعد المحاولة",
+        error:
+          error instanceof Error
+            ? error.message
+            : "تعذر رفع نموذج الاختبار على Google Drive — حاول مرة أخرى",
       };
     }
   }
@@ -497,10 +510,13 @@ export async function createStudentApplicationBySpecialist(
       );
       applicationFileId = uploaded.fileId;
       applicationFileUrl = uploaded.webViewLink;
-    } catch {
+    } catch (error) {
       return {
         success: false,
-        error: "تعذر رفع نموذج الاختبار على Google Drive — تحقق من اتصال النظام ثم أعد المحاولة",
+        error:
+          error instanceof Error
+            ? error.message
+            : "تعذر رفع نموذج الاختبار على Google Drive — حاول مرة أخرى",
       };
     }
   }
