@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, X } from "lucide-react";
+import { Info, X } from "lucide-react";
 import {
   getPlatformAlert,
   dismissPlatformAlert,
@@ -48,9 +48,9 @@ export function PlatformAlertBanner() {
   return (
     <div
       role="alert"
-      className="sticky top-0 z-[100] flex items-center gap-3 border-b border-amber-300/60 bg-gradient-to-l from-amber-500 to-orange-500 px-4 py-2.5 text-white shadow-md dark:border-amber-500/40"
+      className="sticky top-0 z-[100] flex items-center gap-3 bg-slate-800 px-4 py-2.5 text-white shadow-md"
     >
-      <AlertTriangle className="h-5 w-5 shrink-0" />
+      <Info className="h-5 w-5 shrink-0" />
       <p className="flex-1 text-sm font-medium">
         تنبيه من مالك النظام: <span className="font-bold">{alert.message}</span>
       </p>

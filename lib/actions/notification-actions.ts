@@ -23,6 +23,7 @@ export async function getPlatformAlert(): Promise<PlatformAlert | null> {
   const alert = await prisma.notification.findFirst({
     where: {
       userId: user.id,
+      tenantId: user.tenantId ?? undefined,
       isRead: false,
       sender: { role: Role.SUPER_ADMIN },
     },
