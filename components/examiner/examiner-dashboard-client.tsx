@@ -38,6 +38,17 @@ type Props = {
   committee: CommitteeInfo | null;
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: "بانتظار المراجعة",
+  APPROVED: "مقبول",
+  REJECTED: "مرفوض",
+  ASSIGNED: "موزع على لجنة",
+  COMPLETED: "اكتمل تقييمه",
+  NOTIFIED: "اعتمده الأخصائي",
+  READY_FOR_CERTIFICATE: "جاهز للشهادة",
+  CERTIFICATE_ISSUED: "صدرت شهادته",
+};
+
 export function ExaminerDashboardClient({ students, committee }: Props) {
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -122,7 +133,7 @@ export function ExaminerDashboardClient({ students, committee }: Props) {
                   <div>
                     <p className="font-medium">{s.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {getBranchLabel(s.branch)} — الحالة: {s.status}
+                      {getBranchLabel(s.branch)} — الحالة: {STATUS_LABELS[s.status] ?? s.status}
                     </p>
                   </div>
                   <Button size="sm" onClick={() => openModal(s.id)}>

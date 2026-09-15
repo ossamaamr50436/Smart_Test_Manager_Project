@@ -21,6 +21,7 @@ import {
   type AuditLogResult,
 } from "@/lib/actions/audit-actions";
 import { AuditAction } from "@prisma/client";
+import { toArabicText } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
   CREATE: "إنشاء",
@@ -30,6 +31,10 @@ const ACTION_LABELS: Record<string, string> = {
   APPROVE: "اعتماد",
   REJECT: "رفض",
   ASSESS: "تقييم",
+  SUSPICIOUS_ACCESS: "وصول مشبوه",
+  RATE_LIMIT_HIT: "تجاوز حد الطلبات",
+  CROSS_TENANT_ATTEMPT: "محاولة وصول عبر المستأجرين",
+  FAILED_LOGIN: "محاولة دخول فاشلة",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -40,6 +45,10 @@ const ACTION_COLORS: Record<string, string> = {
   APPROVE: "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white",
   REJECT: "bg-gradient-to-r from-amber-500 to-amber-600 text-white",
   ASSESS: "bg-gradient-to-r from-purple-500 to-purple-600 text-white",
+  SUSPICIOUS_ACCESS: "bg-gradient-to-r from-red-500 to-red-600 text-white",
+  RATE_LIMIT_HIT: "bg-gradient-to-r from-amber-500 to-amber-600 text-white",
+  CROSS_TENANT_ATTEMPT: "bg-gradient-to-r from-red-500 to-red-600 text-white",
+  FAILED_LOGIN: "bg-gradient-to-r from-amber-500 to-amber-600 text-white",
 };
 
 export function AuditLogTable() {
@@ -254,9 +263,7 @@ export function AuditLogTable() {
                     </p>
                     {entry.details && (
                       <pre className="max-w-xl whitespace-pre-wrap break-all text-xs text-muted-foreground">
-                        {typeof entry.details === "string"
-                          ? entry.details
-                          : JSON.stringify(entry.details, null, 2)}
+                        {toArabicText(entry.details)}
                       </pre>
                     )}
                   </div>

@@ -28,7 +28,7 @@ export default function SegmentError({
       </p>
       {error.digest ? (
         <p dir="ltr" className="text-xs text-muted-foreground">
-          digest: {error.digest}
+          معرّف الخطأ: {error.digest}
         </p>
       ) : null}
       <Button onClick={reset} variant="outline">

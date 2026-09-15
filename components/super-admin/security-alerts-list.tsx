@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { getSuperAdminDashboardStats } from "@/lib/actions/super-admin-actions";
 import { subscribeToSuperAdminAlerts } from "@/lib/realtime-client";
+import { toArabicText } from "@/lib/utils";
 
 type AlertLog = {
   id: string;
@@ -92,8 +93,8 @@ export function SecurityAlertsList({ initialAlerts }: SecurityAlertsListProps) {
                   {typeof alert.details === "object" &&
                     alert.details !== null &&
                     Object.keys(alert.details).length > 0 && (
-                      <p className="mt-1 text-xs text-muted-foreground" dir="ltr">
-                        {JSON.stringify(alert.details)}
+                      <p className="mt-1 text-xs text-muted-foreground" dir="rtl">
+                        {toArabicText(alert.details)}
                       </p>
                     )}
                 </div>

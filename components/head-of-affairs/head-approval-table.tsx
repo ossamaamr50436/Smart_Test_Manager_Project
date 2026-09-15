@@ -109,7 +109,7 @@ export function HeadApprovalTable({ students }: { students: NotifiedStudent[] })
                       >
                         {processingId === student.id
                           ? "جارٍ الاعتماد..."
-                          : "اعتماد نهائي (Final Approve)"}
+                          : "اعتماد نهائي"}
                       </Button>
                       <div className="flex items-center gap-1">
                         <input

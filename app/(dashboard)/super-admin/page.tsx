@@ -16,6 +16,17 @@ export const metadata: Metadata = { title: "لوحة المالك" };
 
 export const dynamic = "force-dynamic";
 
+const ALERT_LABELS: Record<string, string> = {
+  TLS_CHANGED: "تغيير مفتاح TLS",
+  SHARE_LINK_ACCESSED: "تسجيل دخول عبر رابط مشاركة",
+  SPAM_LOGIN_ATTEMPT: "محاولة تسجيل دخول مشبوهة",
+  TRANSFER_TRIAL: "محاولة نقل بيانات محظورة",
+  SUSPICIOUS_ACCESS: "وصول مشبوه",
+  RATE_LIMIT_HIT: "تجاوز حد الطلبات",
+  CROSS_TENANT_ATTEMPT: "محاولة وصول عبر المستأجرين",
+  FAILED_LOGIN: "محاولة دخول فاشلة",
+};
+
 export default async function SuperAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -127,7 +138,7 @@ export default async function SuperAdminPage() {
                 {data.recentAlerts.map((alert) => (
                   <li key={alert.id} className="flex items-start justify-between gap-3 py-3">
                     <div>
-                      <p className="text-sm font-medium">{alert.action}</p>
+                      <p className="text-sm font-medium">{ALERT_LABELS[alert.action] ?? alert.action}</p>
                       <p className="text-xs text-muted-foreground">
                         {alert.user?.email ?? "النظام"}
                       </p>

@@ -45,7 +45,7 @@ export default async function middleware(req: NextRequest) {
     if (host.endsWith("]")) host = host.slice(0, -1);
     host = host.toLowerCase();
     if (!allowed.has(host)) {
-      return new NextResponse("Forbidden: Host غير مصرح", { status: 403 });
+      return new NextResponse("المضيف غير مصرح للاتصال بالمنصة", { status: 403 });
     }
   }
 

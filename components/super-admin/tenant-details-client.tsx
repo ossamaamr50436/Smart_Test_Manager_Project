@@ -28,6 +28,21 @@ import {
   updateTenant,
   updateTenantAdmin,
 } from "@/lib/actions/super-admin-actions";
+import { toArabicText } from "@/lib/utils";
+
+const ACTION_LABELS: Record<string, string> = {
+  CREATE: "إنشاء",
+  UPDATE: "تعديل",
+  DELETE: "حذف",
+  LOGIN: "دخول",
+  APPROVE: "اعتماد",
+  REJECT: "رفض",
+  ASSESS: "تقييم",
+  SUSPICIOUS_ACCESS: "وصول مشبوه",
+  RATE_LIMIT_HIT: "تجاوز حد الطلبات",
+  CROSS_TENANT_ATTEMPT: "محاولة وصول عبر المستأجرين",
+  FAILED_LOGIN: "محاولة دخول فاشلة",
+};
 
 const ROLE_OPTIONS = [
   { value: "ADMIN", label: "مشرف المؤسسة" },
@@ -721,15 +736,15 @@ function TenantAuditSection({ tenantId }: { tenantId: string }) {
               {logs.map((log) => (
                 <li key={log.id} className="flex items-start justify-between gap-3 py-2">
                   <div>
-                    <p className="text-sm font-medium">{log.action}</p>
+                    <p className="text-sm font-medium">{ACTION_LABELS[log.action] ?? log.action}</p>
                     <p className="text-xs text-muted-foreground">
                       {log.user ? `${log.user.name} (${log.user.email})` : "النظام"}
                     </p>
                     {typeof log.details === "object" &&
                       log.details !== null &&
                       Object.keys(log.details).length > 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground" dir="ltr">
-                          {JSON.stringify(log.details)}
+                        <p className="mt-1 text-xs text-muted-foreground" dir="rtl">
+                          {toArabicText(log.details)}
                         </p>
                       )}
                   </div>

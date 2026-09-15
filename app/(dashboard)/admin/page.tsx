@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { getAdminDashboardStats } from "@/lib/actions/admin-panel-actions";
 import Link from "next/link";
+import { toArabicText } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "لوحة التحكم" };
 
@@ -23,6 +24,10 @@ const ACTION_LABELS: Record<string, string> = {
   APPROVE: "اعتماد",
   REJECT: "رفض",
   ASSESS: "تقييم",
+  SUSPICIOUS_ACCESS: "وصول مشبوه",
+  RATE_LIMIT_HIT: "تجاوز حد الطلبات",
+  CROSS_TENANT_ATTEMPT: "محاولة وصول عبر المستأجرين",
+  FAILED_LOGIN: "محاولة دخول فاشلة",
 };
 
 const QUICK_LINKS = [
@@ -153,9 +158,7 @@ export default async function AdminDashboardPage() {
                     </div>
                     {activity.details && (
                       <p className="text-xs text-muted-foreground">
-                        {typeof activity.details === "string"
-                          ? activity.details
-                          : JSON.stringify(activity.details)}
+                        {toArabicText(activity.details)}
                       </p>
                     )}
                   </div>

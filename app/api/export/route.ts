@@ -59,21 +59,41 @@ export async function GET() {
         : neutralized;
     };
 
+    const STATUS_LABELS: Record<string, string> = {
+      PENDING: "بانتظار المراجعة",
+      APPROVED: "مقبول",
+      REJECTED: "مرفوض",
+      ASSIGNED: "موزع على لجنة",
+      COMPLETED: "اكتمل تقييمه",
+      NOTIFIED: "اعتمده الأخصائي",
+      READY_FOR_CERTIFICATE: "جاهز للشهادة",
+      CERTIFICATE_ISSUED: "صدرت شهادته",
+    };
+
     const header = [
-      "name",
-      "age",
-      "branch",
-      "teacherName",
-      "parentPhone",
-      "address",
-      "phone",
-      "status",
+      "الاسم",
+      "العمر",
+      "الفرع",
+      "اسم المعلم",
+      "هاتف ولي الأمر",
+      "العنوان",
+      "الهاتف",
+      "الحالة",
     ];
 
     const csv = [
       header.join(","),
       ...students.map((s) =>
-        [s.name, s.age, s.branch, s.teacherName, s.parentPhone, s.address, s.phone, s.status]
+        [
+          s.name,
+          s.age,
+          s.branch,
+          s.teacherName,
+          s.parentPhone,
+          s.address,
+          s.phone,
+          STATUS_LABELS[s.status] ?? s.status,
+        ]
           .map(escape)
           .join(",")
       ),

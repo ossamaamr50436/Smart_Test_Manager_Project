@@ -122,8 +122,12 @@ export async function updatePlatformSettings(
         data.logoUrl = uploaded.webViewLink;
         data.logoFileId = uploaded.fileId;
       }
-    } catch {
-      throw new Error("تعذر رفع الشعار على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً");
+    } catch (error) {
+      throw new Error(
+        error instanceof Error
+          ? `تعذر رفع الشعار على Google Drive: ${error.message}`
+          : "تعذر رفع الشعار على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً"
+      );
     }
   }
 
@@ -233,8 +237,12 @@ export async function updateTemplateSettings(
         templateFile.mimeType
       );
       data.templateFileId = uploaded.fileId;
-    } catch {
-      throw new Error("تعذر رفع قالب الشهادة على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً");
+    } catch (error) {
+      throw new Error(
+        error instanceof Error
+          ? `تعذر رفع قالب الشهادة على Google Drive: ${error.message}`
+          : "تعذر رفع قالب الشهادة على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً"
+      );
     }
   }
 
