@@ -1,4 +1,4 @@
-﻿import Pusher from "pusher";
+import Pusher from "pusher";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
