@@ -17,6 +17,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { isUniqueConstraintError, friendlyUniqueMessage } from "@/lib/actions/unique-guard";
 import { createUserSchema } from "@/lib/validations/user";
 import { PAGE_SIZE } from "@/lib/utils";
+import { BRANCHES, PERIODS } from "@/lib/validations/student";
 
 // ============================================================
 // لوحة تحكم المسؤول — Server Actions (عزل صلاحيات: ADMIN فقط)
@@ -920,6 +921,220 @@ export async function getAdminStudents(params: {
 }
 
 // ------------------------------------------------------------
+// 6b) الطلاب المقبولون وما بعدهم (ADMIN + TEST_SPECIALIST) — المهمة G
+// ------------------------------------------------------------
+const ACCEPTED_STATUSES: StudentStatus[] = [
+  StudentStatus.APPROVED,
+  StudentStatus.ASSIGNED,
+  StudentStatus.COMPLETED,
+  StudentStatus.NOTIFIED,
+  StudentStatus.READY_FOR_CERTIFICATE,
+  StudentStatus.CERTIFICATE_ISSUED,
+];
+
+export async function getAcceptedStudents(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  institutionId?: string;
+  branch?: string;
+  period?: string;
+}) {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+
+  const page = Number(params.page ?? 1);
+  const pageSize = Number(params.pageSize ?? PAGE_SIZE);
+  if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
+
+  const where: Prisma.StudentWhereInput = {
+    ...getTenantFilter(user),
+    status: { in: ACCEPTED_STATUSES },
+  };
+  if (params.status && params.status !== "ALL") {
+    if (!ACCEPTED_STATUSES.includes(params.status as StudentStatus)) {
+      throw new Error("حالة غير صالحة");
+    }
+    where.status = params.status as StudentStatus;
+  }
+  if (params.institutionId && params.institutionId !== "ALL") {
+    where.institutionId = params.institutionId;
+  }
+  if (params.branch && params.branch !== "ALL") {
+    if (!(BRANCHES as readonly string[]).includes(params.branch)) {
+      throw new Error("الفرع غير صالح");
+    }
+    where.branch = params.branch;
+  }
+  if (params.period && params.period !== "ALL") {
+    if (!(PERIODS as readonly string[]).includes(params.period)) {
+      throw new Error("الفترة غير صالحة");
+    }
+    where.examSessions = { some: { period: params.period } };
+  }
+  if (params.search && params.search.length > 0) {
+    if (params.search.length > 100) throw new Error("نص البحث طويل جداً");
+    where.name = { contains: params.search, mode: "insensitive" };
+  }
+
+  const skip = (page - 1) * pageSize;
+  const [students, total] = await Promise.all([
+    prisma.student.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        nationality: true,
+        branch: true,
+        status: true,
+        createdAt: true,
+        approvedAt: true,
+        institution: { select: { name: true } },
+        committee: { select: { id: true, name: true } },
+        examSessions: {
+          take: 1,
+          orderBy: { examDate: "desc" },
+          select: { id: true, examDate: true, period: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+    }),
+    prisma.student.count({ where }),
+  ]);
+
+  return { students, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+}
+
+export type UpdateAcceptedStudentResult =
+  | { success: true }
+  | { success: false; error: string };
+
+export async function updateAcceptedStudent(
+  studentId: string,
+  input: {
+    branch?: string;
+    committeeId?: string | null;
+    period?: string;
+    examDate?: string;
+  }
+): Promise<UpdateAcceptedStudentResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
+
+  if (!studentId || typeof studentId !== "string" || studentId.length > 64) {
+    return { success: false, error: "معرّف الطالب غير صالح" };
+  }
+
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { id: true, name: true, tenantId: true },
+  });
+  if (!student) return { success: false, error: "الطالب غير موجود" };
+  assertSameTenant(user, student);
+
+  const studentData: Prisma.StudentUpdateInput = {};
+  if (input.branch !== undefined) {
+    if (!(BRANCHES as readonly string[]).includes(input.branch)) {
+      return { success: false, error: "الفرع غير صالح" };
+    }
+    studentData.branch = input.branch;
+  }
+  if (input.committeeId !== undefined) {
+    if (input.committeeId) {
+      const committee = await prisma.committee.findUnique({
+        where: { id: input.committeeId },
+        select: { id: true, tenantId: true },
+      });
+      if (!committee) return { success: false, error: "اللجنة غير موجودة" };
+      assertSameTenant(user, committee);
+      studentData.committee = { connect: { id: input.committeeId } };
+    } else {
+      studentData.committee = { disconnect: true };
+    }
+  }
+
+  const sessionData: { examDate?: Date; period?: string } = {};
+  if (input.examDate) {
+    const date = new Date(input.examDate);
+    if (Number.isNaN(date.getTime())) {
+      return { success: false, error: "تاريخ الاختبار غير صحيح" };
+    }
+    sessionData.examDate = date;
+  }
+  if (input.period !== undefined && input.period !== "") {
+    if (!(PERIODS as readonly string[]).includes(input.period)) {
+      return { success: false, error: "الفترة غير صالحة" };
+    }
+    sessionData.period = input.period;
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (Object.keys(studentData).length > 0) {
+        await tx.student.update({ where: { id: studentId }, data: studentData });
+      }
+      if (Object.keys(sessionData).length > 0) {
+        const session = await tx.examSession.findFirst({
+          where: { studentId },
+          orderBy: { examDate: "desc" },
+          select: { id: true },
+        });
+        if (!session) {
+          throw new Error("لا توجد جلسة اختبار لهذا الطالب — وزّعه على لجنة أولاً");
+        }
+        await tx.examSession.update({ where: { id: session.id }, data: sessionData });
+      }
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          tenantId: requireTenantId(user),
+          action: AuditAction.UPDATE,
+          details: JSON.stringify({
+            entity: "Student",
+            studentId,
+            name: student.name,
+            branch: input.branch,
+            committeeId: input.committeeId,
+            period: input.period,
+            examDate: input.examDate,
+          }),
+        },
+      });
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "حدث خطأ غير متوقع أثناء حفظ التعديلات",
+    };
+  }
+
+  revalidatePath("/admin/accepted-students");
+  revalidatePath("/test-specialist/accepted-students");
+  return { success: true };
+}
+
+export async function getCommitteesOptions() {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
+
+  return prisma.committee.findMany({
+    where: getTenantFilter(user),
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+    take: 200,
+  });
+}
+
+// ------------------------------------------------------------
 // 7) إدارة الجلسات
 // ------------------------------------------------------------
 export async function getAdminSessions(params: {
@@ -1024,7 +1239,7 @@ export async function getAdminCertificates(params: {
 // ------------------------------------------------------------
 export async function getInstitutionsOptions() {
   const user = await requireUser();
-  requireRole(user, [Role.ADMIN]);
+  requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
 
   return prisma.institution.findMany({
     where: getTenantFilter(user),

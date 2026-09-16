@@ -29,6 +29,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
     { href: "/admin", label: "لوحة التحكم" },
     { href: "/admin/users", label: "المستخدمون" },
     { href: "/admin/students", label: "الطلاب" },
+    { href: "/admin/accepted-students", label: "الطلاب المقبولون" },
     { href: "/admin/seasons", label: "المواسم" },
     { href: "/admin/models", label: "النماذج" },
     { href: "/admin/question-bank", label: "بنك الأسئلة" },
@@ -61,6 +62,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
   TEST_SPECIALIST: [
     { href: "/test-specialist", label: "لوحة التحكم" },
     { href: "/test-specialist/requests", label: "طلبات الترشيح" },
+    { href: "/test-specialist/accepted-students", label: "الطلاب المقبولون" },
     { href: "/test-specialist/students/new", label: "ترشيح طالب" },
     { href: "/test-specialist/committees", label: "تشكيل اللجان" },
     { href: "/test-specialist/teachers", label: "المعلمون" },
