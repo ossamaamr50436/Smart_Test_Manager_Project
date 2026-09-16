@@ -213,8 +213,8 @@ export async function createStudentApplication(
 export async function reviewStudentApplication(studentId: string, decision: ReviewDecision) {
   const user = await requireUser();
 
-  // عزل الصلاحيات: الأخصائي فقط
-  requireRole(user, [Role.TEST_SPECIALIST]);
+  // عزل الصلاحيات: الأخصائي أو المسؤول (المهمة C)
+  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -286,8 +286,8 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
 export async function assignCommittee(input: CommitteeInput) {
   const user = await requireUser();
 
-  // عزل الصلاحيات: الأخصائي فقط
-  requireRole(user, [Role.TEST_SPECIALIST]);
+  // عزل الصلاحيات: الأخصائي أو المسؤول (المهمة C)
+  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   const parsed = committeeSchema.safeParse(input);
   if (!parsed.success) {

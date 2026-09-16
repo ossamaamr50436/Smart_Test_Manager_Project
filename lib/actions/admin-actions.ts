@@ -31,8 +31,8 @@ async function recordAudit(userId: string, action: AuditAction, details: unknown
 export async function specialistFinalApprove(studentId: string) {
   const user = await requireUser();
 
-  // عزل الصلاحيات: الأخصائي فقط
-  requireRole(user, [Role.TEST_SPECIALIST]);
+  // عزل الصلاحيات: الأخصائي أو المسؤول (المهمة C)
+  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   if (!studentId || typeof studentId !== "string" || studentId.length < 1 || studentId.length > 64) {
     throw new Error("معرّف الطالب غير صالح");

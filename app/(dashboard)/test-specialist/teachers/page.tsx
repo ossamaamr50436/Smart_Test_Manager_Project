@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SpecialistTeachersPage() {
   const user = await getCurrentUser();
-  if (!user || user.role !== Role.TEST_SPECIALIST) {
+  if (!user || (user.role !== Role.TEST_SPECIALIST && user.role !== Role.ADMIN)) {
     redirect("/test-specialist");
   }
 

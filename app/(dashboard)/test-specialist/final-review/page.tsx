@@ -12,8 +12,8 @@ export const metadata: Metadata = {
 export default async function FinalReviewPage() {
   const user = await getCurrentUser();
 
-  // عزل الصلاحيات: صفحة خاصة بأخصائي الاختبارات
-  if (!user || user.role !== Role.TEST_SPECIALIST) {
+  // عزل الصلاحيات: صفحة خاصة بأخصائي الاختبارات والمسؤول (المهمة C)
+  if (!user || (user.role !== Role.TEST_SPECIALIST && user.role !== Role.ADMIN)) {
     redirect("/");
   }
 

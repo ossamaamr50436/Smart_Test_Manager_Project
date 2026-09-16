@@ -133,6 +133,11 @@ export const authConfig = {
         return role === "TEST_SPECIALIST" || role === "ADMIN";
       }
 
+      // صفحات الأخصائي — متاحة أيضاً للمسؤول (تحكم كامل، المهمة C)
+      if (path.startsWith("/test-specialist")) {
+        return role === "TEST_SPECIALIST" || role === "ADMIN";
+      }
+
       // مسار ليس ضمن منطقة دوره → وجّهه لصفحته
       if (!home) {
         return true;
