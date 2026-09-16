@@ -13,14 +13,12 @@ import type { PlatformSettings } from "@/lib/actions/settings-actions";
  */
 export const getCachedExamModels = unstable_cache(
   async () => {
-    return prisma.examModel.findMany({
+    return prisma.questionBankModel.findMany({
       select: {
         id: true,
         modelNumber: true,
         branch: true,
         segmentsCount: true,
-        institution: { select: { name: true } },
-        season: { select: { name: true } },
       },
       orderBy: [{ branch: "asc" }, { modelNumber: "asc" }],
     });

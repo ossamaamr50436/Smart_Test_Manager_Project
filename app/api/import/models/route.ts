@@ -6,15 +6,15 @@ import { uploadExamModelFile } from "@/lib/google-drive";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
- * استيراد النماذج الاختبارية من ملف JSON
+ * استيراد النماذج الاختبارية من ملف JSON إلى بنك الأسئلة (المهمة I)
  * عزل الصلاحيات: أخصائي الاختبارات فقط (المادة 8).
  *
  * يرفع ملف النموذج على Google Drive (المادة 3) ويسجّل بياناته
- * في قاعدة البيانات لضمان عدم تكرار النموذج في الموسم (المادة 6).
+ * في قاعدة البيانات (بنك الأسئلة — بلا موسم أو جهة).
  *
  * تنسيق JSON المتوقع:
  * [
- *   { "modelNumber": 1, "institutionId": "...", "details": { ... } , "seasonId": "..." }
+ *   { "modelNumber": 1, "branch": "5", "details": { ... }, "segmentsCount": 10 }
  * ]
  */
 export async function POST(req: Request) {
@@ -40,22 +40,17 @@ export async function POST(req: Request) {
     }
 
     const results: { modelNumber: number; ok: boolean; error?: string }[] = [];
-    const modelsToCreate: Prisma.ExamModelCreateManyInput[] = [];
+    const modelsToCreate: Prisma.QuestionBankModelCreateManyInput[] = [];
 
     for (const item of body) {
       const modelNumber = Number(item?.modelNumber);
-      const institutionId = item?.institutionId as string;
       const branch = String(item?.branch ?? "5");
-      const seasonId =
-        item?.seasonId && typeof item.seasonId === "string" && item.seasonId.length <= 64
-          ? item.seasonId
-          : "";
 
-      if (!Number.isInteger(modelNumber) || modelNumber < 1 || modelNumber > 20) {
+      if (!Number.isInteger(modelNumber) || modelNumber < 1 || modelNumber > 100) {
         results.push({
           modelNumber: Number(item?.modelNumber) || 0,
           ok: false,
-          error: "modelNumber يجب أن يكون رقماً صحيحاً بين 1 و 20",
+          error: "modelNumber يجب أن يكون رقماً صحيحاً بين 1 و 100",
         });
         continue;
       }
@@ -65,24 +60,6 @@ export async function POST(req: Request) {
           modelNumber,
           ok: false,
           error: "branch يجب أن يكون أحد الأفرع (5/10/15/20/25/30)",
-        });
-        continue;
-      }
-
-      if (!seasonId) {
-        results.push({
-          modelNumber,
-          ok: false,
-          error: "يجب تحديد seasonId (الموسم)",
-        });
-        continue;
-      }
-
-      if (!institutionId || typeof institutionId !== "string" || institutionId.length > 64) {
-        results.push({
-          modelNumber,
-          ok: false,
-          error: "يجب تحديد institutionId صحيح",
         });
         continue;
       }
@@ -116,19 +93,14 @@ export async function POST(req: Request) {
           );
         }
 
-        const detailsJSON =
-          item?.details ??
-          (driveRef
-            ? { source: "drive", fileId: driveRef.fileId, name: `model-${modelNumber}` }
-            : { segments: [] });
+        const detailsJSON = item?.details ?? { segments: [] };
 
-        // إدراج النموذج ضمن دفعة جماعية (createMany + skipDuplicates) — B.5
+        // إدراج النموذج في بنك الأسئلة ضمن دفعة جماعية (createMany + skipDuplicates) — B.5
         modelsToCreate.push({
           modelNumber,
           branch,
           detailsJSON,
-          institutionId,
-          seasonId,
+          segmentsCount: Number(item?.segmentsCount) || 0,
           tenantId: requireTenantId(user),
         });
 
@@ -145,7 +117,7 @@ export async function POST(req: Request) {
     // تنفيذ الإدراج الجماعي في استدعاء واحد (تجاهل المكرر حسب القيد الفريد)
     let imported = 0;
     if (modelsToCreate.length > 0) {
-      const r = await prisma.examModel.createMany({
+      const r = await prisma.questionBankModel.createMany({
         data: modelsToCreate,
         skipDuplicates: true,
       });

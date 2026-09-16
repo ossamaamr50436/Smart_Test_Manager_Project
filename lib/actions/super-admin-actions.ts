@@ -304,13 +304,13 @@ export async function getTenantDetails(tenantId: string) {
         orderBy: { createdAt: "desc" },
         take: 200,
       },
+      questionBankModels: { select: { id: true } },
       _count: {
         select: {
           users: true,
           institutions: true,
           students: true,
           examSeasons: true,
-          examModels: true,
           committees: true,
           examSessions: true,
           certificates: true,
@@ -320,7 +320,8 @@ export async function getTenantDetails(tenantId: string) {
   });
 
   if (!tenant) throw new Error("المؤسسة غير موجودة");
-  return tenant;
+  const { questionBankModels, ...rest } = tenant;
+  return { ...rest, questionBankModelCount: questionBankModels.length };
 }
 
 const tenantAuditFiltersSchema = z.object({

@@ -73,7 +73,7 @@ export async function getAdminDashboardStats() {
     prisma.student.count({ where: { ...filter, status: "APPROVED" } }),
     prisma.student.count({ where: { ...filter, status: "REJECTED" } }),
     prisma.certificate.count({ where: filter }),
-    prisma.examModel.count({ where: filter }),
+    prisma.questionBankModel.count({ where: filter }),
     prisma.certificate.count({ where: { ...filter, status: "PENDING" } }),
     prisma.notification.count({ where: filter }),
     prisma.student.count({ where: { ...filter, status: "CERTIFICATE_ISSUED" } }),
@@ -463,7 +463,7 @@ export async function getAdminInstitutions(params: {
         licenseNumber: true,
         district: true,
         createdAt: true,
-        _count: { select: { students: true, users: true, examModels: true } },
+        _count: { select: { students: true, users: true } },
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -646,7 +646,7 @@ export async function getAdminSeasons() {
     take: 100,
     include: {
       _count: {
-        select: { sessions: true, models: true, committees: true, modelAllocations: true },
+        select: { sessions: true, committees: true },
       },
     },
   });
@@ -778,7 +778,7 @@ export async function deleteAdminSeason(seasonId: string) {
     where: { id: seasonId },
     include: {
       _count: {
-        select: { sessions: true, committees: true, modelAllocations: true },
+        select: { sessions: true, committees: true },
       },
     },
   });
@@ -789,13 +789,11 @@ export async function deleteAdminSeason(seasonId: string) {
     throw new Error("لا يمكن حذف موسم نشط — ألغِ تفعيله أولاً");
   }
 
-  // النماذج المرتبطة لا تمنع الحذف — تُفصل تلقائياً وتبقى في بنك الأسئلة.
-  // لكن الجلسات واللجان والتخصيصات لا تفصل دون فقدان بيانات → منع واضح.
+  // النماذج أصبحت في بنك الأسئلة (لا ترتبط بموسم) — المهمة I
+  // الجلسات واللجان لا تُفصل دون فقدان بيانات → منع واضح.
   const counts: { label: string; value: number }[] = [];
   if (season._count.sessions > 0) counts.push({ label: "جلسة", value: season._count.sessions });
   if (season._count.committees > 0) counts.push({ label: "لجنة", value: season._count.committees });
-  if (season._count.modelAllocations > 0)
-    counts.push({ label: "تخصيص نموذج", value: season._count.modelAllocations });
 
   if (counts.length > 0) {
     const summary = counts.map((c) => `${c.value} ${c.label}`).join("، ");
@@ -820,7 +818,6 @@ export async function getAdminModels(params: {
   page?: number;
   pageSize?: number;
   search?: string;
-  institutionId?: string;
 }) {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN]);
@@ -830,10 +827,7 @@ export async function getAdminModels(params: {
   if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("رقم الصفحة غير صالح");
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error("حجم الصفحة غير صالح");
 
-  const where: Prisma.ExamModelWhereInput = { ...getTenantFilter(user) };
-  if (params.institutionId && params.institutionId !== "ALL") {
-    where.institutionId = params.institutionId;
-  }
+  const where: Prisma.QuestionBankModelWhereInput = { ...getTenantFilter(user) };
   if (params.search && params.search.length > 0) {
     if (params.search.length > 100) throw new Error("نص البحث طويل جداً");
     const num = Number(params.search);
@@ -842,20 +836,19 @@ export async function getAdminModels(params: {
 
   const skip = (page - 1) * pageSize;
   const [models, total] = await Promise.all([
-    prisma.examModel.findMany({
+    prisma.questionBankModel.findMany({
       where,
       select: {
         id: true,
         modelNumber: true,
-        institution: { select: { name: true } },
-        season: { select: { name: true } },
+        branch: true,
         _count: { select: { assessments: true } },
       },
-      orderBy: { modelNumber: "asc" },
+      orderBy: [{ branch: "asc" }, { modelNumber: "asc" }],
       skip,
       take: pageSize,
     }),
-    prisma.examModel.count({ where }),
+    prisma.questionBankModel.count({ where }),
   ]);
 
   return { models, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };

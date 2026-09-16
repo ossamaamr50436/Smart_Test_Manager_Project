@@ -6,81 +6,47 @@ import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
-  examModelSchema,
-  type ExamModelInput,
-} from "@/lib/validations/assessment";
+  questionBankSchema,
+  type QuestionBankInput,
+} from "@/lib/validations/question-bank";
 import {
   isUniqueConstraintError,
   friendlyUniqueMessage,
 } from "@/lib/actions/unique-guard";
 
-/**
- * إنشاء نموذج اختباري جديد — خاص بأخصائي الاختبارات
- * وفق لائحة اختيار فرع كامل القرآن (حتى 100 نموذج لكل فرع)
- * النماذج عامة للفرع والموسم (المرحلة 8) — لا تُسند لجهة أثناء الإنشاء
- */
-export async function createExamModel(input: ExamModelInput) {
+const VALID_ROLES: Role[] = [Role.TEST_SPECIALIST, Role.ADMIN];
+
+export async function createExamModel(input: QuestionBankInput) {
   const user = await requireUser();
+  requireRole(user, VALID_ROLES);
 
-  // عزل الصلاحيات: الأخصائي فقط
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
-
-  const parsed = examModelSchema.safeParse(input);
+  const parsed = questionBankSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "بيانات النموذج غير صحيحة");
   }
   const data = parsed.data;
 
-  // التحقق من وجود الموسم
-  const season = await prisma.examSeason.findUnique({
-    where: { id: data.seasonId },
-    select: { id: true, tenantId: true },
-  });
-  if (!season) throw new Error("الموسم غير موجود");
-  assertSameTenant(user, season);
-
-  // منع تكرار (رقم النموذج، الموسم، الفرع)
-  const existing = await prisma.examModel.findFirst({
-    where: {
-      ...getTenantFilter(user),
-      modelNumber: data.modelNumber,
-      seasonId: data.seasonId,
-      branch: data.branch,
-    },
-    select: { id: true },
-  });
-  if (existing) {
-    throw new Error(
-      `يوجد نموذج برقم ${data.modelNumber} لفرع ${data.branch} أجزاء في هذا الموسم`
-    );
-  }
-
   const segments = [...data.segments].sort((a, b) => a.number - b.number);
-
-  // التحقق من ترقيم المقاطع المتسلسل حتى عدد المقاطع المختار
-  const segmentsCount = data.segmentsCount ?? segments.length;
-  if (segments.length !== segmentsCount) {
+  if (segments.length !== data.segmentsCount) {
     throw new Error(
-      `عدد المقاطع المحدد (${segmentsCount}) لا يطابق المقاطع المُدخلة (${segments.length})`
+      `عدد المقاطع المحدد (${data.segmentsCount}) لا يطابق المقاطع المُدخلة (${segments.length})`
     );
   }
   segments.forEach((seg, idx) => {
     if (seg.number !== idx + 1) {
-      throw new Error(`يجب ترقيم المقاطع تسلسلياً من 1 إلى ${segmentsCount}`);
+      throw new Error(`يجب ترقيم المقاطع تسلسلياً من 1 إلى ${data.segmentsCount}`);
     }
   });
 
   const model = await prisma.$transaction(async (tx) => {
     let created;
     try {
-      created = await tx.examModel.create({
+      created = await tx.questionBankModel.create({
         data: {
           modelNumber: data.modelNumber,
           branch: data.branch,
           detailsJSON: { segments },
-          segmentsCount,
-          institutionId: null,
-          seasonId: data.seasonId,
+          segmentsCount: data.segmentsCount,
           tenantId: requireTenantId(user),
         },
       });
@@ -94,11 +60,10 @@ export async function createExamModel(input: ExamModelInput) {
         tenantId: requireTenantId(user),
         action: AuditAction.CREATE,
         details: JSON.stringify({
-          entity: "ExamModel",
+          entity: "QuestionBankModel",
           modelId: created.id,
           modelNumber: data.modelNumber,
           branch: data.branch,
-          segmentsCount,
         }),
       },
     });
@@ -106,30 +71,27 @@ export async function createExamModel(input: ExamModelInput) {
   });
 
   revalidatePath("/test-specialist/models");
+  revalidatePath("/admin/models");
+  revalidatePath("/admin/question-bank");
 
   return { success: true, modelId: model.id };
 }
 
-/**
- * تعديل مقاطع نموذج اختباري — خاص بأخصائي الاختبارات
- */
-export async function updateExamModel(modelId: string, input: ExamModelInput) {
+export async function updateExamModel(modelId: string, input: QuestionBankInput) {
   const user = await requireUser();
-
-  // عزل الصلاحيات: الأخصائي فقط
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  requireRole(user, VALID_ROLES);
 
   if (!modelId || typeof modelId !== "string" || modelId.length > 64) {
     throw new Error("معرّف النموذج غير صالح");
   }
 
-  const parsed = examModelSchema.safeParse(input);
+  const parsed = questionBankSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "بيانات النموذج غير صحيحة");
   }
   const data = parsed.data;
 
-  const existing = await prisma.examModel.findUnique({
+  const existing = await prisma.questionBankModel.findUnique({
     where: { id: modelId },
     select: { id: true, tenantId: true },
   });
@@ -137,27 +99,38 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
   assertSameTenant(user, existing);
 
   const segments = [...data.segments].sort((a, b) => a.number - b.number);
-  const segmentsCount = data.segmentsCount ?? segments.length;
-  if (segments.length !== segmentsCount) {
+  if (segments.length !== data.segmentsCount) {
     throw new Error(
-      `عدد المقاطع المحدد (${segmentsCount}) لا يطابق المقاطع المُدخلة (${segments.length})`
+      `عدد المقاطع المحدد (${data.segmentsCount}) لا يطابق المقاطع المُدخلة (${segments.length})`
     );
   }
   segments.forEach((seg, idx) => {
     if (seg.number !== idx + 1) {
-      throw new Error(`يجب ترقيم المقاطع تسلسلياً من 1 إلى ${segmentsCount}`);
+      throw new Error(`يجب ترقيم المقاطع تسلسلياً من 1 إلى ${data.segmentsCount}`);
     }
   });
 
+  const duplicate = await prisma.questionBankModel.findFirst({
+    where: {
+      ...getTenantFilter(user),
+      modelNumber: data.modelNumber,
+      branch: data.branch,
+      id: { not: modelId },
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    throw new Error(`يوجد نموذج آخر برقم ${data.modelNumber} لفرع ${data.branch} أجزاء`);
+  }
+
   await prisma.$transaction(async (tx) => {
-    await tx.examModel.update({
+    await tx.questionBankModel.update({
       where: { id: modelId },
       data: {
         modelNumber: data.modelNumber,
         branch: data.branch,
         detailsJSON: { segments },
-        segmentsCount,
-        seasonId: data.seasonId,
+        segmentsCount: data.segmentsCount,
       },
     });
     await tx.auditLog.create({
@@ -166,35 +139,31 @@ export async function updateExamModel(modelId: string, input: ExamModelInput) {
         tenantId: requireTenantId(user),
         action: AuditAction.UPDATE,
         details: JSON.stringify({
-          entity: "ExamModel",
+          entity: "QuestionBankModel",
           modelId,
           modelNumber: data.modelNumber,
           branch: data.branch,
-          segmentsCount,
         }),
       },
     });
   });
 
   revalidatePath("/test-specialist/models");
+  revalidatePath("/admin/models");
+  revalidatePath("/admin/question-bank");
 
   return { success: true };
 }
 
-/**
- * حذف نموذج اختباري — خاص بأخصائي الاختبارات (مع تأكيد)
- */
 export async function deleteExamModel(modelId: string) {
   const user = await requireUser();
-
-  // عزل الصلاحيات: الأخصائي فقط
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  requireRole(user, VALID_ROLES);
 
   if (!modelId || typeof modelId !== "string" || modelId.length > 64) {
     throw new Error("معرّف النموذج غير صالح");
   }
 
-  const model = await prisma.examModel.findUnique({
+  const model = await prisma.questionBankModel.findUnique({
     where: { id: modelId },
     select: {
       id: true,
@@ -207,7 +176,6 @@ export async function deleteExamModel(modelId: string) {
   if (!model) throw new Error("النموذج غير موجود");
   assertSameTenant(user, model);
 
-  // منع حذف نموذج مستخدم في تقييمات أو جلسات
   if (model._count.assessments > 0 || model._count.sessions > 0) {
     throw new Error(
       "لا يمكن حذف نموذج سبق استخدامه في تقييمات أو جلسات — يمكن تعطيله فقط"
@@ -215,14 +183,14 @@ export async function deleteExamModel(modelId: string) {
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.examModel.delete({ where: { id: modelId } });
+    await tx.questionBankModel.delete({ where: { id: modelId } });
     await tx.auditLog.create({
       data: {
         userId: user.id,
         tenantId: requireTenantId(user),
         action: AuditAction.DELETE,
         details: JSON.stringify({
-          entity: "ExamModel",
+          entity: "QuestionBankModel",
           modelId,
           modelNumber: model.modelNumber,
           branch: model.branch,
@@ -232,130 +200,81 @@ export async function deleteExamModel(modelId: string) {
   });
 
   revalidatePath("/test-specialist/models");
+  revalidatePath("/admin/models");
+  revalidatePath("/admin/question-bank");
 
   return { success: true };
 }
 
 // ============================================================
-// المهمة 3: توزيع النماذج على اللجان (نطاق محدد لكل لجنة)
-// اللجنة = لجنة اختبار (Committee)
+// اختيار يدوي للنماذج من بنك الأسئلة لكل لجنة
+// بدل النطاق الرقمي السابق — بلا ترتيب
 // ============================================================
 
-export async function allocateCommitteeModelRange(input: {
+export async function setCommitteeSelectedModels(input: {
   committeeId: string;
-  branch: string;
-  startModelNumber: number;
-  endModelNumber: number;
+  modelIds: string[];
 }) {
   const user = await requireUser();
-
-  // عزل الصلاحيات: الأخصائي فقط
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  requireRole(user, VALID_ROLES);
 
   if (!input.committeeId || typeof input.committeeId !== "string" || input.committeeId.length > 64) {
     throw new Error("معرّف اللجنة غير صالح");
   }
 
-  const validBranches = ["5", "10", "15", "20", "25", "30"];
-  if (!validBranches.includes(input.branch)) {
-    throw new Error("الفرع غير صالح");
-  }
-
-  const start = Number(input.startModelNumber);
-  const end = Number(input.endModelNumber);
-  if (!Number.isInteger(start) || !Number.isInteger(end)) {
-    throw new Error("أرقام النماذج يجب أن تكون أعداداً صحيحة");
-  }
-  if (start < 1 || end > 100 || start > end) {
-    throw new Error("نطاق النماذج يجب أن يكون بين 1 و 100 مع بداية أصغر من النهاية");
-  }
-
-  // التحقق من وجود اللجنة وجلب موسمها
   const committee = await prisma.committee.findUnique({
     where: { id: input.committeeId },
-    select: { id: true, seasonId: true, tenantId: true },
+    select: { id: true, branch: true, seasonId: true, tenantId: true },
   });
   if (!committee) throw new Error("اللجنة غير موجودة");
   assertSameTenant(user, committee);
 
-  // التحقق من عدم تكرار نطاق متداخل لنفس الفرع على لجان أخرى
-  const overlapping = await prisma.committeeModelAllocation.findFirst({
+  const validModels = await prisma.questionBankModel.findMany({
     where: {
-      branch: input.branch,
-      seasonId: committee.seasonId,
-      committeeId: { not: input.committeeId },
-      startModelNumber: { lte: end },
-      endModelNumber: { gte: start },
+      ...getTenantFilter(user),
+      branch: committee.branch,
+      id: { in: input.modelIds },
     },
     select: { id: true },
   });
-  if (overlapping) {
-    throw new Error("يوجد توزيع سابق يتداخل مع هذا النطاق على لجنة أخرى لنفس الفرع");
+  if (validModels.length !== input.modelIds.length) {
+    throw new Error("بعض النماذج المحددة غير موجودة أو لا تتطابق مع فرع اللجنة");
   }
 
-  const allocation = await prisma.$transaction(async (tx) => {
-    const result = await tx.committeeModelAllocation.upsert({
-      where: {
-        committeeId_branch: {
-          committeeId: input.committeeId,
-          branch: input.branch,
-        },
-      },
-      update: { startModelNumber: start, endModelNumber: end },
-      create: {
-        committeeId: input.committeeId,
-        branch: input.branch,
-        startModelNumber: start,
-        endModelNumber: end,
-        seasonId: committee.seasonId,
-      },
-    });
+  await prisma.$transaction(async (tx) => {
+    await tx.committeeModelSelection.deleteMany({ where: { committeeId: input.committeeId } });
+    if (validModels.length > 0) {
+      await tx.committeeModelSelection.createMany({
+        data: validModels.map((m) => ({ committeeId: input.committeeId, modelId: m.id })),
+      });
+    }
     await tx.auditLog.create({
       data: {
         userId: user.id,
         tenantId: requireTenantId(user),
         action: AuditAction.UPDATE,
         details: JSON.stringify({
-          entity: "CommitteeModelAllocation",
+          entity: "CommitteeModelSelection",
           committeeId: input.committeeId,
-          branch: input.branch,
-          startModelNumber: start,
-          endModelNumber: end,
-          seasonId: committee.seasonId,
+          selectedCount: validModels.length,
         }),
       },
     });
-    return result;
   });
 
   revalidatePath("/test-specialist/committees");
   revalidatePath("/test-specialist/models");
 
-  return { success: true, allocationId: allocation.id };
+  return { success: true };
 }
 
-/**
- * جلب توزيعات النماذج على اللجان
- */
-export async function getCommitteeModelAllocations(seasonId?: string) {
+export async function getCommitteeSelectedModelIds(committeeId: string) {
   const user = await requireUser();
-  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  requireRole(user, VALID_ROLES);
 
-  return prisma.committeeModelAllocation.findMany({
-    where: { ...getTenantFilter(user), ...(seasonId ? { seasonId } : {}) },
-    include: {
-      committee: {
-        select: {
-          id: true,
-          name: true,
-          branch: true,
-          teacher1: { select: { id: true, name: true } },
-          teacher2: { select: { id: true, name: true } },
-          season: { select: { id: true, name: true } },
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
+  const selections = await prisma.committeeModelSelection.findMany({
+    where: { committeeId },
+    select: { modelId: true },
   });
+  return selections.map((s) => s.modelId);
 }

@@ -20,7 +20,10 @@ export default async function ExaminerDashboardPage() {
       OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
     },
     include: {
-      allocations: { select: { startModelNumber: true, endModelNumber: true } },
+      selectedModels: {
+        select: { model: { select: { modelNumber: true } } },
+        orderBy: { createdAt: "asc" },
+      },
       students: {
         select: { id: true, name: true, branch: true, status: true },
         orderBy: { name: "asc" },
@@ -42,7 +45,7 @@ export default async function ExaminerDashboardPage() {
         committee={committee
           ? {
               name: committee.name,
-              allocations: committee.allocations,
+              modelNumbers: committee.selectedModels.map((s) => s.model.modelNumber),
             }
           : null
         }

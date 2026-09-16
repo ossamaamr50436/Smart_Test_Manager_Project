@@ -6,32 +6,11 @@ import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
-  examSegmentSchema,
-  BRANCHES,
-} from "@/lib/validations/assessment";
-import { z } from "zod";
+  questionBankSchema,
+  type QuestionBankInput,
+} from "@/lib/validations/question-bank";
 
 const VALID_ROLES: Role[] = [Role.ADMIN, Role.TEST_SPECIALIST];
-
-const questionBankSchema = z.object({
-  modelNumber: z.coerce
-    .number()
-    .int("رقم النموذج يجب أن يكون عدداً صحيحاً")
-    .min(1, "رقم النموذج يبدأ من 1")
-    .max(100, "عدد النماذج لكل فرع هو 100"),
-  branch: z.enum(BRANCHES, { message: "الفرع غير صالح" }),
-  segmentsCount: z.coerce
-    .number({ invalid_type_error: "عدد المقاطع يجب أن يكون رقماً" })
-    .int("عدد المقاطع يجب أن يكون عدداً صحيحاً")
-    .min(1, "عدد المقاطع لا يقل عن 1")
-    .max(30, "عدد المقاطع لا يتجاوز 30"),
-  segments: z
-    .array(examSegmentSchema)
-    .min(1, "يجب أن يتضمن النموذج مقطعاً واحداً على الأقل")
-    .max(30, "عدد المقاطع لا يتجاوز 30"),
-});
-
-type QuestionBankInput = z.infer<typeof questionBankSchema>;
 
 export async function getQuestionBankModels() {
   const user = await requireUser();

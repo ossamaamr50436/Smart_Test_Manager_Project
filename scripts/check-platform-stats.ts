@@ -7,7 +7,7 @@ const p = new PrismaClient();
   console.log("عدد المستخدمين:", users.length);
   users.forEach((u) => console.log(`- ${u.email} (${u.role}) — ${u.name}`));
   const committees = await p.committee.count();
-  const models = await p.examModel.count();
+  const models = await p.questionBankModel.count();
   const students = await p.student.count();
   const assessments = await p.assessment.count();
   const institutions = await p.institution.count();

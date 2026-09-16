@@ -39,12 +39,20 @@ export default async function CommitteesPage() {
       teacher1: { select: { id: true, name: true } },
       teacher2: { select: { id: true, name: true } },
       season: { select: { id: true, name: true } },
-      allocations: {
-        select: { id: true, branch: true, startModelNumber: true, endModelNumber: true },
+      selectedModels: {
+        select: { id: true, model: { select: { id: true, modelNumber: true } } },
+        orderBy: { createdAt: "asc" },
       },
       _count: { select: { students: true } },
     },
     orderBy: { createdAt: "desc" },
+  });
+
+  // نماذج بنك الأسئلة للاختيار اليدوي (المهمة I)
+  const questionBankModels = await prisma.questionBankModel.findMany({
+    where: tenantFilter,
+    select: { id: true, modelNumber: true, branch: true },
+    orderBy: [{ branch: "asc" }, { modelNumber: "asc" }],
   });
 
   // المواسم النشطة
@@ -59,7 +67,7 @@ export default async function CommitteesPage() {
       <div>
         <h1 className="text-2xl font-bold">تشكيل اللجان</h1>
         <p className="mt-1 text-muted-foreground">
-          أنشئ لجاناً من معلمين، ووزّع الطلاب المقبولين عليها، وحدد نطاق النماذج لكل لجنة
+          أنشئ لجاناً من معلمين، ووزّع الطلاب المقبولين عليها، واختر نماذج كل لجنة يدوياً من بنك الأسئلة
         </p>
       </div>
 
@@ -75,6 +83,7 @@ export default async function CommitteesPage() {
           season: { id: c.season.id, name: c.season.name },
         }))}
         approvedStudents={approvedStudents}
+        questionBankModels={questionBankModels}
       />
     </div>
   );

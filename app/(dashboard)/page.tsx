@@ -28,7 +28,7 @@ export default async function DashboardPage() {
     await Promise.all([
       prisma.student.count(),
       prisma.examSession.count(),
-      prisma.examModel.count(),
+      prisma.questionBankModel.count(),
       prisma.student.count({ where: { status: "COMPLETED" } }),
     ]);
 

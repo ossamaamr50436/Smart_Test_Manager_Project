@@ -87,19 +87,18 @@ async function setup() {
     },
   });
 
-  // 6 نماذج (نموذج واحد لكل فرع) — مطلوبة للـ assessments
-  await prisma.examModel.createMany({
+  // 6 نماذج (نموذج واحد لكل فرع) — بنك الأسئلة (المهمة I)
+  await prisma.questionBankModel.createMany({
     data: BRANCHES.map((branch, i) => ({
       modelNumber: i + 1,
       branch,
-      seasonId: season.id,
       tenantId: tenant.id,
       detailsJSON: { segments: Array.from({ length: 5 }, (_, s) => ({ part: s + 1 })) },
       segmentsCount: 5,
     })),
     skipDuplicates: true,
   });
-  const modelIds = await prisma.examModel.findMany({
+  const modelIds = await prisma.questionBankModel.findMany({
     where: { tenantId: tenant.id },
     select: { id: true },
   });
@@ -408,7 +407,7 @@ async function cleanup() {
     prisma.examSession.deleteMany({ where: { tenantId: tenant.id } }),
     prisma.student.deleteMany({ where: { tenantId: tenant.id } }),
     prisma.committee.deleteMany({ where: { tenantId: tenant.id } }),
-    prisma.examModel.deleteMany({ where: { tenantId: tenant.id } }),
+    prisma.questionBankModel.deleteMany({ where: { tenantId: tenant.id } }),
     prisma.examSeason.deleteMany({ where: { tenantId: tenant.id } }),
     prisma.institution.deleteMany({ where: { tenantId: tenant.id } }),
     prisma.user.deleteMany({ where: { tenantId: tenant.id } }),

@@ -130,29 +130,26 @@ export async function getExamModelsPage({
   page = 1,
   pageSize = PAGE_SIZE,
   branch,
-  institutionId,
-}: Pagination & { branch?: string; institutionId?: string }) {
+}: Pagination & { branch?: string }) {
   const skip = makeSkip(page, pageSize);
   const where = {
     ...(branch ? { branch } : {}),
-    ...(institutionId ? { institutionId } : {}),
   };
 
   const [models, total] = await Promise.all([
-    prisma.examModel.findMany({
+    prisma.questionBankModel.findMany({
       where,
       select: {
         id: true,
         modelNumber: true,
         branch: true,
-        institution: { select: { name: true } },
-        season: { select: { name: true } },
+        segmentsCount: true,
       },
       take: pageSize,
       skip,
       orderBy: [{ branch: "asc" }, { modelNumber: "asc" }],
     }),
-    prisma.examModel.count({ where }),
+    prisma.questionBankModel.count({ where }),
   ]);
 
   return { models, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };

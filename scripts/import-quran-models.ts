@@ -6,16 +6,14 @@ import * as path from "path";
 const prisma = new PrismaClient();
 
 // ============================================================
-// سكربت استيراد نماذج القرآن كامل (المرحلة 5)
+// سكربت استيراد نماذج القرآن كامل إلى بنك الأسئلة (المهمة I)
 // - يقرأ ملف «اسئلة كامل القرآن.xlsx» من جذر المشروع
-// - يبحث عن الموسم النشط في exam_seasons (وإلا ينشئ «موسم القرآن كامل 1447»)
 // - للفرع "30" (ثلاثون جزءاً): يُنشئ 100 نموذج (1-100) بـ detailsJSON
 //   والبيانات الحقيقية المستخرجة من الملف (15 كتلة × 10 مقاطع يُعاد استخدامها
 //   بترقيم ثابت حتى استكمال 100 نموذج — للالتزام بحد 100 نموذج المطلوب)
 // ============================================================
 
 const EXCEL_FILE = path.join(process.cwd(), "اسئلة كامل القرآن.xlsx");
-const SEASON_NAME = "موسم القرآن كامل 1447";
 const BRANCH_30 = "30";
 const TARGET_MODEL_COUNT = 100;
 
@@ -92,28 +90,6 @@ function extractModelBlocks(): Segment[][] {
   return blocks;
 }
 
-async function ensureSeason(tenantId: string) {
-  const active = await prisma.examSeason.findFirst({ where: { isActive: true } });
-  if (active) {
-    console.log(`الموسم النشط الحالي: ${active.name} (${active.id})`);
-    return active;
-  }
-
-  const start = new Date("2026-09-01T00:00:00.000Z");
-  const end = new Date("2027-08-31T23:59:59.000Z");
-  const created = await prisma.examSeason.create({
-    data: {
-      name: SEASON_NAME,
-      startDate: start,
-      endDate: end,
-      isActive: true,
-      tenantId,
-    },
-  });
-  console.log(`تم إنشاء موسم جديد نشط: ${created.name} (${created.id})`);
-  return created;
-}
-
 async function main() {
   const tenant = await prisma.tenant.findUnique({
     where: { slug: "madina-quran" },
@@ -131,12 +107,10 @@ async function main() {
   }
 
   // حذف أي نماذج سابقة للفرع 30 كي يكون الاستيراد نظيفاً
-  const existing = await prisma.examModel.deleteMany({
+  const existing = await prisma.questionBankModel.deleteMany({
     where: { branch: BRANCH_30 },
   });
   console.log(`حذف النماذج القديمة للفرع 30: ${existing.count}`);
-
-  const season = await ensureSeason(tenant.id);
 
   const segments: Segment[][] = [];
   for (let n = 1; n <= TARGET_MODEL_COUNT; n++) {
@@ -147,8 +121,6 @@ async function main() {
   const data = segments.map((segList, idx) => ({
     modelNumber: idx + 1,
     branch: BRANCH_30,
-    seasonId: season.id,
-    institutionId: null,
     segmentsCount: segList.length,
     detailsJSON: { segments: segList },
     tenantId: tenant.id,
@@ -156,22 +128,21 @@ async function main() {
 
   // إنشاء جماعي ذرّي
   await prisma.$transaction([
-    prisma.examModel.createMany({ data }),
+    prisma.questionBankModel.createMany({ data }),
     prisma.auditLog.create({
       data: {
         userId: "system",
         tenantId: tenant.id,
         action: "CREATE",
         details: JSON.stringify({
-          entity: "ExamModel",
-          note: `استيراد ${TARGET_MODEL_COUNT} نموذجاً للفرع 30 (قرآن كامل) من ملف Excel`,
-          seasonId: season.id,
+          entity: "QuestionBankModel",
+          note: `استيراد ${TARGET_MODEL_COUNT} نموذجاً للفرع 30 (قرآن كامل) من ملف Excel إلى بنك الأسئلة`,
         }),
       },
     }),
   ]);
 
-  const total = await prisma.examModel.count({ where: { branch: BRANCH_30 } });
+  const total = await prisma.questionBankModel.count({ where: { branch: BRANCH_30 } });
   console.log(`✅ عدد النماذج للفرع 30 بعد الاستيراد: ${total}`);
   if (total !== TARGET_MODEL_COUNT) {
     throw new Error(

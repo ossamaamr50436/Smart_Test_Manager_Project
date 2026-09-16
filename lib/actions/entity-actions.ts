@@ -182,7 +182,7 @@ export async function listInstitutions() {
       licenseNumber: true,
       district: true,
       createdAt: true,
-      _count: { select: { students: true, users: true, examModels: true } },
+      _count: { select: { students: true, users: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -256,12 +256,7 @@ export async function deleteInstitution(institutionId: string) {
       await tx.user.deleteMany({ where: { id: { in: instUserIds } } });
     }
 
-    // النماذج المرتبطة بالجهة تبقى موجودة — فقط تُفصل
-    await tx.examModel.updateMany({
-      where: { institutionId },
-      data: { institutionId: null },
-    });
-
+    // النماذج أصبحت في بنك الأسئلة (لا ترتبط بجهة) — المهمة I
     // حذف الطلاب (يترتّب عليه حذف الجلسات والتقييمات والشهادات)
     if (studentIds.length > 0) {
       await tx.student.deleteMany({ where: { id: { in: studentIds } } });

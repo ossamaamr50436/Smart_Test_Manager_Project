@@ -24,8 +24,7 @@ export async function createCommittee(input: {
   seasonId: string;
   teacher1Id: string;
   teacher2Id: string;
-  startModelNumber?: number;
-  endModelNumber?: number;
+  modelIds: string[];
 }): Promise<CreateCommitteeResult> {
   let user;
   try {
@@ -78,8 +77,20 @@ export async function createCommittee(input: {
   });
   if (existing) return { success: false, error: "يوجد لجنة بنفس الاسم في هذا الموسم" };
 
-  const start = input.startModelNumber ?? 1;
-  const end = input.endModelNumber ?? 10;
+  const modelIds = input.modelIds ?? [];
+
+  // التحقق من وجود النماذج المختارة في بنك الأسئلة (بنفس الفرع)
+  const selectedModels = await prisma.questionBankModel.findMany({
+    where: {
+      ...getTenantFilter(user),
+      branch: input.branch,
+      id: { in: modelIds },
+    },
+    select: { id: true },
+  });
+  if (selectedModels.length !== modelIds.length) {
+    return { success: false, error: "بعض النماذج المحددة غير موجودة أو لا تتطابق مع فرع اللجنة" };
+  }
 
   let committee;
   try {
@@ -95,16 +106,12 @@ export async function createCommittee(input: {
         },
       });
 
-      // توزيع النماذج على اللجنة إذا حُدد نطاق
-      await tx.committeeModelAllocation.create({
-        data: {
-          committeeId: created.id,
-          branch: input.branch,
-          startModelNumber: start,
-          endModelNumber: end,
-          seasonId: input.seasonId,
-        },
-      });
+      // ربط النماذج المختارة يدوياً من بنك الأسئلة (بلا ترتيب)
+      if (modelIds.length > 0) {
+        await tx.committeeModelSelection.createMany({
+          data: modelIds.map((modelId) => ({ committeeId: created.id, modelId })),
+        });
+      }
 
       await tx.auditLog.create({
         data: {
@@ -163,9 +170,7 @@ export async function deleteCommittee(committeeId: string): Promise<CommitteeAct
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.committeeModelAllocation.deleteMany({
-        where: { committeeId },
-      });
+      // committeeModelSelection تُحذف تلقائياً (CASCADE) مع حذف اللجنة
       await tx.committee.delete({ where: { id: committeeId } });
       await tx.auditLog.create({
         data: {
@@ -256,8 +261,7 @@ export async function updateCommittee(
     seasonId: string;
     teacher1Id: string;
     teacher2Id: string;
-    startModelNumber?: number;
-    endModelNumber?: number;
+    modelIds: string[];
   }
 ): Promise<CommitteeActionResult> {
   let user;
@@ -319,8 +323,20 @@ export async function updateCommittee(
   });
   if (dup) return { success: false, error: "يوجد لجنة بنفس الاسم في هذا الموسم" };
 
-  const start = input.startModelNumber ?? 1;
-  const end = input.endModelNumber ?? 10;
+  const modelIds = input.modelIds ?? [];
+
+  // التحقق من وجود النماذج المختارة في بنك الأسئلة (بنفس الفرع)
+  const selectedModels = await prisma.questionBankModel.findMany({
+    where: {
+      ...getTenantFilter(user),
+      branch: input.branch,
+      id: { in: modelIds },
+    },
+    select: { id: true },
+  });
+  if (selectedModels.length !== modelIds.length) {
+    return { success: false, error: "بعض النماذج المحددة غير موجودة أو لا تتطابق مع فرع اللجنة" };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -335,16 +351,13 @@ export async function updateCommittee(
         },
       });
 
-      await tx.committeeModelAllocation.deleteMany({ where: { committeeId } });
-      await tx.committeeModelAllocation.create({
-        data: {
-          committeeId,
-          branch: input.branch,
-          startModelNumber: start,
-          endModelNumber: end,
-          seasonId: input.seasonId,
-        },
-      });
+      // استبدال النماذج المختارة من بنك الأسئلة (بلا ترتيب)
+      await tx.committeeModelSelection.deleteMany({ where: { committeeId } });
+      if (modelIds.length > 0) {
+        await tx.committeeModelSelection.createMany({
+          data: modelIds.map((modelId) => ({ committeeId, modelId })),
+        });
+      }
 
       await tx.auditLog.create({
         data: {
@@ -381,13 +394,12 @@ export async function getCommittees(seasonId?: string) {
       teacher1: { select: { id: true, name: true } },
       teacher2: { select: { id: true, name: true } },
       season: { select: { id: true, name: true } },
-      allocations: {
+      selectedModels: {
         select: {
           id: true,
-          branch: true,
-          startModelNumber: true,
-          endModelNumber: true,
+          model: { select: { id: true, modelNumber: true, branch: true } },
         },
+        orderBy: { createdAt: "asc" },
       },
       _count: { select: { students: true } },
     },

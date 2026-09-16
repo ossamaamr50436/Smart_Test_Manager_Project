@@ -30,7 +30,7 @@ type StudentRow = {
 
 type CommitteeInfo = {
   name: string;
-  allocations: { startModelNumber: number; endModelNumber: number }[];
+  modelNumbers: number[];
 };
 
 type Props = {
@@ -71,15 +71,12 @@ export function ExaminerDashboardClient({ students, committee }: Props) {
       return;
     }
 
-    // التحقق من النطاق
-    if (committee && committee.allocations.length > 0) {
-      const alloc = committee.allocations[0]!;
-      if (num < alloc.startModelNumber || num > alloc.endModelNumber) {
-        setModelError(
-          `رقم النموذج خارج نطاق اللجنة — يجب أن يكون بين ${alloc.startModelNumber} و ${alloc.endModelNumber}`
-        );
-        return;
-      }
+    // التحقق من أن رقم النموذج مختار للجنة
+    if (committee && committee.modelNumbers.length > 0 && !committee.modelNumbers.includes(num)) {
+      setModelError(
+        `رقم النموذج ${num} غير مسموح للجنة — النماذج المسموحة: ${committee.modelNumbers.join("، ")}`
+      );
+      return;
     }
 
     setModelError("");
@@ -97,14 +94,12 @@ export function ExaminerDashboardClient({ students, committee }: Props) {
                 <p className="text-muted-foreground">لجنة الاختبار</p>
                 <p className="font-bold">{committee.name}</p>
               </div>
-              {committee.allocations.map((a, i) => (
-                <div key={i}>
-                  <p className="text-muted-foreground">نطاق النماذج</p>
-                  <p className="font-bold">
-                    {a.startModelNumber} — {a.endModelNumber}
-                  </p>
+              {committee.modelNumbers.length > 0 && (
+                <div>
+                  <p className="text-muted-foreground">النماذج المختارة</p>
+                  <p className="font-bold">{committee.modelNumbers.join("، ")}</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -152,35 +147,47 @@ export function ExaminerDashboardClient({ students, committee }: Props) {
           <DialogHeader>
             <DialogTitle>ابدأ الاختبار</DialogTitle>
             <DialogDescription>
-              أدخل رقم النموذج الذي اختاره الطالب لبدء التقييم التفاعلي
+              اختر رقم النموذج الذي اختاره الطالب من النماذج المتاحة للجنة
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label htmlFor="modelNumber">رقم النموذج الذي اختاره الطالب *</Label>
-              <Input
-                id="modelNumber"
-                type="number"
-                min={committee?.allocations[0]?.startModelNumber ?? 1}
-                max={committee?.allocations[0]?.endModelNumber ?? 100}
-                placeholder={
-                  committee?.allocations[0]
-                    ? `مثال: ${committee.allocations[0].startModelNumber}`
-                    : "أدخل الرقم"
-                }
-                value={modelNumber}
-                onChange={(e) => {
-                  setModelNumber(e.target.value);
-                  setModelError("");
-                }}
-              />
-              {committee && committee.allocations[0] && (
+            {committee && committee.modelNumbers.length > 0 ? (
+              <div className="space-y-2">
+                <Label>اختر رقم النموذج</Label>
+                <div className="grid max-h-44 grid-cols-6 gap-1.5 overflow-y-auto rounded-md border p-2">
+                  {committee.modelNumbers.map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => { setModelNumber(String(num)); setModelError(""); }}
+                      className={`rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors ${
+                        modelNumber === String(num)
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="modelNumber">رقم النموذج الذي اختاره الطالب *</Label>
+                <Input
+                  id="modelNumber"
+                  type="number"
+                  min={1}
+                  max={100}
+                  placeholder="أدخل الرقم"
+                  value={modelNumber}
+                  onChange={(e) => { setModelNumber(e.target.value); setModelError(""); }}
+                />
                 <p className="text-xs text-muted-foreground">
-                  النطاق المسموح: {committee.allocations[0].startModelNumber} —{" "}
-                  {committee.allocations[0].endModelNumber}
+                  لا توجد نماذج محددة للجنة — يمكن إدخال أي رقم صحيحاً
                 </p>
-              )}
-            </div>
+              </div>
+            )}
 
             {modelError && (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">

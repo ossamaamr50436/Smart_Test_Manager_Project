@@ -31,9 +31,7 @@ type Season = {
   createdAt: Date;
   _count: {
     sessions: number;
-    models: number;
     committees: number;
-    modelAllocations: number;
   };
 };
 
@@ -202,7 +200,7 @@ export function AdminSeasonsManager() {
                       {new Date(season.endDate).toLocaleDateString("ar-SA")}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {season._count.sessions} جلسة — {season._count.models} نموذج
+                      {season._count.sessions} جلسة — {season._count.committees} لجنة
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -234,15 +232,7 @@ export function AdminSeasonsManager() {
               {seasonToDelete && (
                 <>
                   هل أنت متأكد من حذف الموسم «{seasonToDelete.name}»؟
-                  {seasonToDelete._count.models > 0 && (
-                    <span className="mt-3 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                      الملاحظة: الموسم مرتبط بـ {seasonToDelete._count.models} نموذج — النماذج لن تُحذف،
-                      بل ستُفصل وتبقى في بنك الأسئلة.
-                    </span>
-                  )}
-                  {seasonToDelete._count.sessions +
-                    seasonToDelete._count.committees +
-                    seasonToDelete._count.modelAllocations >
+                  {seasonToDelete._count.sessions + seasonToDelete._count.committees >
                     0 && (
                     <span className="mt-3 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                       ⚠️ الموسم مربوط ببيانات لا يمكن فصلها:
@@ -251,8 +241,6 @@ export function AdminSeasonsManager() {
                           `${seasonToDelete._count.sessions} جلسة`,
                         seasonToDelete._count.committees > 0 &&
                           `${seasonToDelete._count.committees} لجنة`,
-                        seasonToDelete._count.modelAllocations > 0 &&
-                          `${seasonToDelete._count.modelAllocations} تخصيص`,
                       ]
                         .filter(Boolean)
                         .join("، ")}{" "}

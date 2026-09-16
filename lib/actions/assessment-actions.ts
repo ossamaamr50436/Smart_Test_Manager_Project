@@ -16,7 +16,6 @@ import {
   assessmentApprovalSchema,
   type AssessmentInput,
 } from "@/lib/validations/assessment";
-import { getCurrentSeason } from "./season-actions";
 import { getExamModelsFromDrive } from "@/lib/google-drive";
 import { broadcastAssessmentUpdate } from "@/lib/realtime";
 import { computeTotals } from "@/lib/score-calculation";
@@ -26,24 +25,17 @@ import { dispatchNotificationChannels } from "@/lib/notifications";
 /** تسجيل حدث في Audit Log — تتم داخل prisma.$transaction عبر client المتداول */
 
 /**
- * إيجاد نموذج اختباري للطالب في الموسم النشط
- * (المادة 6 — النماذج مرتبطة بالموسم والفرع)
- * يعمل مع الجلسات القديمة (ExamSession) واللجان الجديدة (Committee)
+ * إيجاد نموذج اختباري للطالب — بنك الأسئلة فقط (المهمة I)
+ * يعمل مع الجلسات القديمة واللجان الجديدة
  */
 async function resolveModelId(
   sessionId: string,
   branch: string,
   tenantId: string
 ): Promise<string | null> {
-  const season = await getCurrentSeason();
-
-  // محاولة العثور على نموذج للفرع في الموسم الحالي
-  const model = await prisma.examModel.findFirst({
-    where: {
-      tenantId,
-      branch,
-      ...(season ? { seasonId: season.id } : {}),
-    },
+  // محاولة العثور على نموذج في بنك الأسئلة للفرع
+  const model = await prisma.questionBankModel.findFirst({
+    where: { tenantId, branch },
     select: { id: true, modelNumber: true },
     orderBy: { modelNumber: "asc" },
   });
@@ -54,13 +46,13 @@ async function resolveModelId(
   try {
     const models = await getExamModelsFromDrive();
     const driveModel = models[0];
-    if (driveModel && season) {
-      const created = await prisma.examModel.create({
+    if (driveModel) {
+      const created = await prisma.questionBankModel.create({
         data: {
           modelNumber: 1,
           branch,
           detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
-          seasonId: season.id,
+          segmentsCount: 1,
           tenantId,
         },
       });

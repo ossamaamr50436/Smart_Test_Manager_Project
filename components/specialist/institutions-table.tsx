@@ -15,7 +15,7 @@ type Institution = {
   licenseNumber: string;
   district: string;
   createdAt: Date;
-  _count: { students: number; users: number; examModels: number };
+  _count: { students: number; users: number };
 };
 
 export function InstitutionsTable({ institutions }: { institutions: Institution[] }) {
@@ -65,7 +65,7 @@ export function InstitutionsTable({ institutions }: { institutions: Institution[
                 <td className="px-3 py-2 tabular-nums" dir="ltr">{inst.licenseNumber}</td>
                 <td className="px-3 py-2">{inst.district}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">
-                  {inst._count.students} طالب — {inst._count.users} مستخدم — {inst._count.examModels} نموذج
+                  {inst._count.students} طالب — {inst._count.users} مستخدم
                 </td>
                 <td className="px-3 py-2">
                   <TypedConfirmDialog

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { AssessmentBoard } from "@/components/examiner/assessment-board";
 import { getCachedTenantConfig } from "@/lib/cache";
+import { getTenantFilter } from "@/lib/tenancy";
 
 export const metadata: Metadata = {
   title: "التقييم التفاعلي",
@@ -53,12 +54,9 @@ export default async function AssessStudentPage({
         include: {
           teacher1: { select: { id: true, name: true } },
           teacher2: { select: { id: true, name: true } },
-          allocations: {
-            select: {
-              startModelNumber: true,
-              endModelNumber: true,
-              seasonId: true,
-            },
+          selectedModels: {
+            select: { model: { select: { id: true, modelNumber: true, branch: true } } },
+            orderBy: { createdAt: "asc" },
           },
         },
       },
@@ -79,7 +77,7 @@ export default async function AssessStudentPage({
   }
 
   // قراءة رقم النموذج من URL (المهمة 4)
-  const allocation = committee.allocations[0];
+  const allowedModelNumbers = committee.selectedModels.map((s) => s.model.modelNumber);
   const modelNumberParam = modelParam ? Number(modelParam) : 0;
 
   if (!modelNumberParam || modelNumberParam < 1) {
@@ -93,34 +91,27 @@ export default async function AssessStudentPage({
     );
   }
 
-  if (
-    allocation &&
-    (modelNumberParam < allocation.startModelNumber ||
-      modelNumberParam > allocation.endModelNumber)
-  ) {
+  // التحقق من أن رقم النموذج مسموح للجنة (إن وُجدت نماذج مختارة)
+  if (allowedModelNumbers.length > 0 && !allowedModelNumbers.includes(modelNumberParam)) {
     return (
       <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-card p-8 text-center">
-        <h1 className="text-2xl font-bold">رقم النموذج خارج النطاق</h1>
+        <h1 className="text-2xl font-bold">رقم النموذج غير مسموح</h1>
         <p className="mt-3 text-muted-foreground">
-          رقم النموذج {modelNumberParam} خارج نطاق اللجنة ({allocation.startModelNumber} —{" "}
-          {allocation.endModelNumber}). يرجى العودة واختيار رقم صحيح.
+          رقم النموذج {modelNumberParam} غير مسموح للجنة — النماذج المسموحة: {allowedModelNumbers.join("، ")}.
         </p>
       </div>
     );
   }
 
-  // تحميل النموذج المحدد
-  let model = null;
-  if (allocation) {
-    model = await prisma.examModel.findFirst({
-      where: {
-        branch: student.branch,
-        seasonId: allocation.seasonId,
-        modelNumber: modelNumberParam,
-      },
-      select: { detailsJSON: true, branch: true, modelNumber: true },
-    });
-  }
+  // تحميل النموذج من بنك الأسئلة (QuestionBankModel)
+  const model = await prisma.questionBankModel.findFirst({
+    where: {
+      ...getTenantFilter(user),
+      branch: student.branch,
+      modelNumber: modelNumberParam,
+    },
+    select: { detailsJSON: true, branch: true, modelNumber: true },
+  });
 
   // استرجاع مقاطع النموذج
   let segments: Segment[] = [];

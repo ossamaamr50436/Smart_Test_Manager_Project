@@ -8,7 +8,7 @@ const p = new PrismaClient();
   console.log("Institutions:", await p.institution.count());
   console.log("Students:", await p.student.count());
   console.log("Seasons:", await p.examSeason.count());
-  console.log("Models branch 30:", await p.examModel.count({ where: { branch: "30" } }));
+  console.log("Models branch 30:", await p.questionBankModel.count({ where: { branch: "30" } }));
 
   console.log("");
   console.log("=== المستخدمون ===");

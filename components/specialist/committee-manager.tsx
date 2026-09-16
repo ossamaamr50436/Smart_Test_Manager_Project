@@ -22,9 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 type ExaminerOption = { id: string; name: string };
 type SeasonOption = { id: string; name: string };
+type QuestionBankModelOption = { id: string; modelNumber: number; branch: string };
+
 type CommitteeRow = {
   id: string;
   name: string;
@@ -32,7 +35,7 @@ type CommitteeRow = {
   teacher1: { id: string; name: string };
   teacher2: { id: string; name: string };
   season: { id: string; name: string };
-  allocations: { id: string; branch: string; startModelNumber: number; endModelNumber: number }[];
+  selectedModels: { id: string; model: { id: string; modelNumber: number } }[];
   _count: { students: number };
 };
 
@@ -41,11 +44,13 @@ export function CommitteeManager({
   seasons,
   committees,
   approvedStudents,
+  questionBankModels,
 }: {
   examiners: ExaminerOption[];
   seasons: SeasonOption[];
   committees: CommitteeRow[];
   approvedStudents: { id: string; name: string; branch: string }[];
+  questionBankModels: QuestionBankModelOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -62,8 +67,15 @@ export function CommitteeManager({
   const [teacher1Id, setTeacher1Id] = useState("");
   const [teacher2Id, setTeacher2Id] = useState("");
   const [seasonId, setSeasonId] = useState("");
-  const [startModel, setStartModel] = useState("1");
-  const [endModel, setEndModel] = useState("10");
+  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
+
+  const branchModels = questionBankModels.filter((m) => m.branch === branch);
+
+  function toggleModel(modelId: string) {
+    setSelectedModelIds((prev) =>
+      prev.includes(modelId) ? prev.filter((id) => id !== modelId) : [...prev, modelId]
+    );
+  }
 
   async function handleCreate() {
     if (loading) return;
@@ -77,22 +89,13 @@ export function CommitteeManager({
         seasonId,
         teacher1Id,
         teacher2Id,
-        startModelNumber: Number(startModel),
-        endModelNumber: Number(endModel),
+        modelIds: selectedModelIds,
       };
       if (editingId) {
         const result = await updateCommittee(editingId, input);
         if (result.success) {
           setSuccess("تم تعديل اللجنة بنجاح");
-          setName("");
-          setBranch("5");
-          setTeacher1Id("");
-          setTeacher2Id("");
-          setSeasonId("");
-          setStartModel("1");
-          setEndModel("10");
-          setEditingId(null);
-          setError("");
+          resetForm();
           router.refresh();
         } else {
           setError(result.error);
@@ -101,12 +104,7 @@ export function CommitteeManager({
         const result = await createCommittee(input);
         if (result.success) {
           setSuccess("تم إنشاء اللجنة بنجاح");
-          setName("");
-          setTeacher1Id("");
-          setTeacher2Id("");
-          setStartModel("1");
-          setEndModel("10");
-          setError("");
+          resetForm();
           router.refresh();
         } else {
           setError(result.error);
@@ -126,8 +124,7 @@ export function CommitteeManager({
     setTeacher1Id("");
     setTeacher2Id("");
     setSeasonId("");
-    setStartModel("1");
-    setEndModel("10");
+    setSelectedModelIds([]);
     setError("");
     setSuccess("");
   }
@@ -139,14 +136,7 @@ export function CommitteeManager({
     setTeacher1Id(c.teacher1.id);
     setTeacher2Id(c.teacher2.id);
     setSeasonId(c.season.id);
-    const alloc = c.allocations[0];
-    if (alloc) {
-      setStartModel(String(alloc.startModelNumber));
-      setEndModel(String(alloc.endModelNumber));
-    } else {
-      setStartModel("1");
-      setEndModel("10");
-    }
+    setSelectedModelIds(c.selectedModels.map((s) => s.model.id));
     setError("");
     setSuccess("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -206,7 +196,7 @@ export function CommitteeManager({
         <CardHeader>
           <CardTitle className="text-base">{editingId ? "تعديل اللجنة" : "إنشاء لجنة جديدة"}</CardTitle>
           <CardDescription>
-            {editingId ? "عدّل بيانات اللجنة واحفظها" : "حدد الاسم والمختبرين والفرع ونطاق النماذج"}
+            حدد الاسم والمختبرين والفرع ثم اختر نماذج اللجنة يدوياً من بنك الأسئلة (بلا ترتيب)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -228,7 +218,7 @@ export function CommitteeManager({
             </div>
             <div className="space-y-2">
               <Label>الفرع *</Label>
-              <Select value={branch} onValueChange={(v) => setBranch(v)}>
+              <Select value={branch} onValueChange={(v) => { setBranch(v); setSelectedModelIds([]); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {BRANCHES.map((b) => (
@@ -259,23 +249,70 @@ export function CommitteeManager({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Label>رقم النموذج (البداية)</Label>
-                <Input type="number" min={1} max={100} value={startModel} onChange={(e) => setStartModel(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>رقم النموذج (النهاية)</Label>
-                <Input type="number" min={1} max={100} value={endModel} onChange={(e) => setEndModel(e.target.value)} />
+          </div>
+
+          {/* اختيار نماذج اللجنة يدوياً من بنك الأسئلة */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label>نماذج اللجنة (من بنك الأسئلة — لا ترتيب) *</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  المحدد: {selectedModelIds.length} من {branchModels.length}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedModelIds(branchModels.map((m) => m.id))}
+                  disabled={branchModels.length === 0}
+                >
+                  تحديد الكل
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedModelIds([])}
+                  disabled={selectedModelIds.length === 0}
+                >
+                  مسح
+                </Button>
               </div>
             </div>
+            {branchModels.length === 0 ? (
+              <p className="rounded-md bg-muted/50 px-3 py-3 text-sm text-muted-foreground">
+                لا توجد نماذج لفرع {getBranchLabel(branch)} في بنك الأسئلة — أنشئها من صفحة إدارة النماذج أولاً.
+              </p>
+            ) : (
+              <div className="grid max-h-56 grid-cols-6 gap-1.5 overflow-y-auto rounded-md border p-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
+                {branchModels.map((m) => {
+                  const active = selectedModelIds.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleModel(m.id)}
+                      className={cn(
+                        "rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors",
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
+                      )}
+                      title={`نموذج ${m.modelNumber}`}
+                    >
+                      {m.modelNumber}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           {success && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">{success}</p>}
 
           <div className="flex items-center gap-2">
-            <Button onClick={handleCreate} disabled={loading || !name || !seasonId || !teacher1Id || !teacher2Id}>
+            <Button onClick={handleCreate} disabled={loading || !name || !seasonId || !teacher1Id || !teacher2Id || selectedModelIds.length === 0}>
               {loading ? "جارٍ الحفظ..." : editingId ? "حفظ التعديلات" : "إنشاء اللجنة"}
             </Button>
             {editingId && (
@@ -305,7 +342,7 @@ export function CommitteeManager({
                     <th className="p-2 text-right font-medium">المختبر 1</th>
                     <th className="p-2 text-right font-medium">المختبر 2</th>
                     <th className="p-2 text-right font-medium">الطلاب</th>
-                    <th className="p-2 text-right font-medium">النطاق</th>
+                    <th className="p-2 text-right font-medium">النماذج المختارة</th>
                     <th className="p-2 text-center font-medium">إجراءات</th>
                   </tr>
                 </thead>
@@ -318,11 +355,13 @@ export function CommitteeManager({
                       <td className="p-2">{c.teacher2.name}</td>
                       <td className="p-2">{c._count.students}</td>
                       <td className="p-2">
-                        {c.allocations.map((a) => (
-                          <span key={a.id} className="text-xs">
-                            {a.startModelNumber}–{a.endModelNumber}
+                        {c.selectedModels.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">بدون نماذج</span>
+                        ) : (
+                          <span className="text-xs">
+                            {c.selectedModels.map((s) => s.model.modelNumber).join("، ")}
                           </span>
-                        ))}
+                        )}
                       </td>
                       <td className="p-2 text-center">
                         {confirmDeleteId === c.id ? (

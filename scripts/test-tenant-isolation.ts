@@ -44,12 +44,12 @@ async function main() {
   check("المؤسسة الرئيسية (madina-quran) موجودة", Boolean(madina));
   if (!madina) throw new Error("لا يمكن متابعة الاختبار: madina-quran غير موجودة");
 
-  const madinaModelsBefore = await prisma.examModel.count({
+  const madinaModelsBefore = await prisma.questionBankModel.count({
     where: { tenantId: madina.id },
   });
   check("madina-quran تحتوي نماذج اختبار (بياناتها سليمة)", madinaModelsBefore > 0);
 
-  const madinaModels = await prisma.examModel.findMany({
+  const madinaModels = await prisma.questionBankModel.findMany({
     where: { tenantId: madina.id },
     select: { tenantId: true },
   });
@@ -97,18 +97,18 @@ async function main() {
   check("كلمة المرور مشفّرة رقمياً (bcrypt)", passwordHashOk === true);
 
   // 3) العزل: بيانات الاختبار تظهر فقط ضمن نطاق مؤسستها
-  const testTenantModels = await prisma.examModel.count({
+  const testTenantModels = await prisma.questionBankModel.count({
     where: { tenantId: testTenant.id },
   });
   check("مؤسسة الاختبار تبدأ بدون نماذج", testTenantModels === 0);
 
-  const scopedToTest = await prisma.examModel.findFirst({
+  const scopedToTest = await prisma.questionBankModel.findFirst({
     where: { tenantId: testTenant.id },
     select: { id: true },
   });
   check("استعلام بمؤشر مؤسسة الاختبار لا يُرجع نماذج madina", scopedToTest === null);
 
-  const oneMadinaModel = await prisma.examModel.findFirst({
+  const oneMadinaModel = await prisma.questionBankModel.findFirst({
     where: { tenantId: madina.id },
     select: { tenantId: true },
   });
@@ -126,7 +126,7 @@ async function main() {
   );
   check("لا يتسرب أي مشرف اختبار إلى madina-quran", !leakedIntoMadina);
 
-  const madinaModelsAfterCreate = await prisma.examModel.count({
+  const madinaModelsAfterCreate = await prisma.questionBankModel.count({
     where: { tenantId: madina.id },
   });
   check(
@@ -206,7 +206,7 @@ async function main() {
   await prisma.tenant.delete({ where: { id: testTenant.id } });
   createdTenantId = null;
 
-  const madinaModelsFinal = await prisma.examModel.count({
+  const madinaModelsFinal = await prisma.questionBankModel.count({
     where: { tenantId: madina.id },
   });
   check(
@@ -217,7 +217,7 @@ async function main() {
   const leftoverTenants = await prisma.tenant.count({
     where: { slug: { startsWith: "isolation-test-" } },
   });
-  const allModels = await prisma.examModel.count();
+  const allModels = await prisma.questionBankModel.count();
   check(
     "لا بقايا لمؤسسات الاختبار وعاد إجمالي النماذج كما كان",
     leftoverTenants === 0 && allModels === madinaModelsBefore

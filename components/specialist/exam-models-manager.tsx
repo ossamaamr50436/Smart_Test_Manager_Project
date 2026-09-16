@@ -27,7 +27,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type SeasonOption = { id: string; name: string };
+type ModelRow = {
+  id: string;
+  modelNumber: number;
+  branch: string;
+  detailsJSON: unknown;
+  segmentsCount?: number;
+  _count?: { assessments?: number; sessions?: number };
+};
 
 type Segment = {
   number: number;
@@ -37,16 +44,6 @@ type Segment = {
   toText: string;
   toSurah: string;
   toVerse: string;
-};
-
-type ModelRow = {
-  id: string;
-  modelNumber: number;
-  branch: string;
-  season: { id: string; name: string } | null;
-  detailsJSON: unknown;
-  segmentsCount?: number;
-  _count?: { assessments?: number; sessions?: number };
 };
 
 type Branch = (typeof BRANCHES)[number];
@@ -86,10 +83,8 @@ function segmentsCountFor(m: ModelRow): number {
 }
 
 export function ExamModelsManager({
-  seasons,
   models,
 }: {
-  seasons: SeasonOption[];
   models: ModelRow[];
 }) {
   const router = useRouter();
@@ -100,7 +95,6 @@ export function ExamModelsManager({
 
   const [modelNumber, setModelNumber] = useState("1");
   const [branch, setBranch] = useState<Branch>("5");
-  const [seasonId, setSeasonId] = useState("");
   const [segmentsCount, setSegmentsCount] = useState(10);
   const [segments, setSegments] = useState<Segment[]>(emptySegments(10));
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -121,7 +115,6 @@ export function ExamModelsManager({
     setEditingId(null);
     setModelNumber("1");
     setBranch("5");
-    setSeasonId("");
     setSegmentsCount(10);
     setSegments(emptySegments(10));
     setError("");
@@ -153,7 +146,6 @@ export function ExamModelsManager({
         };
       });
     });
-    setSeasonId(m.season?.id ?? "");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -166,8 +158,6 @@ export function ExamModelsManager({
   }
 
   function buildInput() {
-    if (!seasonId) throw new Error("اختر الموسم");
-
     for (const seg of segments) {
       if (
         !seg.fromText.trim() ||
@@ -184,7 +174,6 @@ export function ExamModelsManager({
     return {
       modelNumber: Number(modelNumber),
       branch: branch as Branch,
-      seasonId,
       segmentsCount: segments.length,
       segments: segments.map((s) => ({
         number: s.number,
@@ -270,21 +259,6 @@ export function ExamModelsManager({
                   {BRANCHES.map((b) => (
                     <SelectItem key={b} value={b}>
                       {getBranchLabel(b)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>الموسم *</Label>
-              <Select value={seasonId} onValueChange={setSeasonId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="اختر الموسم" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasons.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -426,7 +400,6 @@ export function ExamModelsManager({
                 <tr className="border-b">
                   <th className="p-2 text-right font-medium">رقم النموذج</th>
                   <th className="p-2 text-right font-medium">الفرع</th>
-                  <th className="p-2 text-right font-medium">الموسم</th>
                   <th className="p-2 text-right font-medium">المقاطع</th>
                   <th className="p-2 text-center font-medium">إجراءات</th>
                 </tr>
@@ -438,7 +411,6 @@ export function ExamModelsManager({
                     <tr key={m.id} className="border-b">
                       <td className="p-2 font-medium">{m.modelNumber}</td>
                       <td className="p-2">{getBranchLabel(m.branch)}</td>
-                      <td className="p-2">{m.season?.name ?? "بدون موسم"}</td>
                       <td className="p-2">{segCount}</td>
                       <td className="p-2">
                         <div className="flex items-center justify-center gap-2">

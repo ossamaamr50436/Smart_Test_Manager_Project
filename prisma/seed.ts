@@ -480,15 +480,12 @@ async function main() {
   console.log("✅ الحسابات الإدارية جاهزة (رئيس شؤون + أخصائي + مصدر شهادات)");
 
   // ===== 5) النماذج الاختبارية (100 نموذج لكل فرع من 6 أفرع = 600 نموذج) =====
-  const modelInstitutionId = createdInstitutions[0]!;
   const modelBranches = ["5", "10", "15", "20", "25", "30"];
   const newModelsData: {
     modelNumber: number;
     branch: string;
     detailsJSON: { segments: ReturnType<typeof buildModelSegments> };
     segmentsCount: number;
-    institutionId: string;
-    seasonId: string;
     tenantId: string;
   }[] = [];
   for (const branch of modelBranches) {
@@ -498,8 +495,6 @@ async function main() {
         branch,
         detailsJSON: { segments: buildModelSegments(branch, m) },
         segmentsCount: 10,
-        institutionId: modelInstitutionId,
-        seasonId: season.id,
         tenantId: defaultTenant.id,
       });
     }
@@ -507,10 +502,10 @@ async function main() {
   // إنشاء جماعي مجمّع (B.5) — skipDuplicates يحافظ على التكرار حسب القيد الفريد
   let modelCount = 0;
   for (const batch of chunks(newModelsData, 200)) {
-    const r = await prisma.examModel.createMany({ data: batch, skipDuplicates: true });
+    const r = await prisma.questionBankModel.createMany({ data: batch, skipDuplicates: true });
     modelCount += r.count;
   }
-  console.log(`✅ النماذج الاختبارية: ${modelCount} نموذج جديد (100 لكل فرع، 6 أفرع)`);
+  console.log(`✅ النماذج الاختبارية (بنك الأسئلة): ${modelCount} نموذج جديد (100 لكل فرع، 6 أفرع)`);
 
   // ===== 6) الطلاب (200+ موزعون بتوازن على الجهات) =====
   const STUDENT_COUNT = 250;
@@ -630,7 +625,7 @@ async function main() {
     users: await prisma.user.count(),
     institutions: await prisma.institution.count(),
     students: await prisma.student.count(),
-    examModels: await prisma.examModel.count(),
+    questionBankModels: await prisma.questionBankModel.count(),
     examSeasons: await prisma.examSeason.count(),
     examSessions: await prisma.examSession.count(),
   };

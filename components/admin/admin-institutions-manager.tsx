@@ -30,7 +30,7 @@ type Institution = {
   licenseNumber: string;
   district: string;
   createdAt: Date;
-  _count: { students: number; users: number; examModels: number };
+  _count: { students: number; users: number };
 };
 
 type InstResult = {
@@ -350,7 +350,7 @@ export function AdminInstitutionsManager() {
                       <td className="px-3 py-2 tabular-nums" dir="ltr">{inst.licenseNumber}</td>
                       <td className="px-3 py-2">{inst.district}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {inst._count.students} طالب — {inst._count.users} مستخدم — {inst._count.examModels} نموذج
+                        {inst._count.students} طالب — {inst._count.users} مستخدم
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap items-center gap-2">

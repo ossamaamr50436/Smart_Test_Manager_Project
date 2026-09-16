@@ -66,10 +66,10 @@ interface TenantDetail {
   updatedAt: Date;
   users: { id: string; name: string; email: string; role: string; createdAt: Date }[];
   institutions: { id: string; name: string; district: string; licenseNumber: string }[];
+  questionBankModelCount: number;
   _count: {
     students: number;
     examSeasons: number;
-    examModels: number;
     committees: number;
     examSessions: number;
     certificates: number;
@@ -116,7 +116,7 @@ function TenantHeader({ tenant }: { tenant: TenantDetail }) {
   const stats = [
     { label: "الطلاب", value: tenant._count.students },
     { label: "المواسم", value: tenant._count.examSeasons },
-    { label: "النماذج", value: tenant._count.examModels },
+    { label: "نماذج بنك الأسئلة", value: tenant.questionBankModelCount },
     { label: "اللجان", value: tenant._count.committees },
     { label: "الجلسات", value: tenant._count.examSessions },
     { label: "الشهادات", value: tenant._count.certificates },

@@ -26,11 +26,11 @@ async function main() {
     prisma.certificate.deleteMany(),
     prisma.notification.deleteMany(),
     prisma.auditLog.deleteMany(),
-    prisma.committeeModelAllocation.deleteMany(),
+    prisma.committeeModelSelection.deleteMany(),
     prisma.examSession.deleteMany(),
     prisma.committee.deleteMany(),
     prisma.student.deleteMany(),
-    prisma.examModel.deleteMany(),
+    prisma.questionBankModel.deleteMany(),
     prisma.examSeason.deleteMany(),
     prisma.institution.deleteMany(),
     prisma.user.deleteMany(),
@@ -66,7 +66,7 @@ async function main() {
   const userCount = await prisma.user.count();
   const institutionCount = await prisma.institution.count();
   const studentCount = await prisma.student.count();
-  const modelCount = await prisma.examModel.count();
+  const modelCount = await prisma.questionBankModel.count();
   const settingsFinal = await prisma.appSettings.count();
 
   console.log("═ النتائج النهائية ═");
