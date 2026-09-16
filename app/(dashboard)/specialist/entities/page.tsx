@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InstitutionsTable } from "@/components/specialist/institutions-table";
 
 export const metadata: Metadata = {
   title: "إدارة الجهات",
@@ -50,46 +51,7 @@ export default async function SpecialistEntitiesPage() {
           <CardDescription>{institutions.length} جهة</CardDescription>
         </CardHeader>
         <CardContent>
-          {institutions.length === 0 ? (
-            <p className="py-8 text-center text-muted-foreground">
-              لا توجد جهات بعد — أنشئ أول جهة
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/60">
-                  <tr className="text-right">
-                    <th className="px-3 py-2 font-medium">الجهة</th>
-                    <th className="px-3 py-2 font-medium">المدير</th>
-                    <th className="px-3 py-2 font-medium">المشرف</th>
-                    <th className="px-3 py-2 font-medium">رقم التصريح</th>
-                    <th className="px-3 py-2 font-medium">الحي</th>
-                    <th className="px-3 py-2 font-medium">إحصاءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {institutions.map((inst) => (
-                    <tr key={inst.id} className="border-t">
-                      <td className="px-3 py-2 font-medium">{inst.name}</td>
-                      <td className="px-3 py-2">
-                        <p>{inst.managerName}</p>
-                        <p className="text-xs text-muted-foreground" dir="ltr">{inst.managerPhone}</p>
-                      </td>
-                      <td className="px-3 py-2">
-                        <p>{inst.supervisorName}</p>
-                        <p className="text-xs text-muted-foreground" dir="ltr">{inst.supervisorPhone}</p>
-                      </td>
-                      <td className="px-3 py-2 tabular-nums" dir="ltr">{inst.licenseNumber}</td>
-                      <td className="px-3 py-2">{inst.district}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {inst._count.students} طالب — {inst._count.users} مستخدم — {inst._count.examModels} نموذج
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <InstitutionsTable institutions={institutions} />
         </CardContent>
       </Card>
     </div>

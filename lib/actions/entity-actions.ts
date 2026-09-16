@@ -3,8 +3,8 @@
 import bcrypt from "bcryptjs";
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
-import { getTenantFilter } from "@/lib/tenancy";
-import { AuditAction, Role } from "@prisma/client";
+import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
+import { AuditAction, Prisma, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
@@ -189,4 +189,105 @@ export async function listInstitutions() {
   });
 
   return { institutions };
+}
+
+/**
+ * حذف جهة تعليمية بالكامل — خاص بالأخصائي/الأدمن (المهمة D)
+ * - يوظّف معاملة ذرّية لضمان السلامة.
+ * - يحذف الحسابات المرتبطة بالجهة + الطلاب (وجلساتهم وتقييماتهم وشهاداتهم).
+ * - النماذج المرتبطة لا تُحذف — فقط يُفك ارتباطها (تبقى معلّقة إن لزم).
+ */
+export async function deleteInstitution(institutionId: string) {
+  const user = await requireUser();
+
+  // عزل الصلاحيات: الأخصائي أو الأدمن
+  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+
+  await checkRateLimit(`entity-delete:${user.id}`, 5);
+
+  if (!institutionId || typeof institutionId !== "string" || institutionId.length < 1 || institutionId.length > 64) {
+    throw new Error("معرّف الجهة غير صالح");
+  }
+
+  const existing = await prisma.institution.findUnique({ where: { id: institutionId } });
+  if (!existing) throw new Error("الجهة غير موجودة");
+  assertSameTenant(user, existing);
+
+  await prisma.$transaction(async (tx) => {
+    // حسابات الجهة المرتبطة (دور INSTITUTION)
+    const instUsers = await tx.user.findMany({
+      where: { institutionId },
+      select: { id: true },
+    });
+    const instUserIds = instUsers.map((u) => u.id);
+
+    // طلاب الجهة وجلساتهم
+    const instStudents = await tx.student.findMany({
+      where: { institutionId },
+      select: { id: true },
+    });
+    const studentIds = instStudents.map((s) => s.id);
+    const sessions = await tx.examSession.findMany({
+      where: { studentId: { in: studentIds } },
+      select: { id: true },
+    });
+    const sessionIds = sessions.map((s) => s.id);
+
+    // إشعارات الحسابات المرتبطة والمرسلة منها + إشعارات جلسات طلاب الجهة
+    const notificationOrs: Prisma.NotificationWhereInput[] = [];
+    if (instUserIds.length > 0) {
+      notificationOrs.push({ userId: { in: instUserIds } });
+      notificationOrs.push({ senderId: { in: instUserIds } });
+    }
+    if (sessionIds.length > 0) {
+      notificationOrs.push({ examSessionId: { in: sessionIds } });
+    }
+    if (notificationOrs.length > 0) {
+      await tx.notification.deleteMany({ where: { OR: notificationOrs } });
+    }
+
+    // فك اقتران الطلاب المقدَّمين بحسابات الجهة ثم حذف تلك الحسابات
+    if (instUserIds.length > 0) {
+      await tx.student.updateMany({
+        where: { submittedById: { in: instUserIds } },
+        data: { submittedById: null },
+      });
+      await tx.auditLog.deleteMany({ where: { userId: { in: instUserIds } } });
+      await tx.user.deleteMany({ where: { id: { in: instUserIds } } });
+    }
+
+    // النماذج المرتبطة بالجهة تبقى موجودة — فقط تُفصل
+    await tx.examModel.updateMany({
+      where: { institutionId },
+      data: { institutionId: null },
+    });
+
+    // حذف الطلاب (يترتّب عليه حذف الجلسات والتقييمات والشهادات)
+    if (studentIds.length > 0) {
+      await tx.student.deleteMany({ where: { id: { in: studentIds } } });
+    }
+
+    // حذف الجهة
+    await tx.institution.delete({ where: { id: institutionId } });
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        tenantId: requireTenantId(user),
+        action: AuditAction.DELETE,
+        details: JSON.stringify({
+          entity: "Institution",
+          institutionId,
+          name: existing.name,
+          deletedUsers: instUserIds.length,
+          deletedStudents: studentIds.length,
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/test-specialist/entities");
+  revalidatePath("/admin/institutions");
+
+  return { success: true };
 }

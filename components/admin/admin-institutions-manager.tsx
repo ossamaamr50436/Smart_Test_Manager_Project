@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { TypedConfirmDialog } from "@/components/ui/typed-confirm-dialog";
 import {
   getAdminInstitutions,
   createAdminInstitution,
@@ -149,21 +150,6 @@ export function AdminInstitutionsManager() {
         load();
       } catch (e) {
         setError(e instanceof Error ? e.message : "فشل الحفظ");
-      }
-    });
-  }
-
-  async function handleDelete(inst: Institution) {
-    if (!confirm(`هل أنت متأكد من حذف الجهة "${inst.name}"؟`)) return;
-    setError("");
-    setSuccess("");
-    startTransition(async () => {
-      try {
-        await adminDeleteInstitution(inst.id);
-        setSuccess("تم حذف الجهة");
-        load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "فشل الحذف");
       }
     });
   }
@@ -367,9 +353,22 @@ export function AdminInstitutionsManager() {
                         {inst._count.students} طالب — {inst._count.users} مستخدم — {inst._count.examModels} نموذج
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button size="sm" variant="outline" onClick={() => openEdit(inst)}>تعديل</Button>
-                          <Button size="sm" variant="destructive" disabled={isPending} onClick={() => handleDelete(inst)}>حذف</Button>
+                          <TypedConfirmDialog
+                            triggerLabel="حذف"
+                            title="حذف الجهة"
+                            description={`سيتم حذف «${inst.name}» نهائياً مع كل ارتباطاتها (الطلاب والحسابات) — لا يمكن التراجع.`}
+                            nameToType={inst.name}
+                            onConfirm={async () => {
+                              try {
+                                await adminDeleteInstitution(inst.id);
+                                setSuccess("تم حذف الجهة");
+                              } finally {
+                                load();
+                              }
+                            }}
+                          />
                         </div>
                       </td>
                     </tr>

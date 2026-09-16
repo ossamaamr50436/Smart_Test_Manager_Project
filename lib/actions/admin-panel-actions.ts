@@ -1047,34 +1047,8 @@ export async function getExaminersOptions() {
 export async function adminDeleteInstitution(institutionId: string) {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN]);
-
-  await checkRateLimit(`admin-delete-inst:${user.id}`, 5);
-
-  if (!institutionId || typeof institutionId !== "string" || institutionId.length < 1 || institutionId.length > 64) {
-    throw new Error("معرّف المؤسسة غير صالح");
-  }
-  const existing = await prisma.institution.findUnique({ where: { id: institutionId } });
-  if (!existing) throw new Error("المؤسسة غير موجودة");
-  assertSameTenant(user, existing);
-
-  const { _count } = await prisma.institution.findUniqueOrThrow({
-    where: { id: institutionId },
-    select: { _count: { select: { users: true, students: true, examModels: true } } },
-  });
-  if (_count.users > 0) {
-    throw new Error("لا يمكن حذف مؤسسة لديها مستخدمون مرتبطون");
-  }
-
-  await prisma.institution.delete({ where: { id: institutionId } });
-
-  await recordAudit(user.id, AuditAction.DELETE, {
-    entity: "Institution",
-    institutionId,
-    name: existing.name,
-  });
-
-  revalidatePath("/admin/institutions");
-  return { success: true };
+  const { deleteInstitution } = await import("@/lib/actions/entity-actions");
+  return deleteInstitution(institutionId);
 }
 
 export async function adminDeleteUser(userId: string): Promise<UpdateUserResult> {
