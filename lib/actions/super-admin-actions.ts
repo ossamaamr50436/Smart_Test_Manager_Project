@@ -974,7 +974,7 @@ export async function deleteTenantAdmin(
 
   const admin = await prisma.user.findFirst({
     where: { id: adminUserId, tenantId, role: Role.ADMIN },
-    select: { id: true, name: true },
+    select: { id: true, name: true, email: true },
   });
   if (!admin) return { success: false, error: "مشرف المؤسسة غير موجود" };
 
@@ -1001,6 +1001,7 @@ export async function deleteTenantAdmin(
         where: { OR: [{ teacher1Id: admin.id }, { teacher2Id: admin.id }] },
       });
       await tx.notification.deleteMany({ where: { userId: admin.id } });
+      await tx.rateLimit.deleteMany({ where: { key: `login:${admin.email}` } });
       await tx.user.delete({ where: { id: admin.id } });
     });
 

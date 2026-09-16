@@ -104,12 +104,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        // حماية Brute Force (قفل الحساب): 5 محاولات فاشلة خلال 15 دقيقة
+        // حماية Brute Force (قفل الحساب): 5 محاولات كلمة مرور خاطئة خلال 15 دقيقة
         // → يُقفل الحساب مؤقتاً 15 دقيقة. الفحص قبل مقارنة كلمة المرور.
+        // لا نعدّ إلا محاولات بيانات الدخول الحقيقية (method=credentials) لئلا
+        // يُحسب التنبيه الأمني المُرسَل عبر raiseSecurityAlert محاولةً ثانية —
+        // بدون ذلك يصل القفل إلى حدّه بعد 3 محاولات فاشلة فقط.
         const recentFails = await prisma.auditLog.count({
           where: {
             userId: user.id,
             action: AuditAction.FAILED_LOGIN,
+            details: { path: ["method"], equals: "credentials" },
             timestamp: { gte: new Date(Date.now() - 15 * 60 * 1000) },
           },
         });
@@ -156,6 +160,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
 
           return null;
+        }
+
+        // إعادة ضبط حدود معدل الدخول بعد نجاح المصادقة: كلمة المرور الصحيحة
+        // تُวลّي الحساب ولا يبقى محظوراً بقوائم rate-limit قديمة.
+        // مهما حُذف وأُعيد الحساب بنفس البريد، نجاح كلمة المرور يُفرغ الدلو فوراً.
+        try {
+          await prisma.rateLimit.deleteMany({
+            where: { key: { in: [`login:${email}`, `login-ip:${ip}`] } },
+          });
+        } catch {
+          // فشل إعادة الضبط لا يمنع تسجيل الدخول
         }
 
         return {

@@ -1122,9 +1122,12 @@ export async function adminDeleteUser(userId: string): Promise<UpdateUserResult>
     };
   }
 
-  // حذف الإشعارات أولاً (Notification.userId → Restrict) ثم المستخدم
+  // حذف الإشعارات أولاً (Notification.userId → Restrict)، ثم إزالة قفل
+  // معدل الدخول المرتبط بالبريد (login:email) لئلا يبقى الحساب محظوراً
+  // عند إعادة إنشائه بنفس البريد، ثم المستخدم نفسه.
   await prisma.$transaction(async (tx) => {
     await tx.notification.deleteMany({ where: { userId } });
+    await tx.rateLimit.deleteMany({ where: { key: `login:${target.email}` } });
     await tx.user.delete({ where: { id: userId } });
   });
 
