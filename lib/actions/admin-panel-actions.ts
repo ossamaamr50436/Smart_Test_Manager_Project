@@ -220,6 +220,9 @@ export async function createAdminUser(input: {
   }
   const data = parsed.data;
 
+  // تاريخ الميلاد اختياري في واجهة المستخدم — نعيّن قيمة افتراضية للحسابات المرتبطة بجهة تعليمية
+  const resolvedBirthDate = data.birthDate ?? new Date("1990-01-01");
+
   // إذا كان الدور INSTITUTION، يجب ربط بمؤسسة موجودة فعلاً
   const institutionId = data.role === Role.INSTITUTION ? data.institutionId ?? null : null;
   if (institutionId) {
@@ -242,7 +245,7 @@ export async function createAdminUser(input: {
         email: data.email,
         password: hashedPassword,
         role: data.role,
-        birthDate: data.birthDate,
+        birthDate: resolvedBirthDate,
         institutionId,
         mustChangePassword: input.forcePasswordChange === true, // الافتراضي false
         tenantId: requireTenantId(user),

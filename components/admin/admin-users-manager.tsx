@@ -69,7 +69,6 @@ export function AdminUsersManager() {
     email: "",
     password: "",
     role: Role.EXAMINER as string,
-    birthDate: "",
     institutionId: "",
     forcePasswordChange: false,
   });
@@ -80,7 +79,6 @@ export function AdminUsersManager() {
     name: "",
     email: "",
     role: Role.EXAMINER as string,
-    birthDate: "",
     institutionId: "",
   });
 
@@ -133,14 +131,13 @@ export function AdminUsersManager() {
         email: form.email,
         password: form.password,
         role: form.role,
-        birthDate: form.birthDate || undefined,
         institutionId: form.role === Role.INSTITUTION ? form.institutionId || undefined : undefined,
         forcePasswordChange: form.forcePasswordChange,
       });
       if (result.success) {
         setSuccess("تم إنشاء المستخدم بنجاح");
         setShowCreate(false);
-        setForm({ name: "", email: "", password: "", role: Role.EXAMINER, birthDate: "", institutionId: "", forcePasswordChange: false });
+        setForm({ name: "", email: "", password: "", role: Role.EXAMINER, institutionId: "", forcePasswordChange: false });
         loadUsers();
       } else {
         setError(result.error);
@@ -156,7 +153,6 @@ export function AdminUsersManager() {
       name: u.name,
       email: u.email,
       role: u.role,
-      birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : "",
       institutionId: u.institutionId ?? "",
     });
   }
@@ -171,7 +167,6 @@ export function AdminUsersManager() {
         name: editForm.name,
         email: editForm.email,
         role: editForm.role,
-        birthDate: editForm.birthDate || null,
         institutionId: editForm.role === Role.INSTITUTION ? editForm.institutionId || null : null,
       });
       if (result.success) {
@@ -297,14 +292,6 @@ export function AdminUsersManager() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-1">
-                <Label>تاريخ الميلاد</Label>
-                <Input
-                  type="date"
-                  value={form.birthDate}
-                  onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                />
-              </div>
               {form.role === Role.INSTITUTION && (
                 <div className="space-y-1">
                   <Label>الجهة التعليمية</Label>
@@ -419,10 +406,6 @@ export function AdminUsersManager() {
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                   ))}
                 </select>
-              </div>
-              <div className="space-y-1">
-                <Label>تاريخ الميلاد</Label>
-                <Input type="date" value={editForm.birthDate} onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })} />
               </div>
               {editForm.role === Role.INSTITUTION && (
                 <div className="space-y-1">

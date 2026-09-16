@@ -55,7 +55,7 @@ export const createUserSchema = z.object({
     ["ADMIN", "HEAD_OF_AFFAIRS", "CERTIFICATE_SOURCE", "TEST_SPECIALIST", "EXAMINER", "INSTITUTION"],
     { message: "دور غير صحيح" }
   ),
-  birthDate: birthDateSchema,
+  birthDate: birthDateSchema.optional(),
   institutionId: z.string().optional(),
 });
 

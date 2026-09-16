@@ -34,7 +34,7 @@ type ExaminerRow = {
   };
 };
 
-const EMPTY_FORM = { name: "", email: "", password: "", birthDate: "" };
+const EMPTY_FORM = { name: "", email: "", password: "" };
 
 export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
   const router = useRouter();
@@ -71,7 +71,6 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
         name: form.name,
         email: form.email,
         password: form.password,
-        birthDate: new Date(form.birthDate),
       };
       const result = await createExaminer(input);
       if (result.success) {
@@ -164,16 +163,6 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 dir="ltr"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="exBirth">تاريخ الميلاد *</Label>
-              <Input
-                id="exBirth"
-                type="date"
-                value={form.birthDate}
-                onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
                 required
               />
             </div>

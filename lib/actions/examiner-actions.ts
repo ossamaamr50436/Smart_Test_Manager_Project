@@ -28,7 +28,7 @@ const createExaminerSchema = z.object({
   name: z.string().min(2, "اسم المعلم لا يقل عن حرفين").max(120),
   email: emailSchema,
   password: passwordSchema,
-  birthDate: birthDateSchema,
+  birthDate: birthDateSchema.optional(),
 });
 
 export type CreateExaminerInput = z.infer<typeof createExaminerSchema>;
@@ -70,7 +70,7 @@ export async function createExaminer(input: CreateExaminerInput): Promise<Create
         email: data.email,
         password: hashedPassword,
         role: Role.EXAMINER,
-        birthDate: data.birthDate,
+        birthDate: data.birthDate ?? new Date("1990-01-01"),
         mustChangePassword: true,
         tenantId: requireTenantId(user),
       },
