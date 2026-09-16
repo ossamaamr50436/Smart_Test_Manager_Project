@@ -3,7 +3,7 @@
 import { getBranchLabel } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createCommittee, deleteCommittee, assignStudentToCommittee } from "@/lib/actions/committee-actions";
+import { createCommittee, updateCommittee, deleteCommittee, assignStudentToCommittee } from "@/lib/actions/committee-actions";
 import { BRANCHES } from "@/lib/validations/assessment";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,7 @@ export function CommitteeManager({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [assignStudentId, setAssignStudentId] = useState("");
   const [assignCommitteeId, setAssignCommitteeId] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // نموذج الإنشاء
   const [name, setName] = useState("");
@@ -70,7 +71,7 @@ export function CommitteeManager({
     setSuccess("");
     setLoading(true);
     try {
-      const result = await createCommittee({
+      const input = {
         name,
         branch,
         seasonId,
@@ -78,23 +79,77 @@ export function CommitteeManager({
         teacher2Id,
         startModelNumber: Number(startModel),
         endModelNumber: Number(endModel),
-      });
-      if (result.success) {
-        setSuccess("تم إنشاء اللجنة بنجاح");
-        setName("");
-        setTeacher1Id("");
-        setTeacher2Id("");
-        setStartModel("1");
-        setEndModel("10");
-        router.refresh();
+      };
+      if (editingId) {
+        const result = await updateCommittee(editingId, input);
+        if (result.success) {
+          setSuccess("تم تعديل اللجنة بنجاح");
+          setName("");
+          setBranch("5");
+          setTeacher1Id("");
+          setTeacher2Id("");
+          setSeasonId("");
+          setStartModel("1");
+          setEndModel("10");
+          setEditingId(null);
+          setError("");
+          router.refresh();
+        } else {
+          setError(result.error);
+        }
       } else {
-        setError(result.error);
+        const result = await createCommittee(input);
+        if (result.success) {
+          setSuccess("تم إنشاء اللجنة بنجاح");
+          setName("");
+          setTeacher1Id("");
+          setTeacher2Id("");
+          setStartModel("1");
+          setEndModel("10");
+          setError("");
+          router.refresh();
+        } else {
+          setError(result.error);
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally {
       setLoading(false);
     }
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setName("");
+    setBranch("5");
+    setTeacher1Id("");
+    setTeacher2Id("");
+    setSeasonId("");
+    setStartModel("1");
+    setEndModel("10");
+    setError("");
+    setSuccess("");
+  }
+
+  function startEdit(c: CommitteeRow) {
+    setEditingId(c.id);
+    setName(c.name);
+    setBranch(c.branch);
+    setTeacher1Id(c.teacher1.id);
+    setTeacher2Id(c.teacher2.id);
+    setSeasonId(c.season.id);
+    const alloc = c.allocations[0];
+    if (alloc) {
+      setStartModel(String(alloc.startModelNumber));
+      setEndModel(String(alloc.endModelNumber));
+    } else {
+      setStartModel("1");
+      setEndModel("10");
+    }
+    setError("");
+    setSuccess("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleDelete(id: string) {
@@ -149,9 +204,9 @@ export function CommitteeManager({
       {/* نموذج إنشاء لجنة */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">إنشاء لجنة جديدة</CardTitle>
+          <CardTitle className="text-base">{editingId ? "تعديل اللجنة" : "إنشاء لجنة جديدة"}</CardTitle>
           <CardDescription>
-            حدد الاسم والمعلمين والفرع ونطاق النماذج
+            {editingId ? "عدّل بيانات اللجنة واحفظها" : "حدد الاسم والمعلمين والفرع ونطاق النماذج"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -219,9 +274,16 @@ export function CommitteeManager({
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           {success && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">{success}</p>}
 
-          <Button onClick={handleCreate} disabled={loading || !name || !seasonId || !teacher1Id || !teacher2Id}>
-            {loading ? "جارٍ الإنشاء..." : "إنشاء اللجنة"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleCreate} disabled={loading || !name || !seasonId || !teacher1Id || !teacher2Id}>
+              {loading ? "جارٍ الحفظ..." : editingId ? "حفظ التعديلات" : "إنشاء اللجنة"}
+            </Button>
+            {editingId && (
+              <Button variant="ghost" onClick={resetForm} disabled={loading}>
+                إلغاء
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -269,7 +331,10 @@ export function CommitteeManager({
                             <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>إلغاء</Button>
                           </div>
                         ) : (
-                          <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(c.id)}>حذف</Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button variant="outline" size="sm" onClick={() => startEdit(c)}>تعديل</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(c.id)}>حذف</Button>
+                          </div>
                         )}
                       </td>
                     </tr>

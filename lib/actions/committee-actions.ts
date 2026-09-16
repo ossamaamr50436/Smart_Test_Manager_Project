@@ -248,6 +248,128 @@ export async function assignStudentToCommittee(input: {
   return { success: true };
 }
 
+export async function updateCommittee(
+  committeeId: string,
+  input: {
+    name: string;
+    branch: string;
+    seasonId: string;
+    teacher1Id: string;
+    teacher2Id: string;
+    startModelNumber?: number;
+    endModelNumber?: number;
+  }
+): Promise<CommitteeActionResult> {
+  let user;
+  try {
+    user = await requireUser();
+    requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+  } catch {
+    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+  }
+
+  if (!committeeId || typeof committeeId !== "string" || committeeId.length > 64) {
+    return { success: false, error: "معرّف اللجنة غير صالح" };
+  }
+
+  const committee = await prisma.committee.findUnique({
+    where: { id: committeeId },
+    select: { id: true, tenantId: true },
+  });
+  if (!committee) return { success: false, error: "اللجنة غير موجودة" };
+  assertSameTenant(user, committee);
+
+  const name = (input.name ?? "").trim();
+  if (name.length < 2) return { success: false, error: "اسم اللجنة مطلوب (حرفان على الأقل)" };
+  if (name.length > 200) return { success: false, error: "اسم اللجنة طويل جداً" };
+
+  const validBranches = ["5", "10", "15", "20", "25", "30"];
+  if (!validBranches.includes(input.branch)) {
+    return { success: false, error: "الفرع غير صالح" };
+  }
+
+  if (!input.teacher1Id || !input.teacher2Id) {
+    return { success: false, error: "يجب اختيار المعلمين" };
+  }
+  if (input.teacher1Id === input.teacher2Id) {
+    return { success: false, error: "لا يمكن اختيار المعلم نفسه في المعلمين الأول والثاني" };
+  }
+
+  const season = await prisma.examSeason.findUnique({
+    where: { id: input.seasonId },
+    select: { id: true, tenantId: true },
+  });
+  if (!season) return { success: false, error: "الموسم غير موجود" };
+  assertSameTenant(user, season);
+
+  const teachers = await prisma.user.findMany({
+    where: { ...getTenantFilter(user), id: { in: [input.teacher1Id, input.teacher2Id] } },
+    select: { id: true, role: true },
+  });
+  if (teachers.length !== 2) return { success: false, error: "أحد المعلمين غير موجود" };
+  for (const t of teachers) {
+    if (t.role !== Role.EXAMINER) {
+      return { success: false, error: "يجب أن يكون كل من المعلمين بدور EXAMINER" };
+    }
+  }
+
+  const dup = await prisma.committee.findFirst({
+    where: { ...getTenantFilter(user), name, seasonId: input.seasonId, id: { not: committeeId } },
+    select: { id: true },
+  });
+  if (dup) return { success: false, error: "يوجد لجنة بنفس الاسم في هذا الموسم" };
+
+  const start = input.startModelNumber ?? 1;
+  const end = input.endModelNumber ?? 10;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.committee.update({
+        where: { id: committeeId },
+        data: {
+          name,
+          branch: input.branch,
+          seasonId: input.seasonId,
+          teacher1Id: input.teacher1Id,
+          teacher2Id: input.teacher2Id,
+        },
+      });
+
+      await tx.committeeModelAllocation.deleteMany({ where: { committeeId } });
+      await tx.committeeModelAllocation.create({
+        data: {
+          committeeId,
+          branch: input.branch,
+          startModelNumber: start,
+          endModelNumber: end,
+          seasonId: input.seasonId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          tenantId: requireTenantId(user),
+          action: AuditAction.UPDATE,
+          details: JSON.stringify({
+            entity: "Committee",
+            committeeId,
+            name,
+            branch: input.branch,
+            teacher1Id: input.teacher1Id,
+            teacher2Id: input.teacher2Id,
+          }),
+        },
+      });
+    });
+  } catch {
+    return { success: false, error: "حدث خطأ غير متوقع أثناء تعديل اللجنة" };
+  }
+
+  revalidatePath("/test-specialist/committees");
+  return { success: true };
+}
+
 export async function getCommittees(seasonId?: string) {
   const user = await requireUser();
   requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
