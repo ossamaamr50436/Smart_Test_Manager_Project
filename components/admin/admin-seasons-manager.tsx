@@ -46,6 +46,7 @@ export function AdminSeasonsManager() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [seasonToDelete, setSeasonToDelete] = useState<Season | null>(null);
+  const [typedName, setTypedName] = useState("");
   const [form, setForm] = useState({ name: "", startDate: "", endDate: "", isActive: false });
 
   async function load() {
@@ -100,20 +101,24 @@ export function AdminSeasonsManager() {
   function handleDeleteClick(season: Season) {
     setError("");
     setSuccess("");
+    setTypedName("");
     setSeasonToDelete(season);
   }
 
   async function handleDeleteConfirm() {
     if (!seasonToDelete || isPending) return;
+    if (typedName.trim() !== seasonToDelete.name) return;
     startTransition(async () => {
       try {
         await deleteAdminSeason(seasonToDelete.id);
-        setSuccess(`تم حذف الموسم «${seasonToDelete.name}» بنجاح`);
+        setSuccess(`تم حذف الموسم «${seasonToDelete.name}» بنجاح — النماذج المرتبطة بقيت في بنك الأسئلة`);
         setSeasonToDelete(null);
+        setTypedName("");
         load();
       } catch (e) {
         setError(e instanceof Error ? e.message : "فشل حذف الموسم");
         setSeasonToDelete(null);
+        setTypedName("");
       }
     });
   }
@@ -221,27 +226,29 @@ export function AdminSeasonsManager() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(seasonToDelete)} onOpenChange={(open) => !open && setSeasonToDelete(null)}>
+      <Dialog open={Boolean(seasonToDelete)} onOpenChange={(open) => { if (!open) { setSeasonToDelete(null); setTypedName(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>حذف الموسم</DialogTitle>
             <DialogDescription>
               {seasonToDelete && (
                 <>
-                  هل أنت متأكد من حذف الموسم «{seasonToDelete.name}»؟ لا يمكن التراجع عن
-                  هذا الإجراء.
+                  هل أنت متأكد من حذف الموسم «{seasonToDelete.name}»؟
+                  {seasonToDelete._count.models > 0 && (
+                    <span className="mt-3 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      الملاحظة: الموسم مرتبط بـ {seasonToDelete._count.models} نموذج — النماذج لن تُحذف،
+                      بل ستُفصل وتبقى في بنك الأسئلة.
+                    </span>
+                  )}
                   {seasonToDelete._count.sessions +
-                    seasonToDelete._count.models +
                     seasonToDelete._count.committees +
                     seasonToDelete._count.modelAllocations >
                     0 && (
                     <span className="mt-3 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                      ⚠️ الموسم مرتبط ببيانات:
+                      ⚠️ الموسم مربوط ببيانات لا يمكن فصلها:
                       {[
                         seasonToDelete._count.sessions > 0 &&
                           `${seasonToDelete._count.sessions} جلسة`,
-                        seasonToDelete._count.models > 0 &&
-                          `${seasonToDelete._count.models} نموذج`,
                         seasonToDelete._count.committees > 0 &&
                           `${seasonToDelete._count.committees} لجنة`,
                         seasonToDelete._count.modelAllocations > 0 &&
@@ -249,18 +256,35 @@ export function AdminSeasonsManager() {
                       ]
                         .filter(Boolean)
                         .join("، ")}{" "}
-                      — لا يمكن الحذف حتى تُحذف هذه البيانات أولاً.
+                      — يجب حذفها أولاً لإتمام الحذف.
                     </span>
                   )}
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              لتأكيد الحذف، اكتب اسم الموسم بالضبط:{" "}
+              <span className="font-medium text-foreground">{seasonToDelete?.name}</span>
+            </p>
+            <Input
+              dir="rtl"
+              value={typedName}
+              onChange={(e) => setTypedName(e.target.value)}
+              placeholder={seasonToDelete?.name}
+              autoComplete="off"
+            />
+          </div>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">إلغاء</Button>
             </DialogClose>
-            <Button variant="destructive" disabled={isPending} onClick={handleDeleteConfirm}>
+            <Button
+              variant="destructive"
+              disabled={isPending || !seasonToDelete || typedName.trim() !== seasonToDelete.name}
+              onClick={handleDeleteConfirm}
+            >
               {isPending ? "جارٍ الحذف..." : "حذف نهائي"}
             </Button>
           </DialogFooter>

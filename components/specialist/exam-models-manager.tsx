@@ -43,7 +43,7 @@ type ModelRow = {
   id: string;
   modelNumber: number;
   branch: string;
-  season: { id: string; name: string };
+  season: { id: string; name: string } | null;
   detailsJSON: unknown;
   segmentsCount?: number;
   _count?: { assessments?: number; sessions?: number };
@@ -153,7 +153,7 @@ export function ExamModelsManager({
         };
       });
     });
-    setSeasonId(m.season.id);
+    setSeasonId(m.season?.id ?? "");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -438,7 +438,7 @@ export function ExamModelsManager({
                     <tr key={m.id} className="border-b">
                       <td className="p-2 font-medium">{m.modelNumber}</td>
                       <td className="p-2">{getBranchLabel(m.branch)}</td>
-                      <td className="p-2">{m.season.name}</td>
+                      <td className="p-2">{m.season?.name ?? "بدون موسم"}</td>
                       <td className="p-2">{segCount}</td>
                       <td className="p-2">
                         <div className="flex items-center justify-center gap-2">

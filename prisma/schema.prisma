@@ -290,12 +290,12 @@ model ExamModel {
   detailsJSON   Json // المقاطع — حتى 30 مقطعاً
   segmentsCount Int     @default(10) // عدد مقاطع النموذج (1-30)
   institutionId String? // احتفاظ لتوافق البيانات — لم تعد تُسند أثناء الإنشاء (المرحلة 8)
-  seasonId      String // الموسم الذي يتبع له النموذج
+  seasonId      String? // الموسم الذي يتبع له النموذج — اختياري (النماذج في بنك الأسئلة مستقلة)
   tenantId      String // Multi-Tenant
 
   tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   institution Institution?  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  season      ExamSeason    @relation(fields: [seasonId], references: [id])
+  season      ExamSeason?   @relation(fields: [seasonId], references: [id])
   assessments Assessment[]
   sessions    ExamSession[]
 

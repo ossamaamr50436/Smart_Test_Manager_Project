@@ -757,10 +757,13 @@ export async function updateAdminSeason(
 }
 
 // ------------------------------------------------------------
-// 4.1) حذف الموسم مع معالجة العلاقات
-// - يمنع حذف الموسم النشط (يجب إلغاء التفعيل أولاً)
-// - يمنع الحذف عند وجود بيانات مرتبطة مع عرض عددها
-// - معزول ضمن نفس المستأجر فقط (لا يؤثر على مؤسسة أخرى)
+// 4.1) حذف الموسم (المهمة E)
+// - يحذف الموسم مباشرة حتى لو ارتبط بنماذج — النماذج لا تُحذف
+//   بل تُفصل تلقائياً (seasonId → null عبر ON DELETE SET NULL)
+//   وتبقى في بنك الأسئلة.
+// - يمنع الحذف فقط عند ارتباطات لا يمكن فصلها دون فقدان بيانات
+//   (جلسات/لجان/تخصيصات نماذج) — مع رسالة توضيحية.
+// - معزول ضمن نفس المستأجر فقط.
 // ------------------------------------------------------------
 export async function deleteAdminSeason(seasonId: string) {
   const user = await requireUser();
@@ -774,7 +777,7 @@ export async function deleteAdminSeason(seasonId: string) {
     where: { id: seasonId },
     include: {
       _count: {
-        select: { sessions: true, models: true, committees: true, modelAllocations: true },
+        select: { sessions: true, committees: true, modelAllocations: true },
       },
     },
   });
@@ -782,12 +785,13 @@ export async function deleteAdminSeason(seasonId: string) {
   assertSameTenant(user, season);
 
   if (season.isActive) {
-    throw new Error("لا يمكن حذف موسوم نشط — ألغِ تفعيله أولاً");
+    throw new Error("لا يمكن حذف موسم نشط — ألغِ تفعيله أولاً");
   }
 
+  // النماذج المرتبطة لا تمنع الحذف — تُفصل تلقائياً وتبقى في بنك الأسئلة.
+  // لكن الجلسات واللجان والتخصيصات لا تفصل دون فقدان بيانات → منع واضح.
   const counts: { label: string; value: number }[] = [];
   if (season._count.sessions > 0) counts.push({ label: "جلسة", value: season._count.sessions });
-  if (season._count.models > 0) counts.push({ label: "نموذج", value: season._count.models });
   if (season._count.committees > 0) counts.push({ label: "لجنة", value: season._count.committees });
   if (season._count.modelAllocations > 0)
     counts.push({ label: "تخصيص نموذج", value: season._count.modelAllocations });
@@ -795,10 +799,11 @@ export async function deleteAdminSeason(seasonId: string) {
   if (counts.length > 0) {
     const summary = counts.map((c) => `${c.value} ${c.label}`).join("، ");
     throw new Error(
-      `لا يمكن حذف الموسم «${season.name}» — لديه بيانات مرتبطة: ${summary}. احذفها أولاً أو عدّل الموسم بدلاً من ذلك.`
+      `لا يمكن حذف الموسم «${season.name}» — لديه بيانات مرتبطة لا يمكن فصلها: ${summary}. احذفها أولاً أو عدّل الموسم بدلاً من ذلك.`
     );
   }
 
+  // حذف الموسم — تُفصل النماذج المرتبطة تلقائياً (seasonId → null) دون حذفها
   await prisma.examSeason.delete({ where: { id: seasonId } });
 
   await recordAudit(user.id, AuditAction.DELETE, {
