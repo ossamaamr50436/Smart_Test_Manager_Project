@@ -95,7 +95,7 @@ export function CommitteeForm({
       <CardHeader>
         <CardTitle className="text-base">إنشاء جلسة اختبار</CardTitle>
         <CardDescription>
-          اختر الطالب والمعلمين وحدد موعد الجلسة
+          اختر الطالب والمختبرين وحدد موعد الجلسة
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -121,10 +121,10 @@ export function CommitteeForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>المعلم الأول *</Label>
+              <Label>المختبر الأول *</Label>
               <Select {...selectProps("teacher1Id")} name="teacher1Id">
                 <SelectTrigger>
-                  <SelectValue placeholder="اختر المعلم الأول" />
+                  <SelectValue placeholder="اختر المختبر الأول" />
                 </SelectTrigger>
                 <SelectContent>
                   {examiners.map((teacher) => (
@@ -142,10 +142,10 @@ export function CommitteeForm({
             </div>
 
             <div className="space-y-2">
-              <Label>المعلم الثاني *</Label>
+              <Label>المختبر الثاني *</Label>
               <Select {...selectProps("teacher2Id")} name="teacher2Id">
                 <SelectTrigger>
-                  <SelectValue placeholder="اختر المعلم الثاني" />
+                  <SelectValue placeholder="اختر المختبر الثاني" />
                 </SelectTrigger>
                 <SelectContent>
                   {examiners.map((teacher) => (

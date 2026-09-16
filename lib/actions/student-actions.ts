@@ -296,22 +296,22 @@ export async function assignCommittee(input: CommitteeInput) {
   const data = parsed.data;
 
   if (data.teacher1Id === data.teacher2Id) {
-    throw new Error("لا يمكن اختيار المعلم نفسه في المعلمين الأول والثاني");
+    throw new Error("لا يمكن اختيار المختبر نفسه في المختبرين الأول والثاني");
   }
 
-  // التحقق من أن المعلمين موجودان
+  // التحقق من أن المختبرين موجودان
   const teachers = await prisma.user.findMany({
     where: { ...getTenantFilter(user), id: { in: [data.teacher1Id, data.teacher2Id] } },
     select: { id: true, role: true },
   });
 
   if (teachers.length !== 2) {
-    throw new Error("أحد المعلمين غير موجود");
+    throw new Error("أحد المختبرين غير موجود");
   }
 
   for (const t of teachers) {
     if (t.role !== Role.EXAMINER) {
-      throw new Error("يجب أن يكون كل من المعلمين بدور EXAMINER");
+      throw new Error("يجب أن يكون كل من المختبرين بدور EXAMINER");
     }
   }
 
@@ -339,7 +339,7 @@ export async function assignCommittee(input: CommitteeInput) {
     throw new Error("تاريخ الاختبار يجب أن يكون في المستقبل");
   }
 
-  // التحقق من عدم تضارب مواعيد المعلمين (نفس المعلم في لجنتين بنفس الوقت)
+  // التحقق من عدم تضارب مواعيد المختبرين (نفس المختبر في لجنتين بنفس الوقت)
   const conflicting = await prisma.examSession.findFirst({
     where: {
       ...getTenantFilter(user),
@@ -353,7 +353,7 @@ export async function assignCommittee(input: CommitteeInput) {
     },
   });
   if (conflicting) {
-    throw new Error("تضارب في مواعيد أحد المعلمين في نفس التاريخ");
+    throw new Error("تضارب في مواعيد أحد المختبرين في نفس التاريخ");
   }
 
   // الموسم النشط الحالي (المادة 6)

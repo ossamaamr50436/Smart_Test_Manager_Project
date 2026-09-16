@@ -49,7 +49,7 @@ const ROLE_OPTIONS = [
   { value: "HEAD_OF_AFFAIRS", label: "رئيس الشؤون التعليمية" },
   { value: "CERTIFICATE_SOURCE", label: "مصدر الشهادات" },
   { value: "TEST_SPECIALIST", label: "أخصائي الاختبارات" },
-  { value: "EXAMINER", label: "المختبر (المعلم)" },
+  { value: "EXAMINER", label: "المختبر" },
   { value: "INSTITUTION", label: "الجهة التعليمية" },
 ];
 

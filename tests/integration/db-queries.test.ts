@@ -53,7 +53,7 @@ test(
 );
 
 test(
-  "db.queries: خيارات المعلمين تُرجع معرّفات وأسماء فقط",
+  "db.queries: خيارات المختبرين تُرجع معرّفات وأسماء فقط",
   { skip: !hasDb && "DATABASE_URL غير مزوّد" },
   async () => {
     const { getExaminerOptions } = await loadQueries();

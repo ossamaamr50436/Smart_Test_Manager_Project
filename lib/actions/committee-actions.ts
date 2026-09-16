@@ -45,10 +45,10 @@ export async function createCommittee(input: {
   }
 
   if (!input.teacher1Id || !input.teacher2Id) {
-    return { success: false, error: "يجب اختيار المعلمين" };
+    return { success: false, error: "يجب اختيار المختبرين" };
   }
   if (input.teacher1Id === input.teacher2Id) {
-    return { success: false, error: "لا يمكن اختيار المعلم نفسه في المعلمين الأول والثاني" };
+    return { success: false, error: "لا يمكن اختيار المختبر نفسه في المختبرين الأول والثاني" };
   }
 
   // التحقق من وجود الموسم
@@ -59,15 +59,15 @@ export async function createCommittee(input: {
   if (!season) return { success: false, error: "الموسم غير موجود" };
   assertSameTenant(user, season);
 
-  // التحقق من وجود المعلمين
+  // التحقق من وجود المختبرين
   const teachers = await prisma.user.findMany({
     where: { ...getTenantFilter(user), id: { in: [input.teacher1Id, input.teacher2Id] } },
     select: { id: true, role: true },
   });
-  if (teachers.length !== 2) return { success: false, error: "أحد المعلمين غير موجود" };
+  if (teachers.length !== 2) return { success: false, error: "أحد المختبرين غير موجود" };
   for (const t of teachers) {
     if (t.role !== Role.EXAMINER) {
-      return { success: false, error: "يجب أن يكون كل من المعلمين بدور EXAMINER" };
+      return { success: false, error: "يجب أن يكون كل من المختبرين بدور EXAMINER" };
     }
   }
 
@@ -289,10 +289,10 @@ export async function updateCommittee(
   }
 
   if (!input.teacher1Id || !input.teacher2Id) {
-    return { success: false, error: "يجب اختيار المعلمين" };
+    return { success: false, error: "يجب اختيار المختبرين" };
   }
   if (input.teacher1Id === input.teacher2Id) {
-    return { success: false, error: "لا يمكن اختيار المعلم نفسه في المعلمين الأول والثاني" };
+    return { success: false, error: "لا يمكن اختيار المختبر نفسه في المختبرين الأول والثاني" };
   }
 
   const season = await prisma.examSeason.findUnique({
@@ -306,10 +306,10 @@ export async function updateCommittee(
     where: { ...getTenantFilter(user), id: { in: [input.teacher1Id, input.teacher2Id] } },
     select: { id: true, role: true },
   });
-  if (teachers.length !== 2) return { success: false, error: "أحد المعلمين غير موجود" };
+  if (teachers.length !== 2) return { success: false, error: "أحد المختبرين غير موجود" };
   for (const t of teachers) {
     if (t.role !== Role.EXAMINER) {
-      return { success: false, error: "يجب أن يكون كل من المعلمين بدور EXAMINER" };
+      return { success: false, error: "يجب أن يكون كل من المختبرين بدور EXAMINER" };
     }
   }
 

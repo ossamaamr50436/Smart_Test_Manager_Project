@@ -10,7 +10,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   HEAD_OF_AFFAIRS: "رئيس الشؤون التعليمية",
   CERTIFICATE_SOURCE: "مصدر الشهادات",
   TEST_SPECIALIST: "أخصائي الاختبارات",
-  EXAMINER: "المختبر (المعلم)",
+  EXAMINER: "المختبر",
   INSTITUTION: "جهة تعليمية",
 };
 

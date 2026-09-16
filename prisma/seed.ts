@@ -108,7 +108,7 @@ const INSTITUTIONS = [
   "دار نافع المدني",
 ];
 
-// بيانات المعلمين (8 معلمين بأعمار مختلفة)
+// بيانات المختبرين (8 معلمين بأعمار مختلفة)
 const EXAMINERS: {
   name: string;
   email: string;
@@ -437,7 +437,7 @@ async function main() {
   }
   console.log(`✅ الجهات التعليمية: ${createdInstitutions.length} جهة`);
 
-  // ===== 3) المعلمون (8 معلمين بأعمار مختلفة) =====
+  // ===== 3) المختبرون (8 معلمين بأعمار مختلفة) =====
   const examiners: { id: string; name: string; birthDate: Date }[] = [];
   for (const ex of EXAMINERS) {
     const birthDate = new Date(ex.birthDate);
@@ -579,7 +579,7 @@ async function main() {
     (s) => (createdStudents.indexOf(s) % 5 !== 0)
   );
 
-  // نكوّن لجاناً بحيث تشمل المعلمين جميعاً
+  // نكوّن لجاناً بحيث تشمل المختبرين جميعاً
   for (let i = 0; i + 4 < pairedExaminers.length; i++) {
     const teacher1 = pairedExaminers[i]!;
     const teacher2 = pairedExaminers[i + 4]!;
@@ -590,7 +590,7 @@ async function main() {
       i * groupSize + groupSize
     );
     for (const student of group) {
-      // تاريخ فريد لكل جلسة (لتجنب تعارض مواعيد المعلمين)
+      // تاريخ فريد لكل جلسة (لتجنب تعارض مواعيد المختبرين)
       let examDate = new Date(now.getFullYear(), now.getMonth() + 1 + i, 10 + committeeCount % 15);
       while (usedDates.has(examDate.toISOString().slice(0, 10))) {
         examDate.setDate(examDate.getDate() + 1);

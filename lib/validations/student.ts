@@ -59,8 +59,8 @@ export type StudentApplicationInput = z.infer<typeof studentApplicationSchema>;
 // مخطط تشكيل لجنة — خاص بأخصائي الاختبارات
 export const committeeSchema = z.object({
   studentId: z.string().min(1, "اختر الطالب").max(64, "معرّف الطالب غير صالح"),
-  teacher1Id: z.string().min(1, "اختر المعلم الأول").max(64, "معرّف المعلم غير صالح"),
-  teacher2Id: z.string().min(1, "اختر المعلم الثاني").max(64, "معرّف المعلم غير صالح"),
+  teacher1Id: z.string().min(1, "اختر المختبر الأول").max(64, "معرّف المختبر غير صالح"),
+  teacher2Id: z.string().min(1, "اختر المختبر الثاني").max(64, "معرّف المختبر غير صالح"),
   examDate: z.string().min(1, "حدد تاريخ الاختبار").max(50, "تاريخ الاختبار غير صالح"),
   period: z.enum(PERIODS, { message: "اختر الفترة" }),
 });

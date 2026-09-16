@@ -210,7 +210,7 @@ export async function getDashboardCounters() {
 }
 
 /**
- * المعلمات المرتبطة بقائمة المعلمين المتاحين لتشكيل اللجان
+ * المعلمات المرتبطة بقائمة المختبرين المتاحين لتشكيل اللجان
  * (يعيد فقط ما يلزم للاختيار)
  */
 export async function getExaminerOptions() {

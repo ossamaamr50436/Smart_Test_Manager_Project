@@ -206,7 +206,7 @@ export function CommitteeManager({
         <CardHeader>
           <CardTitle className="text-base">{editingId ? "تعديل اللجنة" : "إنشاء لجنة جديدة"}</CardTitle>
           <CardDescription>
-            {editingId ? "عدّل بيانات اللجنة واحفظها" : "حدد الاسم والمعلمين والفرع ونطاق النماذج"}
+            {editingId ? "عدّل بيانات اللجنة واحفظها" : "حدد الاسم والمختبرين والفرع ونطاق النماذج"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -238,9 +238,9 @@ export function CommitteeManager({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>المعلم الأول *</Label>
+              <Label>المختبر الأول *</Label>
               <Select value={teacher1Id} onValueChange={setTeacher1Id}>
-                <SelectTrigger><SelectValue placeholder="اختر المعلم الأول" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="اختر المختبر الأول" /></SelectTrigger>
                 <SelectContent>
                   {examiners.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -249,9 +249,9 @@ export function CommitteeManager({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>المعلم الثاني *</Label>
+              <Label>المختبر الثاني *</Label>
               <Select value={teacher2Id} onValueChange={setTeacher2Id}>
-                <SelectTrigger><SelectValue placeholder="اختر المعلم الثاني" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="اختر المختبر الثاني" /></SelectTrigger>
                 <SelectContent>
                   {examiners.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -302,8 +302,8 @@ export function CommitteeManager({
                   <tr className="border-b">
                     <th className="p-2 text-right font-medium">الاسم</th>
                     <th className="p-2 text-right font-medium">الفرع</th>
-                    <th className="p-2 text-right font-medium">المعلم 1</th>
-                    <th className="p-2 text-right font-medium">المعلم 2</th>
+                    <th className="p-2 text-right font-medium">المختبر 1</th>
+                    <th className="p-2 text-right font-medium">المختبر 2</th>
                     <th className="p-2 text-right font-medium">الطلاب</th>
                     <th className="p-2 text-right font-medium">النطاق</th>
                     <th className="p-2 text-center font-medium">إجراءات</th>

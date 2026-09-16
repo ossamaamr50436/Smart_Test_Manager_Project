@@ -19,13 +19,13 @@ import { emailSchema, passwordSchema, birthDateSchema } from "@/lib/validations/
 import { z } from "zod";
 
 // ============================================================
-// إدارة المعلمين (المرحلة 13) — خاص بالأخصائي/الأدمن
+// إدارة المختبرين (المرحلة 13) — خاص بالأخصائي/الأدمن
 // إنشاء + إعادة تعيين كلمة المرور + حذف (EXAMINER فقط)
 // كل إجراء يعيد union { success } | { success:false; error } ليعرض العميل الخطأ الحقيقي
 // ============================================================
 
 const createExaminerSchema = z.object({
-  name: z.string().min(2, "اسم المعلم لا يقل عن حرفين").max(120),
+  name: z.string().min(2, "اسم المختبر لا يقل عن حرفين").max(120),
   email: emailSchema,
   password: passwordSchema,
   birthDate: birthDateSchema.optional(),
@@ -33,7 +33,7 @@ const createExaminerSchema = z.object({
 
 export type CreateExaminerInput = z.infer<typeof createExaminerSchema>;
 
-/** نتيجة إنشاء معلم — success مع examinerId أو خطأ واضح */
+/** نتيجة إنشاء مختبر — success مع examinerId أو خطأ واضح */
 export type CreateExaminerResult =
   | { success: true; examinerId: string }
   | { success: false; error: string };
@@ -56,7 +56,7 @@ export async function createExaminer(input: CreateExaminerInput): Promise<Create
 
   const parsed = createExaminerSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "بيانات المعلم غير صحيحة" };
+    return { success: false, error: parsed.error.issues[0]?.message ?? "بيانات المختبر غير صحيحة" };
   }
   const data = parsed.data;
 
@@ -80,7 +80,7 @@ export async function createExaminer(input: CreateExaminerInput): Promise<Create
     if (isUniqueConstraintError(error)) {
       return { success: false, error: friendlyUniqueMessage(error) };
     }
-    return { success: false, error: "حدث خطأ غير متوقع أثناء إنشاء المعلم" };
+    return { success: false, error: "حدث خطأ غير متوقع أثناء إنشاء المختبر" };
   }
 
   try {
@@ -118,7 +118,7 @@ export async function resetExaminerPassword(
   }
 
   if (!examinerId || typeof examinerId !== "string" || examinerId.length > 64) {
-    return { success: false, error: "معرّف المعلم غير صالح" };
+    return { success: false, error: "معرّف المختبر غير صالح" };
   }
 
   const parsedPassword = passwordSchema.safeParse(newPassword);
@@ -130,10 +130,10 @@ export async function resetExaminerPassword(
     where: { id: examinerId },
     select: { id: true, role: true, tenantId: true },
   });
-  if (!examiner) return { success: false, error: "المعلم غير موجود" };
+  if (!examiner) return { success: false, error: "المختبر غير موجود" };
   assertSameTenant(user, examiner);
   if (examiner.role !== Role.EXAMINER) {
-    return { success: false, error: "هذا الحساب ليس حساب معلم" };
+    return { success: false, error: "هذا الحساب ليس حساب مختبر" };
   }
 
   const hashedPassword = await bcrypt.hash(parsedPassword.data, 12);
@@ -175,7 +175,7 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
   }
 
   if (!examinerId || typeof examinerId !== "string" || examinerId.length > 64) {
-    return { success: false, error: "معرّف المعلم غير صالح" };
+    return { success: false, error: "معرّف المختبر غير صالح" };
   }
 
   const examiner = await prisma.user.findUnique({
@@ -196,10 +196,10 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
       },
     },
   });
-  if (!examiner) return { success: false, error: "المعلم غير موجود" };
+  if (!examiner) return { success: false, error: "المختبر غير موجود" };
   assertSameTenant(user, examiner);
   if (examiner.role !== Role.EXAMINER) {
-    return { success: false, error: "هذا الحساب ليس حساب معلم" };
+    return { success: false, error: "هذا الحساب ليس حساب مختبر" };
   }
 
   const inUse =
@@ -212,7 +212,7 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
   if (inUse > 0) {
     return {
       success: false,
-      error: `لا يمكن حذف المعلم «${examiner.name}» لارتباطه بـ ${inUse} لجنة/جلسة/تقييم — يمكن تعطيله عبر إعادة تعيين كلمة المرور فقط`,
+      error: `لا يمكن حذف المختبر «${examiner.name}» لارتباطه بـ ${inUse} لجنة/جلسة/تقييم — يمكن تعطيله عبر إعادة تعيين كلمة المرور فقط`,
     };
   }
 
@@ -235,14 +235,14 @@ export async function deleteExaminer(examinerId: string): Promise<ExaminerAction
       });
     });
   } catch {
-    return { success: false, error: "حدث خطأ غير متوقع أثناء حذف المعلم" };
+    return { success: false, error: "حدث خطأ غير متوقع أثناء حذف المختبر" };
   }
 
   revalidatePath("/test-specialist/teachers");
   return { success: true };
 }
 
-/** جلب قائمة المعلمين (EXAMINER) مع إحصاءات الارتباط */
+/** جلب قائمة المختبرين (EXAMINER) مع إحصاءات الارتباط */
 export async function getExaminersList() {
   const user = await requireUser();
   assertRole(user);

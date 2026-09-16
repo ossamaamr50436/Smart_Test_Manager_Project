@@ -29,7 +29,7 @@ export default async function CommitteesPage() {
     orderBy: { name: "asc" },
   });
 
-  // جميع المعلمين (المختبرين) ضمن نفس المؤسسة
+  // جميع المختبرين ضمن نفس المؤسسة
   const examiners = await getCachedExaminers(user.tenantId ?? undefined);
 
   // اللجان القائمة

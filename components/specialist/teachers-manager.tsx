@@ -57,7 +57,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
       const list = await getExaminersList();
       setExaminers(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "تعذر تحميل المعلمين");
+      setError(e instanceof Error ? e.message : "تعذر تحميل المختبرين");
     }
   }
 
@@ -74,7 +74,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
       };
       const result = await createExaminer(input);
       if (result.success) {
-        setSuccess(`تم إنشاء حساب المعلم «${form.name}» — كلمة المرور المؤقتة: ${form.password}`);
+        setSuccess(`تم إنشاء حساب المختبر «${form.name}» — كلمة المرور المؤقتة: ${form.password}`);
         setForm(EMPTY_FORM);
         await loadFromServer();
       } else {
@@ -114,7 +114,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
     try {
       const result = await deleteExaminer(examinerId);
       if (result.success) {
-        setSuccess("تم حذف المعلم");
+        setSuccess("تم حذف المختبر");
         setConfirmDeleteId(null);
         await loadFromServer();
       } else {
@@ -140,7 +140,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
         <CardHeader>
           <CardTitle className="text-base">إنشاء حساب معلم جديد</CardTitle>
           <CardDescription>
-            كلمة المرور المؤقتة معروضة لك مرة واحدة بعد الإنشاء — سيُجبر المعلم على تغييرها عند أول دخول
+            كلمة المرور المؤقتة معروضة لك مرة واحدة بعد الإنشاء — سيُجبر المختبر على تغييرها عند أول دخول
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -180,7 +180,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
             </div>
             <div className="sm:col-span-2">
               <Button type="submit" disabled={loading}>
-                {loading ? "جارٍ الإنشاء..." : "إنشاء حساب المعلم"}
+                {loading ? "جارٍ الإنشاء..." : "إنشاء حساب المختبر"}
               </Button>
             </div>
           </form>
@@ -189,18 +189,18 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">المعلمون</CardTitle>
-          <CardDescription>{examiners.length} معلم</CardDescription>
+          <CardTitle className="text-base">أعضاء لجنة الاختبار</CardTitle>
+          <CardDescription>{examiners.length} مختبر</CardDescription>
         </CardHeader>
         <CardContent>
           {examiners.length === 0 ? (
-            <p className="py-8 text-center text-muted-foreground">لا يوجد معلمون بعد</p>
+            <p className="py-8 text-center text-muted-foreground">لا يوجد مختبرون بعد</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/60">
                   <tr className="text-right">
-                    <th className="px-3 py-2 font-medium">المعلم</th>
+                    <th className="px-3 py-2 font-medium">المختبر</th>
                     <th className="px-3 py-2 font-medium">الارتباط</th>
                     <th className="px-3 py-2 font-medium">إجراءات</th>
                   </tr>

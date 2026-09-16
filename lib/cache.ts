@@ -66,7 +66,7 @@ export const getCachedActiveSeason = unstable_cache(
 );
 
 /**
- * قائمة المعلمين المختصرين (المتوفرون لتشكيل اللجان)
+ * قائمة المختبرين المختصرين (المتوفرون لتشكيل اللجان)
  * البيانات شبه ثابتة — تُحدّث كل 10 دقائق
  */
 export const getCachedExaminers = unstable_cache(

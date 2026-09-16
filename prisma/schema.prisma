@@ -22,7 +22,7 @@ enum Role {
   HEAD_OF_AFFAIRS // رئيس الشؤون التعليمية
   CERTIFICATE_SOURCE // مصدر الشهادات
   TEST_SPECIALIST // أخصائي الاختبارات
-  EXAMINER // المختبر (المعلم)
+  EXAMINER // المختبر
   INSTITUTION // الجهة التعليمية
 }
 
@@ -259,8 +259,8 @@ model Committee {
   name       String // اسم اللجنة (مثال: "لجنة 1 — فرع 5 أجزاء")
   branch     String // الفرع: 5/10/15/20/25/30 جزءاً
   seasonId   String
-  teacher1Id String // المعلم الأول في اللجنة
-  teacher2Id String // المعلم الثاني في اللجنة
+  teacher1Id String // المختبر الأول في اللجنة
+  teacher2Id String // المختبر الثاني في اللجنة
   tenantId   String // Multi-Tenant
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -432,10 +432,10 @@ model Assessment {
   // أخطاء التجويد (المهمة 6 — بدلاً من الاعتماد على tajweedScore فقط)
   tajweedErrors Int @default(0) // عدد أخطاء التجويد — خصم tajweedDeduction لكل خطأ
 
-  // التلاوة وحسن الأداء (20 درجة) — تُقيّم من المعلم مباشرة
+  // التلاوة وحسن الأداء (20 درجة) — تُقيّم من المختبر مباشرة
   recitationScore Float @default(0) // من 0 إلى 20
 
-  // التجويد التطبيقي (10 درجات) — تُقيّم من المعلم مباشرة
+  // التجويد التطبيقي (10 درجات) — تُقيّم من المختبر مباشرة
   tajweedScore Float @default(0) // من 0 إلى 10
 
   // الدرجات المحسوبة

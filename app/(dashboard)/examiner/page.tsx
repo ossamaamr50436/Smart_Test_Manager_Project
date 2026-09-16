@@ -31,7 +31,7 @@ export default async function ExaminerDashboardPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold">لوحة المختبر (المعلم)</h1>
+        <h1 className="text-2xl font-bold">لوحة المختبر</h1>
         <p className="mt-1 text-muted-foreground">
           طلابك الموزعون على لجنتك — اضغط «ابدأ الاختبار» لبدء التقييم التفاعلي
         </p>

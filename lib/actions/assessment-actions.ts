@@ -74,7 +74,7 @@ async function resolveModelId(
 }
 
 /**
- * حفظ أو تحديث سجل تقييم — خاص بالمختبرين (المعلمين)
+ * حفظ أو تحديث سجل تقييم — خاص بالمختبرين
  * وفق لائحة اختيار فرع كامل القرآن (100 درجة)
  */
 export async function saveAssessment(input: AssessmentInput) {
