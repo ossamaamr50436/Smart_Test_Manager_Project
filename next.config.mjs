@@ -23,18 +23,20 @@ const nextConfig = {
       "recharts",
     ],
   },
-  // Support Arabic / RTL fonts and downloaded images from Google Drive
+  // Support Arabic / RTL fonts and images from UploadThing
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "drive.google.com",
+        hostname: "*.ufs.sh",
+        pathname: "/f/*",
       },
       {
         protocol: "https",
-        hostname: "lh3.googleusercontent.com",
+        hostname: "utfs.io",
+        pathname: "/f/*",
       },
       {
         protocol: "https",
