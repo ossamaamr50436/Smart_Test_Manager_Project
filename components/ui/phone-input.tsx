@@ -68,7 +68,7 @@ export function PhoneInput({
           placeholder={placeholder}
           id={inputId}
           inputComponent={Input}
-          className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="w-full border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
 
