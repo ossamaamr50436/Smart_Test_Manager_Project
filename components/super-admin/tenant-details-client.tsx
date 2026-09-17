@@ -57,8 +57,8 @@ interface TenantDetail {
   id: string;
   name: string;
   slug: string;
-  driveFolderId: string | null;
-  driveFolderUrl: string | null;
+  uploadthingToken: string | null;
+  uploadthingTokenHash: string | null;
   primaryColor: string;
   secondaryColor: string;
   isActive: boolean;
@@ -182,8 +182,7 @@ function TenantUpdateForm({ tenant }: { tenant: TenantDetail }) {
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: tenant.name,
-    driveFolderId: tenant.driveFolderId ?? "",
-    driveFolderUrl: tenant.driveFolderUrl ?? "",
+    uploadthingToken: tenant.uploadthingToken ?? "",
     primaryColor: tenant.primaryColor,
     secondaryColor: tenant.secondaryColor,
   });
@@ -198,8 +197,7 @@ function TenantUpdateForm({ tenant }: { tenant: TenantDetail }) {
     startTransition(async () => {
       const result = await updateTenant(tenant.id, {
         name: form.name,
-        driveFolderId: form.driveFolderId.trim() || undefined,
-        driveFolderUrl: form.driveFolderUrl.trim() || undefined,
+        uploadthingToken: form.uploadthingToken.trim() || undefined,
         primaryColor: form.primaryColor,
         secondaryColor: form.secondaryColor,
       });
@@ -215,32 +213,30 @@ function TenantUpdateForm({ tenant }: { tenant: TenantDetail }) {
     <Card>
       <CardHeader>
         <CardTitle>تعديل بيانات المؤسسة</CardTitle>
-        <CardDescription>الاسم، مجلد Drive، والألوان.</CardDescription>
+        <CardDescription>الاسم، مفتاح UploadThing، والألوان.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="c-name">اسم المؤسسة</Label>
           <Input id="c-name" value={form.name} onChange={(e) => update("name", e.target.value)} />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="c-driveId">معرّف مجلد Drive</Label>
-            <Input
-              id="c-driveId"
-              value={form.driveFolderId}
-              onChange={(e) => update("driveFolderId", e.target.value)}
-              dir="ltr"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="c-driveUrl">رابط مجلد Drive</Label>
-            <Input
-              id="c-driveUrl"
-              value={form.driveFolderUrl}
-              onChange={(e) => update("driveFolderUrl", e.target.value)}
-              dir="ltr"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="c-token">مفتاح UploadThing</Label>
+          <Input
+            id="c-token"
+            type="password"
+            value={form.uploadthingToken}
+            onChange={(e) => update("uploadthingToken", e.target.value)}
+            dir="ltr"
+            autoComplete="off"
+          />
+          {tenant.uploadthingTokenHash ? (
+            <p className="text-xs text-muted-foreground" dir="ltr">
+              SHA256: {tenant.uploadthingTokenHash}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">لم يُضبط مفتاح UploadThing بعد.</p>
+          )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">

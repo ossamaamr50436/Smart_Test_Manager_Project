@@ -21,8 +21,7 @@ export function CreateTenantForm() {
   const [form, setForm] = useState({
     name: "",
     slug: "",
-    driveFolderId: "",
-    driveFolderUrl: "",
+    uploadthingToken: "",
     primaryColor: "#015e63",
     secondaryColor: "#d3bb8b",
   });
@@ -37,8 +36,7 @@ export function CreateTenantForm() {
       const result = await createTenant({
         name: form.name,
         slug: form.slug,
-        driveFolderId: form.driveFolderId.trim() || undefined,
-        driveFolderUrl: form.driveFolderUrl.trim() || undefined,
+        uploadthingToken: form.uploadthingToken.trim(),
         primaryColor: form.primaryColor,
         secondaryColor: form.secondaryColor,
       });
@@ -82,25 +80,20 @@ export function CreateTenantForm() {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="driveFolderId">معرّف مجلد Drive (اختياري)</Label>
-            <Input
-              id="driveFolderId"
-              value={form.driveFolderId}
-              onChange={(e) => update("driveFolderId", e.target.value)}
-              dir="ltr"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="driveFolderUrl">رابط مجلد Drive (اختياري)</Label>
-            <Input
-              id="driveFolderUrl"
-              value={form.driveFolderUrl}
-              onChange={(e) => update("driveFolderUrl", e.target.value)}
-              dir="ltr"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="uploadthingToken">مفتاح UploadThing (sk_live_...)</Label>
+          <Input
+            id="uploadthingToken"
+            type="password"
+            value={form.uploadthingToken}
+            onChange={(e) => update("uploadthingToken", e.target.value)}
+            placeholder="sk_live_..."
+            dir="ltr"
+            autoComplete="off"
+          />
+          <p className="text-xs text-muted-foreground">
+            يُخزَّن المفتاح بتجزئة SHA256 للأمان، ويُعرض للمشرفين عند الطلب.
+          </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

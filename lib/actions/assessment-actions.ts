@@ -16,7 +16,6 @@ import {
   assessmentApprovalSchema,
   type AssessmentInput,
 } from "@/lib/validations/assessment";
-import { getExamModelsFromDrive } from "@/lib/google-drive";
 import { broadcastAssessmentUpdate } from "@/lib/realtime";
 import { computeTotals } from "@/lib/score-calculation";
 import { MEMORIZATION_SCORE } from "@/lib/score-config";
@@ -41,26 +40,6 @@ async function resolveModelId(
   });
 
   if (model) return model.id;
-
-  // محاولة إنشاء من Google Drive
-  try {
-    const models = await getExamModelsFromDrive();
-    const driveModel = models[0];
-    if (driveModel) {
-      const created = await prisma.questionBankModel.create({
-        data: {
-          modelNumber: 1,
-          branch,
-          detailsJSON: { source: "drive", fileId: driveModel.fileId, name: driveModel.name },
-          segmentsCount: 1,
-          tenantId,
-        },
-      });
-      return created.id;
-    }
-  } catch {
-    // تجاهل
-  }
 
   return null;
 }

@@ -29,7 +29,7 @@ const ROLE_ACCESS: Record<string, string[]> = {
   updatePlatformSettings: [Role.ADMIN],
   getAuditLogs: [Role.ADMIN, Role.TEST_SPECIALIST],
   getExamSeasons: [Role.ADMIN, Role.TEST_SPECIALIST, Role.HEAD_OF_AFFAIRS],
-  getCertificateDriveLink: [Role.CERTIFICATE_SOURCE, Role.INSTITUTION, Role.ADMIN],
+  getCertificateFileLink: [Role.CERTIFICATE_SOURCE, Role.INSTITUTION, Role.ADMIN],
 };
 
 function canAccess(role: string, action: string): boolean {

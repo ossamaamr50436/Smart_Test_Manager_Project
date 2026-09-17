@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { Role, Prisma } from "@prisma/client";
-import { uploadExamModelFile } from "@/lib/google-drive";
+import { uploadFile } from "@/lib/file-storage";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
  * استيراد النماذج الاختبارية من ملف JSON إلى بنك الأسئلة (المهمة I)
  * عزل الصلاحيات: أخصائي الاختبارات فقط (المادة 8).
  *
- * يرفع ملف النموذج على Google Drive (المادة 3) ويسجّل بياناته
+ * يرفع ملف النموذج على وحدة التخزين (UploadThing) ويسجّل بياناته
  * في قاعدة البيانات (بنك الأسئلة — بلا موسم أو جهة).
  *
  * تنسيق JSON المتوقع:
@@ -65,8 +65,8 @@ export async function POST(req: Request) {
       }
 
       try {
-        // رفع النسخة الأصلية للملف على Drive إن وُجدت (مع حد أقصى للحجم)
-        let driveRef: { fileId: string; webViewLink: string } | null = null;
+        // رفع النسخة الأصلية للملف على وحدة التخزين إن وُجدت (مع حد أقصى للحجم)
+        let storedRef: { fileId: string; webViewLink: string } | null = null;
         if (item?.fileBuffer && item?.fileName) {
           const base64 = String(item.fileBuffer).split(",")[1] ?? String(item.fileBuffer);
           if (base64.length > 2 * 1024 * 1024 * 1.34) {
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
             });
             continue;
           }
-          driveRef = await uploadExamModelFile(
+          storedRef = await uploadFile(
             buffer,
             `model-${modelNumber}-${Date.now()}.json`,
             "application/json"

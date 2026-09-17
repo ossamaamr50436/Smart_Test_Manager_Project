@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { Prisma, Role, AuditAction, NotificationType } from "@prisma/client";
@@ -43,17 +44,6 @@ const idSchema = z
   .min(1, "المعرف مطلوب")
   .max(64, "المعرف طويل جداً");
 
-const optionalTrimmedMax = (max: number) =>
-  z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().trim().max(max).optional()
-  );
-
-const optionalUrl = z.preprocess(
-  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-  z.string().url("رابط غير صالح").max(500).optional()
-);
-
 // كلمة المرور في التعديل اختيارية: "" أو فراغات = عدم تغييرها، وإلا تُشفّر بعد التحقق
 const optionalPassword = z.preprocess(
   (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
@@ -77,12 +67,19 @@ const notifySchema = z.object({
 const createTenantSchema = z.object({
   name: z.string().trim().min(2, "اسم المؤسسة مطلوب").max(200, "الاسم طويل جداً"),
   slug: slugSchema,
-  driveFolderId: optionalTrimmedMax(200),
-  driveFolderUrl: optionalUrl,
+  uploadthingToken: z
+    .string()
+    .regex(/^sk_live_/, "المفتاح يجب أن يبدأ بـ sk_live_")
+    .min(20, "المفتاح قصير جداً"),
   primaryColor: hexColorSchema.default("#015e63"),
   secondaryColor: hexColorSchema.default("#d3bb8b"),
 });
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
+
+/** SHA256 تجزئة لا رجعة فيها لمفتاح UploadThing — تُخزَّن بدل المفتاح خارج نظمنا. */
+function hashUploadThingToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 const createTenantAdminSchema = z.object({
   tenantId: idSchema,
@@ -129,8 +126,11 @@ const TENANT_ROLE_BY_NAME: Record<string, Role> = {
 
 const updateTenantSchema = z.object({
   name: z.string().trim().min(2, "اسم المؤسسة مطلوب").max(200, "الاسم طويل جداً").optional(),
-  driveFolderId: optionalTrimmedMax(200),
-  driveFolderUrl: optionalUrl,
+  uploadthingToken: z
+    .string()
+    .regex(/^sk_live_/, "المفتاح يجب أن يبدأ بـ sk_live_")
+    .min(20, "المفتاح قصير جداً")
+    .optional(),
   primaryColor: hexColorSchema.optional(),
   secondaryColor: hexColorSchema.optional(),
 });
@@ -287,8 +287,8 @@ export async function getTenantDetails(tenantId: string) {
       id: true,
       name: true,
       slug: true,
-      driveFolderId: true,
-      driveFolderUrl: true,
+      uploadthingToken: true,
+      uploadthingTokenHash: true,
       primaryColor: true,
       secondaryColor: true,
       isActive: true,
@@ -429,8 +429,8 @@ export async function createTenant(
       data: {
         name: data.name,
         slug: data.slug,
-        driveFolderId: data.driveFolderId ?? null,
-        driveFolderUrl: data.driveFolderUrl ?? null,
+        uploadthingToken: data.uploadthingToken,
+        uploadthingTokenHash: hashUploadThingToken(data.uploadthingToken),
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
       },
@@ -555,8 +555,10 @@ export async function updateTenant(
 
   const updateData: Prisma.TenantUpdateInput = {};
   if (data.name !== undefined) updateData.name = data.name;
-  if (data.driveFolderId !== undefined) updateData.driveFolderId = data.driveFolderId ?? null;
-  if (data.driveFolderUrl !== undefined) updateData.driveFolderUrl = data.driveFolderUrl ?? null;
+  if (data.uploadthingToken !== undefined) {
+    updateData.uploadthingToken = data.uploadthingToken;
+    updateData.uploadthingTokenHash = hashUploadThingToken(data.uploadthingToken);
+  }
   if (data.primaryColor !== undefined) updateData.primaryColor = data.primaryColor;
   if (data.secondaryColor !== undefined) updateData.secondaryColor = data.secondaryColor;
   if (Object.keys(updateData).length === 0) return { success: true };

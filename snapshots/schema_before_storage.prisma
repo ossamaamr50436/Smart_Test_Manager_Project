@@ -92,9 +92,9 @@ model Tenant {
   id             String   @id @default(cuid())
   name           String   @unique
   slug           String   @unique
-  uploadthingToken     String? // مفتاح UploadThing (sk_live_...) — يُعرض للمالك
-  uploadthingTokenHash String? // SHA256 من المفتاح للتحقق الآمن دون كشفه
-  primaryColor         String   @default("#015e63")
+  driveFolderId  String?
+  driveFolderUrl String?
+  primaryColor   String   @default("#015e63")
   secondaryColor String   @default("#d3bb8b")
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -114,7 +114,6 @@ model Tenant {
   assessmentSettings AssessmentSettings[]
   questionBankModels QuestionBankModel[]
 
-  @@index([uploadthingTokenHash])
   @@map("tenants")
 }
 

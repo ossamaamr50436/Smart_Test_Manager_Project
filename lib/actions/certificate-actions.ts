@@ -13,14 +13,14 @@ import {
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { generateCertificatePdfBuffer } from "@/lib/certificate-pdf";
-import { uploadFileToDrive } from "@/lib/google-drive";
+import { uploadFile } from "@/lib/file-storage";
 import {
   isUniqueConstraintError,
   friendlyUniqueMessage,
 } from "@/lib/actions/unique-guard";
 import { getPlatformSettings } from "@/lib/actions/settings-actions";
 import {
-  downloadTemplateFromDrive,
+  downloadTemplateBytes,
   fillPdfTemplate,
 } from "@/lib/certificate-template";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -29,7 +29,7 @@ import { validateFileUpload } from "@/lib/upload-security";
 // ============================================================
 // نظام إصدار الشهادات (القسم 8)
 // - عزل الصلاحيات: مصدر الشهادات فقط (المادة 8/5)
-// - الملفات: تُرفع حصراً على Google Drive (المادة 3)
+// - الملفات: تُرفع حصراً على وحدة التخزين (UploadThing)
 // ============================================================
 
 /** تسجيل حدث في Audit Log */
@@ -73,7 +73,7 @@ function buildSerialNumber(index: number): string {
 /**
  * إصدار شهادة لطالب جاهز (READY_FOR_CERTIFICATE)
  * - يولّد PDF جديداً
- * - يرفعه على Google Drive
+ * - يرفعه على وحدة التخزين (UploadThing)
  * - يحدّث حالة الطالب إلى CERTIFICATE_ISSUED
  * - يضيف إشعاراً للجهة التعليمية + سجل تدقيق
  */
@@ -162,8 +162,8 @@ export async function generateCertificate(studentId: string) {
   let pdfBuffer: Buffer;
 
   if (settings.useTemplateMode && settings.templateFileId) {
-    // القالب الذكي: تحميل القالب من Drive وتعبئته
-    const templateBytes = await downloadTemplateFromDrive(
+    // القالب الذكي: تحميل القالب من وحدة التخزين وتعبئته
+    const templateBytes = await downloadTemplateBytes(
       settings.templateFileId
     );
     const dateStr = new Date().toLocaleDateString("ar-SA", {
@@ -189,18 +189,18 @@ export async function generateCertificate(studentId: string) {
     });
   }
 
-  // 2) رفع الشهادة على Google Drive (المادة 3)
+  // 2) رفع الشهادة على وحدة التخزين (UploadThing)
   let fileUrl = "";
   try {
-    const uploaded = await uploadFileToDrive(
+    const uploaded = await uploadFile(
       pdfBuffer,
       `${serialNumber}-${student.name}.pdf`,
       "application/pdf"
     );
     fileUrl = uploaded.webViewLink;
   } catch (uploadError) {
-    // عدم توفر إعدادات Drive يمنع إتمام الإصدار — لا نخزن الملف محلياً (المادة 3)
-    throw new Error("تعذر رفع الشهادة على Google Drive — تحقق من إعدادات الاتصال");
+    // عدم توفر إعدادات التخزين يمنع إتمام الإصدار — لا نخزن الملف محلياً
+    throw new Error("تعذر رفع الشهادة على وحدة التخزين — تحقق من الإعدادات");
   }
 
   // 3) حفظ سجل الشهادة
@@ -238,7 +238,7 @@ export async function generateCertificate(studentId: string) {
     await prisma.notification.createMany({
       data: institutionUsers.map((u) => ({
         userId: u.id,
-        message: `صدرت شهادة الطالب «${student.name}» وتم رفعها على Google Drive`,
+        message: `صدرت شهادة الطالب «${student.name}» وتم رفعها على وحدة التخزين`,
         type: NotificationType.CERTIFICATE,
         tenantId: requireTenantId(user),
       })),
@@ -262,9 +262,9 @@ export async function generateCertificate(studentId: string) {
 }
 
 /**
- * فتح/مشاهدة شهادة مرفوعة سابقاً (عنوان Drive)
+ * فتح/مشاهدة شهادة مرفوعة سابقاً (رابط الملف)
  */
-export async function getCertificateDriveLink(studentId: string) {
+export async function getCertificateFileLink(studentId: string) {
   const user = await requireUser();
   requireRole(user, [Role.CERTIFICATE_SOURCE, Role.INSTITUTION, Role.ADMIN]);
 
@@ -305,7 +305,7 @@ export async function getPendingCertificatesForSignature() {
 /**
  * توقيع الشهادة (المادة 8/6)
  *
- * يرفع صورة التوقيع الرقمي على Google Drive ثم يحدّث سجل الشهادة
+ * يرفع صورة التوقيع الرقمي على وحدة التخزين ثم يحدّث سجل الشهادة
  * على أن يوقّع مسؤول رفيع المستوى (Admin / HeadOfAffairs).
  */
 export async function signCertificate(certificateId: string, signatureBuffer: Buffer | ArrayBuffer | Uint8Array) {
@@ -358,8 +358,8 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
     throw new Error("الشهادة موقّعة بالفعل");
   }
 
-  // رفع صورة التوقيع على Google Drive (المادة 3)
-  const uploaded = await uploadFileToDrive(
+  // رفع صورة التوقيع على وحدة التخزين
+  const uploaded = await uploadFile(
     buffer,
     `signature-${certificate.serialNumber}.png`,
     "image/png"
