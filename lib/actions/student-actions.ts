@@ -133,7 +133,7 @@ export async function createStudentApplication(
         "application/pdf"
       );
       applicationFileId = uploaded.fileId;
-      applicationFileUrl = uploaded.webViewLink;
+      applicationFileUrl = uploaded.url;
     } catch (error) {
       return {
         success: false,
@@ -505,7 +505,7 @@ export async function createStudentApplicationBySpecialist(
         "application/pdf"
       );
       applicationFileId = uploaded.fileId;
-      applicationFileUrl = uploaded.webViewLink;
+      applicationFileUrl = uploaded.url;
     } catch (error) {
       return {
         success: false,

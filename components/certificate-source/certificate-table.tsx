@@ -144,7 +144,7 @@ export function CertificateTable({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">الشهادات الصادرة مؤخراً</CardTitle>
-          <CardDescription>محفوظة على Google Drive (المادة 3)</CardDescription>
+          <CardDescription>محفوظة في التخزين السحابي (المادة 3)</CardDescription>
         </CardHeader>
         <CardContent>
           {issuedCertificates.length === 0 ? (

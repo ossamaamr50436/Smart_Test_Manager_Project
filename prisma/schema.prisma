@@ -55,7 +55,7 @@ enum AssessmentStatus {
 enum CertificateStatus {
   PENDING // بانتظار التوقيع
   SIGNED // تم التوقيع
-  UPLOADED // تم رفعه على Drive
+  UPLOADED // تم رفعه إلى وحدة التخزين
   SENT // أُرسل للجهة
 }
 
@@ -212,8 +212,8 @@ model Student {
   examSessions ExamSession[]
   certificates Certificate[]
 
-  // ملف ترشيح الطالب (PDF) — يُرفع إلى Google Drive
-  applicationFileId  String? // معرف الملف في Google Drive
+  // ملف ترشيح الطالب (PDF) — يُرفع إلى وحدة التخزين (UploadThing)
+  applicationFileId  String? // معرف الملف في وحدة التخزين
   applicationFileUrl String? // رابط العرض للملف
 
   @@index([institutionId])
@@ -440,9 +440,9 @@ model Certificate {
   serialNumber    String            @unique // رقم تسلسلي فريد للشهادة
   studentId       String
   finalScore      Float
-  fileUrl         String? // رابط Google Drive
-  fileId          String? // معرف ملف الشهادة في Google Drive
-  signatureFileId String? // معرف ملف التوقيع في Google Drive
+  fileUrl         String? // رابط الملف في وحدة التخزين
+  fileId          String? // معرف ملف الشهادة في وحدة التخزين
+  signatureFileId String? // معرف ملف التوقيع في وحدة التخزين
   issuedDate      DateTime? // تاريخ الإصدار
   status          CertificateStatus @default(PENDING)
   issuedById      String?
@@ -495,10 +495,10 @@ model Notification {
 model AppSettings {
   id                            String   @id @default("singleton")
   platformName                  String   @default("تطبيق الاختبارات")
-  logoFileId                    String? // معرف ملف الشعار في Google Drive
+  logoFileId                    String? // معرف ملف الشعار في وحدة التخزين
   logoUrl                       String? // رابط الشعار العام
   useTemplateMode               Boolean  @default(false) // تفعيل القالب الذكي للشهادات
-  templateFileId                String? // معرف ملف قالب الشهادة في Drive
+  templateFileId                String? // معرف ملف قالب الشهادة في وحدة التخزين
   primaryColor                  String   @default("#015e63") // اللون الأساسي للمنصة
   secondaryColor                String   @default("#d3bb8b") // اللون الثانوي للمنصة
   whatsappNumber                String? // رقم الدعم الفني (ديناميكي)

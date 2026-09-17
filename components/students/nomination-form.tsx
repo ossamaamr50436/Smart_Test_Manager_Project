@@ -250,7 +250,7 @@ export function NominationForm({
             <p className="text-xs text-muted-foreground">
               {requireApplicationFile
                 ? "هذا الحقل إجباري حالياً — امسح النموذج المطبوعة من الجهة"
-                : "اختياري — يُرفع إلى مجلد الجهة على Google Drive"}
+                : "اختياري — يُرفع إلى التخزين السحابي للجهة"}
             </p>
             {applicationFile && (
               <p className="text-xs font-medium text-primary">

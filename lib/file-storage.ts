@@ -1,15 +1,15 @@
 import { UTApi } from "uploadthing/server";
 
 // ============================================================
-// وحدة تخزين الملفات (UploadThing) — بديل Google Drive نهائياً
-// - رفع الملفات وإرجاع { fileId = key, webViewLink = ufsUrl }
+// وحدة تخزين الملفات (UploadThing)
+// - رفع الملفات وإرجاع { fileId = key, url = ufsUrl }
 // - حذف الملفات عبر UTApi
 // - downloadFileByUrl لتحميل المحتوى عبر رابط عام
 // ============================================================
 
 const utapi = new UTApi();
 
-export type StoredFile = { fileId: string; webViewLink: string };
+export type StoredFile = { fileId: string; url: string };
 
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_DOWNLOAD_SIZE = 20 * 1024 * 1024; // 20MB
@@ -30,7 +30,7 @@ export function sanitizeFileName(fileName: string, fallback = "file"): string {
 
 /**
  * رفع ملف إلى UploadThing
- * @returns { fileId, webViewLink } — key + ufsUrl (رابط مباشر عام)
+ * @returns { fileId, url } — key + ufsUrl (رابط مباشر عام)
  */
 export async function uploadFile(
   buffer: Buffer,
@@ -56,7 +56,7 @@ export async function uploadFile(
   const uploaded = result.data;
   return {
     fileId: uploaded.key,
-    webViewLink: uploaded.ufsUrl,
+    url: uploaded.ufsUrl,
   };
 }
 

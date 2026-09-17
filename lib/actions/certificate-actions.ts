@@ -197,7 +197,7 @@ export async function generateCertificate(studentId: string) {
       `${serialNumber}-${student.name}.pdf`,
       "application/pdf"
     );
-    fileUrl = uploaded.webViewLink;
+    fileUrl = uploaded.url;
   } catch (uploadError) {
     // عدم توفر إعدادات التخزين يمنع إتمام الإصدار — لا نخزن الملف محلياً
     throw new Error("تعذر رفع الشهادة على وحدة التخزين — تحقق من الإعدادات");
@@ -368,7 +368,7 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
   await prisma.certificate.update({
     where: { id: certificateId },
     data: {
-      signatureUrl: uploaded.webViewLink || uploaded.fileId,
+      signatureUrl: uploaded.url || uploaded.fileId,
       signedById: user.id,
       signedAt: new Date(),
       status: CertificateStatus.SIGNED,
@@ -385,7 +385,7 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
 
   revalidatePath("/certificate-source");
 
-  return { success: true, certificateId, signatureUrl: uploaded.webViewLink };
+  return { success: true, certificateId, signatureUrl: uploaded.url };
 }
 
 /**

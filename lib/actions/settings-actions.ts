@@ -116,7 +116,7 @@ export async function updatePlatformSettings(
         logoFile.fileName,
         logoFile.mimeType
       );
-      data.logoUrl = uploaded.webViewLink;
+      data.logoUrl = uploaded.url;
       data.logoFileId = uploaded.fileId;
       if (prev?.logoFileId && prev.logoFileId !== uploaded.fileId) {
         try {
@@ -247,7 +247,7 @@ export async function updateTemplateSettings(
         templateFile.mimeType
       );
       // نخزّن الرابط المباشر بدلاً من المعرّف — وحدة التخزين لا تحتاج استرجاع عبر المعرّف
-      data.templateFileId = uploaded.webViewLink;
+      data.templateFileId = uploaded.url;
     } catch (error) {
       throw new Error(
         error instanceof Error

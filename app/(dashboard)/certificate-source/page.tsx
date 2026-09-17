@@ -69,7 +69,7 @@ export default async function CertificateSourceDashboardPage() {
       <div>
         <h1 className="text-2xl font-bold">لوحة مصدر الشهادات</h1>
         <p className="mt-1 text-muted-foreground">
-          الطلاب الذين أكملوا جميع المراحل فقط — إصدار الشهادات ورفعها على Google Drive
+          الطلاب الذين أكملوا جميع المراحل فقط — إصدار الشهادات ورفعها إلى التخزين السحابي
         </p>
       </div>
 

@@ -23,7 +23,7 @@ export function buildCsp(nonce: string): string {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://drive.google.com https://lh3.googleusercontent.com",
+    "img-src 'self' data: blob: https://*.ufs.sh https://utfs.io",
     "font-src 'self' data: https://fonts.gstatic.com",
     `connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com ${pusherOrigins}`,
     "frame-ancestors 'none'",

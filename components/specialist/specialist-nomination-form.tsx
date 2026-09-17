@@ -244,7 +244,7 @@ export function SpecialistNominationForm({
               onChange={(e) => setApplicationFile(e.target.files?.[0] ?? null)}
             />
             <p className="text-xs text-muted-foreground">
-              يُرفع إلى مجلد الجهة على Google Drive
+              يُرفع إلى التخزين السحابي للجهة
             </p>
             {applicationFile && (
               <p className="text-xs font-medium text-primary">

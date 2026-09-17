@@ -66,7 +66,7 @@ export async function POST(req: Request) {
 
       try {
         // رفع النسخة الأصلية للملف على وحدة التخزين إن وُجدت (مع حد أقصى للحجم)
-        let storedRef: { fileId: string; webViewLink: string } | null = null;
+        let storedRef: { fileId: string; url: string } | null = null;
         if (item?.fileBuffer && item?.fileName) {
           const base64 = String(item.fileBuffer).split(",")[1] ?? String(item.fileBuffer);
           if (base64.length > 2 * 1024 * 1024 * 1.34) {
