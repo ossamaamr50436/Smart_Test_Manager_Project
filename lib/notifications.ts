@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { NotificationType } from "@prisma/client";
+import { NotificationType, Role } from "@prisma/client";
 import { pushUserNotification } from "@/lib/realtime";
 
 // ============================================================
@@ -252,4 +252,26 @@ export async function notifyMany(
   }
 
   return { sent: result.count };
+}
+
+/**
+ * إشعار تلقائي للجهة التعليمية عند أي تعديل (طالب/لجنة/فترة/تاريخ) من
+ * الأخصائي أو الأدمن — يُرسل لجميع مستخدمي دور INSTITUTION الخاص بتلك الجهة.
+ */
+export async function notifyInstitution(
+  institutionId: string,
+  payload: Omit<NotificationPayload, "userId">
+): Promise<{ sent: number }> {
+  if (!institutionId) return { sent: 0 };
+  const users = await prisma.user.findMany({
+    where: { institutionId, role: Role.INSTITUTION },
+    select: { id: true },
+  });
+  const userIds = users.map((u) => u.id);
+  if (userIds.length === 0) return { sent: 0 };
+  try {
+    return await notifyMany(userIds, payload);
+  } catch {
+    return { sent: 0 };
+  }
 }

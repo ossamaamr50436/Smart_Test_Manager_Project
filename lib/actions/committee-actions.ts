@@ -3,9 +3,10 @@
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
-import { AuditAction, Role } from "@prisma/client";
+import { AuditAction, NotificationType, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { PERIODS } from "@/lib/validations/student";
+import { notifyInstitution } from "@/lib/notifications";
 
 // ============================================================
 // المهمة 2: إدارة اللجان (Committee)
@@ -210,7 +211,7 @@ export async function assignStudentToCommittee(input: {
 
   const student = await prisma.student.findUnique({
     where: { id: input.studentId },
-    select: { id: true, name: true, status: true, branch: true, tenantId: true },
+    select: { id: true, name: true, status: true, branch: true, tenantId: true, institutionId: true },
   });
   if (!student) return { success: false, error: "الطالب غير موجود" };
   assertSameTenant(user, student);
@@ -290,6 +291,12 @@ export async function assignStudentToCommittee(input: {
   }
 
   revalidatePath("/test-specialist/committees");
+  if (student.institutionId) {
+    await notifyInstitution(student.institutionId, {
+      message: `تم توزيع الطالب "${student.name}" على اللجنة "${committee.name}" — تاريخ الاختبار: ${input.examDate}، الفترة: ${input.period}`,
+      type: NotificationType.SCHEDULE,
+    });
+  }
   return { success: true };
 }
 
@@ -420,6 +427,24 @@ export async function updateCommittee(
   }
 
   revalidatePath("/test-specialist/committees");
+
+  // إشعار الجهات المرتبطة بطلاب اللجنة عند تعديل اللجنة
+  const memberInstitutions = (
+    await prisma.student.findMany({
+      where: { committeeId },
+      select: { institutionId: true },
+      distinct: ["institutionId"],
+    })
+  ).filter((r): r is { institutionId: string } => r.institutionId !== null);
+  for (const member of memberInstitutions) {
+    if (member.institutionId) {
+      await notifyInstitution(member.institutionId, {
+        message: `تم تعديل بيانات اللجنة "${name}" (الفرع ${input.branch}) التي ينتمي إليها طلاب جهتكم`,
+        type: NotificationType.INFO,
+      });
+    }
+  }
+
   return { success: true };
 }
 

@@ -9,6 +9,7 @@ import {
   StudentStatus,
   ExamSessionStatus,
   CertificateStatus,
+  NotificationType,
   Prisma,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -17,6 +18,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { isUniqueConstraintError, friendlyUniqueMessage } from "@/lib/actions/unique-guard";
 import { createUserSchema } from "@/lib/validations/user";
 import { PAGE_SIZE } from "@/lib/utils";
+import { notifyInstitution } from "@/lib/notifications";
 import { BRANCHES, PERIODS } from "@/lib/validations/student";
 
 // ============================================================
@@ -1029,7 +1031,7 @@ export async function updateAcceptedStudent(
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { id: true, name: true, tenantId: true },
+    select: { id: true, name: true, tenantId: true, institutionId: true },
   });
   if (!student) return { success: false, error: "الطالب غير موجود" };
   assertSameTenant(user, student);
@@ -1112,6 +1114,22 @@ export async function updateAcceptedStudent(
 
   revalidatePath("/admin/accepted-students");
   revalidatePath("/test-specialist/accepted-students");
+
+  // إشعار الجهة التعليمية عند تعديل بيانات طالبها
+  if (student.institutionId) {
+    const changes: string[] = [];
+    if (input.branch) changes.push(`الفرع: ${input.branch}`);
+    if (input.committeeId !== undefined) changes.push("اللجنة");
+    if (input.period) changes.push(`الفترة: ${input.period}`);
+    if (input.examDate) changes.push(`تاريخ الاختبار: ${input.examDate}`);
+    if (changes.length > 0) {
+      await notifyInstitution(student.institutionId, {
+        message: `تم تعديل بيانات الطالب "${student.name}" — ${changes.join("، ")}`,
+        type: NotificationType.SCHEDULE,
+      });
+    }
+  }
+
   return { success: true };
 }
 
