@@ -24,7 +24,7 @@ export default async function ExaminerReportsPage() {
   const user = await requireUser();
   requireRole(user, [Role.EXAMINER]);
 
-  const stats = await getExaminerStats(user.id);
+  const stats = await getExaminerStats(user, user.id);
 
   const statCards: StatCard[] = [
     { label: "جلسات لجانك", value: stats.totalSessions, hint: "مجموع الجلسات الموزعة عليك" },

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
+import { getTenantFilter } from "@/lib/tenancy";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "لوحة الأخصائي" };
@@ -17,22 +18,24 @@ export default async function TestSpecialistDashboardPage() {
     redirect("/");
   }
 
+  const tenantFilter = getTenantFilter(user);
+
   const pendingRequests = await prisma.student.count({
-    where: { status: StudentStatus.PENDING },
+    where: { ...tenantFilter, status: StudentStatus.PENDING },
   });
 
   const approvedStudents = await prisma.student.count({
-    where: { status: StudentStatus.APPROVED },
+    where: { ...tenantFilter, status: StudentStatus.APPROVED },
   });
 
   const assignedStudents = await prisma.student.count({
-    where: { status: StudentStatus.ASSIGNED },
+    where: { ...tenantFilter, status: StudentStatus.ASSIGNED },
   });
 
-  const sessions = await prisma.examSession.count();
+  const sessions = await prisma.examSession.count({ where: tenantFilter });
 
   const finalizedReady = await prisma.student.count({
-    where: { status: StudentStatus.COMPLETED },
+    where: { ...tenantFilter, status: StudentStatus.COMPLETED },
   });
 
   const stats = [

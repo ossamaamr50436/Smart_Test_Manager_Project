@@ -4,6 +4,8 @@
 // ============================================================
 import { prisma } from "@/lib/prisma";
 import { StudentStatus } from "@prisma/client";
+import { getTenantFilter } from "@/lib/tenancy";
+import type { SessionUser } from "@/lib/security";
 
 /** فئات الدرجات وفق لائحة الخاتمين (الاجتياز 80) */
 export type ScoreBand = {
@@ -33,22 +35,26 @@ export type PerformanceOverview = {
 };
 
 /**
- * نظرة عامة على الأداء لجميع الجهات (للمسؤول والأخصائي ورئيس الشؤون)
+ * نظرة عامة على الأداء (للمسؤول والأخصائي ورئيس الشؤون)
+ * عزل صارم: جميع الاستعلامات مفلترة بمستأجر المستخدم (المادة 8)
  */
-export async function getPerformanceOverview(): Promise<PerformanceOverview> {
+export async function getPerformanceOverview(
+  user: SessionUser
+): Promise<PerformanceOverview> {
+  const tenant = getTenantFilter(user);
   const [totalStudents, byStatus, byBranch, finalizedAgg, bandAgg] =
     await Promise.all([
-      prisma.student.count(),
-      prisma.student.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.student.groupBy({ by: ["branch"], _count: { _all: true } }),
+      prisma.student.count({ where: tenant }),
+      prisma.student.groupBy({ where: tenant, by: ["status"], _count: { _all: true } }),
+      prisma.student.groupBy({ where: tenant, by: ["branch"], _count: { _all: true } }),
       prisma.assessment.aggregate({
-        where: { status: { in: ["APPROVED", "ACCEPTED", "NOTIFIED"] } },
+        where: { ...tenant, status: { in: ["APPROVED", "ACCEPTED", "NOTIFIED"] } },
         _count: { _all: true },
         _avg: { finalScore: true },
       }),
       prisma.assessment.groupBy({
+        where: { ...tenant, status: { in: ["APPROVED", "ACCEPTED", "NOTIFIED"] } },
         by: ["finalScore"],
-        where: { status: { in: ["APPROVED", "ACCEPTED", "NOTIFIED"] } },
         _count: { _all: true },
       }),
     ]);
@@ -78,23 +84,25 @@ export async function getPerformanceOverview(): Promise<PerformanceOverview> {
 }
 
 /**
- * إحصائيات جهة تعليمية (للجهة نفسها — عزل: جميع القوائم مفلترة بـ institutionId)
+ * إحصائيات جهة تعليمية (للجهة نفسها — عزل: مُفلترة بمستأجر المستخدم و بـ institutionId)
  */
-export async function getInstitutionStats(institutionId: string) {
+export async function getInstitutionStats(user: SessionUser, institutionId: string) {
+  const tenant = getTenantFilter(user);
   const [students, byStatus, byBranch, assessments] = await Promise.all([
-    prisma.student.count({ where: { institutionId } }),
+    prisma.student.count({ where: { ...tenant, institutionId } }),
     prisma.student.groupBy({
-      where: { institutionId },
+      where: { ...tenant, institutionId },
       by: ["status"],
       _count: { _all: true },
     }),
     prisma.student.groupBy({
-      where: { institutionId },
+      where: { ...tenant, institutionId },
       by: ["branch"],
       _count: { _all: true },
     }),
     prisma.assessment.findMany({
       where: {
+        ...tenant,
         status: { in: ["APPROVED", "FINALIZED"] },
         examSession: { student: { institutionId } },
       },
@@ -126,11 +134,13 @@ export async function getInstitutionStats(institutionId: string) {
 
 /**
  * إحصائيات مختبر (معلم) — عدد تقييماته ومتوسط الدرجات
- * (عزل: الجلسات التي هو معلم أول أو ثانٍ فيها)
+ * (عزل: الجلسات التي هو معلم أول أو ثانٍ فيها ضمن مستأجر المستخدم)
  */
-export async function getExaminerStats(examinerId: string) {
+export async function getExaminerStats(user: SessionUser, examinerId: string) {
+  const tenant = getTenantFilter(user);
   const sessions = await prisma.examSession.findMany({
     where: {
+      ...tenant,
       OR: [{ teacher1Id: examinerId }, { teacher2Id: examinerId }],
     },
     select: {

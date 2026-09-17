@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus, AssessmentStatus } from "@prisma/client";
+import { getTenantFilter } from "@/lib/tenancy";
 import { FinalReviewTable } from "@/components/specialist/final-review-table";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default async function FinalReviewPage() {
 
   // الطلاب الذين اعتمد المختبرون تقييماتهم (بواحد على الأقل)
   const students = await prisma.student.findMany({
-    where: { status: StudentStatus.COMPLETED },
+    where: { ...getTenantFilter(user), status: StudentStatus.COMPLETED },
     include: {
       institution: { select: { name: true } },
       examSessions: {

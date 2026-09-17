@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
+import { getTenantFilter } from "@/lib/tenancy";
 import { RequestsTable } from "@/components/specialist/requests-table";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default async function RequestsPage() {
   }
 
   const pendingStudents = await prisma.student.findMany({
-    where: { status: StudentStatus.PENDING },
+    where: { ...getTenantFilter(user), status: StudentStatus.PENDING },
     include: {
       institution: { select: { name: true } },
     },

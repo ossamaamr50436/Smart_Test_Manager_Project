@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
+import { getTenantFilter } from "@/lib/tenancy";
 import { CertificateTable } from "@/components/certificate-source/certificate-table";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default async function CertificateSourceDashboardPage() {
 
   // الطلاب الجاهزون لإصدار الشهادة (أكملوا جميع المراحل)
   const readyStudents = await prisma.student.findMany({
-    where: { status: StudentStatus.READY_FOR_CERTIFICATE },
+    where: { ...getTenantFilter(user), status: StudentStatus.READY_FOR_CERTIFICATE },
     include: {
       institution: { select: { name: true } },
       examSessions: {
@@ -53,7 +54,7 @@ export default async function CertificateSourceDashboardPage() {
 
   // الشهادات الصادرة مؤخراً (عرض مباشر من قاعدة البيانات — بدون بيانات وهمية)
   const issuedCertificates = await prisma.certificate.findMany({
-    where: { status: { in: ["PENDING", "UPLOADED", "SIGNED", "SENT"] } },
+    where: { ...getTenantFilter(user), status: { in: ["PENDING", "UPLOADED", "SIGNED", "SENT"] } },
     include: {
       student: {
         select: { name: true, branch: true },

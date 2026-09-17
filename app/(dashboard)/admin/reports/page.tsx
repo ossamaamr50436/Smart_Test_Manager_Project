@@ -24,7 +24,7 @@ export default async function AdminReportsPage() {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST, Role.HEAD_OF_AFFAIRS]);
 
-  const overview = await getPerformanceOverview();
+  const overview = await getPerformanceOverview(user);
 
   const statCards: StatCard[] = [
     { label: "إجمالي الطلاب", value: overview.totalStudents },

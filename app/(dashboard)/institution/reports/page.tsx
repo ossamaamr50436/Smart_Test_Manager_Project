@@ -17,7 +17,7 @@ export default async function InstitutionReportsPage() {
   if (!user.institutionId) {
     throw new Error("حساب الجهة غير مرتبط بجهة تعليمية — تواصل مع المسؤول");
   }
-  const stats = await getInstitutionStats(user.institutionId);
+  const stats = await getInstitutionStats(user, user.institutionId);
 
   const statCards: StatCard[] = [
     { label: "طلاب جهتك", value: stats.students },

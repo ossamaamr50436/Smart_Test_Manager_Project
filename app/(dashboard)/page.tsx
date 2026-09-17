@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
+import { getTenantFilter } from "@/lib/tenancy";
 import { ROLE_LABELS } from "@/lib/roles";
 import {
   Card,
@@ -23,13 +24,15 @@ export default async function DashboardPage() {
 
   const roleLabel = role ? ROLE_LABELS[role] : "غير محدد";
 
+  const tenantFilter = user ? getTenantFilter(user) : {};
+
   // إحصائيات حقيقية من قاعدة البيانات (بدون بيانات وهمية)
   const [totalStudents, totalSessions, totalModels, approvedStudents] =
     await Promise.all([
-      prisma.student.count(),
-      prisma.examSession.count(),
-      prisma.questionBankModel.count(),
-      prisma.student.count({ where: { status: "COMPLETED" } }),
+      prisma.student.count({ where: tenantFilter }),
+      prisma.examSession.count({ where: tenantFilter }),
+      prisma.questionBankModel.count({ where: tenantFilter }),
+      prisma.student.count({ where: { ...tenantFilter, status: "COMPLETED" } }),
     ]);
 
   const stats = [

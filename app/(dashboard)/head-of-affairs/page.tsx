@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
+import { getTenantFilter } from "@/lib/tenancy";
 import { HeadApprovalTable } from "@/components/head-of-affairs/head-approval-table";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default async function HeadOfAffairsDashboardPage() {
 
   // الطلاب الذين اعتمدهم الأخصائي وبانتظار الاعتماد النهائي لرئيس الشؤون
   const students = await prisma.student.findMany({
-    where: { status: StudentStatus.NOTIFIED },
+    where: { ...getTenantFilter(user), status: StudentStatus.NOTIFIED },
     include: {
       institution: { select: { name: true } },
       examSessions: {

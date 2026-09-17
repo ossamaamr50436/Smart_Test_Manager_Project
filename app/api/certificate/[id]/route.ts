@@ -37,12 +37,29 @@ export async function GET(
         serialNumber: true,
         fileUrl: true,
         status: true,
-        student: { select: { name: true, institutionId: true } },
+        student: {
+          select: {
+            name: true,
+            institutionId: true,
+            institution: { select: { tenantId: true } },
+          },
+        },
       },
     });
 
     if (!certificate || !certificate.student) {
       return NextResponse.json({ error: "الشهادة غير موجودة" }, { status: 404 });
+    }
+
+    // عزل المستأجرين: ممنوع لأي دور (غير المالك) الوصول لشهادة من مؤسسة أخرى
+    if (
+      user.role !== Role.SUPER_ADMIN &&
+      certificate.student.institution.tenantId !== user.tenantId
+    ) {
+      return NextResponse.json(
+        { error: "غير مصرح: هذه الشهادة تنتمي لمؤسسة أخرى" },
+        { status: 403 }
+      );
     }
 
     if (certificate.status === CertificateStatus.PENDING) {

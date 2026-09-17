@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, requireRole } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
+import { getTenantFilter } from "@/lib/tenancy";
 import { Role, StudentStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
@@ -19,15 +20,14 @@ export async function GET() {
     ]);
 
     // حسب الدور نحدد نطاق الطلاب
+    const baseWhere: Prisma.StudentWhereInput = {
+      ...(user.institutionId ? { institutionId: user.institutionId } : {}),
+      ...getTenantFilter(user),
+    };
     const where: Prisma.StudentWhereInput =
       user.role === Role.CERTIFICATE_SOURCE
-        ? {
-            status: StudentStatus.COMPLETED,
-            ...(user.institutionId ? { institutionId: user.institutionId } : {}),
-          }
-        : user.institutionId
-          ? { institutionId: user.institutionId }
-          : {};
+        ? { ...baseWhere, status: StudentStatus.COMPLETED }
+        : baseWhere;
 
     const students = await prisma.student.findMany({
       where,

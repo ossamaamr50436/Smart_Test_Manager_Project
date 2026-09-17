@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
+import { getTenantFilter } from "@/lib/tenancy";
 import { ExaminerDashboardClient } from "@/components/examiner/examiner-dashboard-client";
 
 export const metadata: Metadata = { title: "لوحة المختبر" };
@@ -17,6 +18,7 @@ export default async function ExaminerDashboardPage() {
   // البحث عن اللجنة التي ينتمي إليها المختبر (معلم1 أو معلم2)
   const committee = await prisma.committee.findFirst({
     where: {
+      ...getTenantFilter(user),
       OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
     },
     include: {
