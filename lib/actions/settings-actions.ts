@@ -94,6 +94,11 @@ export async function updatePlatformSettings(
   } = { platformName: platformName.trim() };
 
   if (logoFile) {
+    // حذف الشعار القديم من وحدة التخزين قبل رفع الجديد (منع تراكم الملفات)
+    const prev = await prisma.appSettings.findUnique({
+      where: { id: "singleton" },
+      select: { logoFileId: true },
+    });
     // التحقق الشامل من نوع الملف وحجمه ومحتواه (OWASP — منع DoS و XSS عبر SVG)
     // ملاحظة أمنية: مُنع SVG لأن ملفات SVG قد تحمل سكربتات ضارة (XSS)
     const buffer = Buffer.from(logoFile.buffer);
@@ -113,6 +118,13 @@ export async function updatePlatformSettings(
       );
       data.logoUrl = uploaded.webViewLink;
       data.logoFileId = uploaded.fileId;
+      if (prev?.logoFileId && prev.logoFileId !== uploaded.fileId) {
+        try {
+          await deleteFile(prev.logoFileId);
+        } catch {
+          // الشعار الجديد رُفع بنجاح — فشل حذف القديم لا يمنع التحديث
+        }
+      }
     } catch (error) {
       throw new Error(
         error instanceof Error
