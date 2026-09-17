@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
 import { AuditAction, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { PERIODS } from "@/lib/validations/student";
 
 // ============================================================
 // المهمة 2: إدارة اللجان (Committee)
@@ -196,6 +197,8 @@ export async function deleteCommittee(committeeId: string): Promise<CommitteeAct
 export async function assignStudentToCommittee(input: {
   studentId: string;
   committeeId: string;
+  examDate: string;
+  period: string;
 }): Promise<CommitteeActionResult> {
   let user;
   try {
@@ -230,12 +233,14 @@ export async function assignStudentToCommittee(input: {
   if (!committee) return { success: false, error: "اللجنة غير موجودة" };
   assertSameTenant(user, committee);
 
-  // تاريخ افتراضي لجلسة الاختبار حتى يحدد الأخصائي/الأدمن التاريخ والفترة مباشرة
-  const season = await prisma.examSeason.findUnique({
-    where: { id: committee.seasonId },
-    select: { endDate: true },
-  });
-  const defaultExamDate = season?.endDate ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
+  // التاريخ والفترة إلزاميان عند التوزيع
+  const examDate = new Date(input.examDate);
+  if (!input.examDate || Number.isNaN(examDate.getTime())) {
+    return { success: false, error: "حدد تاريخ الاختبار" };
+  }
+  if (!(PERIODS as readonly string[]).includes(input.period)) {
+    return { success: false, error: "الفترة غير صالحة — اختر صباحي أو مسائي" };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -253,8 +258,8 @@ export async function assignStudentToCommittee(input: {
           studentId: input.studentId,
           teacher1Id: committee.teacher1Id,
           teacher2Id: committee.teacher2Id,
-          examDate: defaultExamDate,
-          period: "صباحي",
+          examDate,
+          period: input.period,
           status: "SCHEDULED",
           seasonId: committee.seasonId,
           modelId: null,
@@ -272,6 +277,8 @@ export async function assignStudentToCommittee(input: {
             studentId: input.studentId,
             committeeId: input.committeeId,
             examSessionId: session.id,
+            examDate: input.examDate,
+            period: input.period,
           }),
         },
       });

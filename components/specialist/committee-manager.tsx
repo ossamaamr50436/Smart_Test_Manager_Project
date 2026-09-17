@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCommittee, updateCommittee, deleteCommittee, assignStudentToCommittee } from "@/lib/actions/committee-actions";
 import { BRANCHES } from "@/lib/validations/assessment";
+import { PERIODS } from "@/lib/validations/student";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,6 +60,8 @@ export function CommitteeManager({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [assignStudentId, setAssignStudentId] = useState("");
   const [assignCommitteeId, setAssignCommitteeId] = useState("");
+  const [assignExamDate, setAssignExamDate] = useState("");
+  const [assignPeriod, setAssignPeriod] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // نموذج الإنشاء
@@ -169,15 +172,26 @@ export function CommitteeManager({
       setError("اختر الطالب واللجنة");
       return;
     }
+    if (!assignExamDate || !assignPeriod) {
+      setError("حدد تاريخ الاختبار والفترة");
+      return;
+    }
     setError("");
     setSuccess("");
     setLoading(true);
     try {
-      const result = await assignStudentToCommittee({ studentId: assignStudentId, committeeId: assignCommitteeId });
+      const result = await assignStudentToCommittee({
+        studentId: assignStudentId,
+        committeeId: assignCommitteeId,
+        examDate: assignExamDate,
+        period: assignPeriod,
+      });
       if (result.success) {
         setSuccess("تم توزيع الطالب على اللجنة");
         setAssignStudentId("");
         setAssignCommitteeId("");
+        setAssignExamDate("");
+        setAssignPeriod("");
         router.refresh();
       } else {
         setError(result.error);
@@ -415,8 +429,27 @@ export function CommitteeManager({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>تاريخ الاختبار *</Label>
+                <Input
+                  type="date"
+                  value={assignExamDate}
+                  onChange={(e) => setAssignExamDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>الفترة *</Label>
+                <Select value={assignPeriod} onValueChange={setAssignPeriod}>
+                  <SelectTrigger><SelectValue placeholder="اختر الفترة" /></SelectTrigger>
+                  <SelectContent>
+                    {PERIODS.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-end">
-                <Button onClick={handleAssignStudent} disabled={loading || !assignStudentId || !assignCommitteeId} className="w-full">
+                <Button onClick={handleAssignStudent} disabled={loading || !assignStudentId || !assignCommitteeId || !assignExamDate || !assignPeriod} className="w-full">
                   توزيع الطالب
                 </Button>
               </div>
