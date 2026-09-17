@@ -217,10 +217,25 @@ export async function assignStudentToCommittee(input: {
 
   const committee = await prisma.committee.findUnique({
     where: { id: input.committeeId },
-    select: { id: true, branch: true, name: true, tenantId: true },
+    select: {
+      id: true,
+      branch: true,
+      name: true,
+      tenantId: true,
+      teacher1Id: true,
+      teacher2Id: true,
+      seasonId: true,
+    },
   });
   if (!committee) return { success: false, error: "اللجنة غير موجودة" };
   assertSameTenant(user, committee);
+
+  // تاريخ افتراضي لجلسة الاختبار حتى يحدد الأخصائي/الأدمن التاريخ والفترة مباشرة
+  const season = await prisma.examSeason.findUnique({
+    where: { id: committee.seasonId },
+    select: { endDate: true },
+  });
+  const defaultExamDate = season?.endDate ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -229,6 +244,21 @@ export async function assignStudentToCommittee(input: {
         data: {
           committeeId: input.committeeId,
           status: "ASSIGNED",
+        },
+      });
+
+      // إنشاء جلسة الاختبار الحقيقية للطالب — التقييمات مرتبطة بها (FK)
+      const session = await tx.examSession.create({
+        data: {
+          studentId: input.studentId,
+          teacher1Id: committee.teacher1Id,
+          teacher2Id: committee.teacher2Id,
+          examDate: defaultExamDate,
+          period: "صباحي",
+          status: "SCHEDULED",
+          seasonId: committee.seasonId,
+          modelId: null,
+          tenantId: requireTenantId(user),
         },
       });
 
@@ -241,9 +271,12 @@ export async function assignStudentToCommittee(input: {
             entity: "Student",
             studentId: input.studentId,
             committeeId: input.committeeId,
+            examSessionId: session.id,
           }),
         },
       });
+
+      return session;
     });
   } catch {
     return { success: false, error: "حدث خطأ غير متوقع أثناء توزيع الطالب على اللجنة" };

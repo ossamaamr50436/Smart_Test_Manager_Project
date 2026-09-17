@@ -69,11 +69,35 @@ export default async function AssessStudentPage({
 
   const committee = student.committee;
 
-  // التحقق من أن المختبر معلم في اللجنة
+  // التحقق من أن المختبر معلمًا في اللجنة
   const isTeacher =
     committee.teacher1Id === user.id || committee.teacher2Id === user.id;
   if (!isTeacher) {
     notFound();
+  }
+
+  // جلسة الاختبار الحقيقية للطالب — التقييمات مرتبطة بها عبر المفتاح الأجنبي
+  // (بدل معرّف اللجنة الذي لا يوجد له صف في exam_sessions)
+  const examSession = await prisma.examSession.findFirst({
+    where: {
+      studentId: student.id,
+      seasonId: committee.seasonId,
+      OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+
+  if (!examSession) {
+    return (
+      <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-card p-8 text-center">
+        <h1 className="text-2xl font-bold">لا توجد جلسة اختبار</h1>
+        <p className="mt-3 text-muted-foreground">
+          لم تُسجَّل جلسة اختبار لهذا الطالب. يرجى إعادة توزيعه على اللجنة من
+          لوحة أخصائي الاختبارات ثم المحاولة مجدداً.
+        </p>
+      </div>
+    );
   }
 
   // قراءة رقم النموذج من URL (المهمة 4)
@@ -149,7 +173,7 @@ export default async function AssessStudentPage({
   return (
     <AssessmentBoard
       student={{ id: student.id, name: student.name, branch: student.branch }}
-      sessionId={committee.id}
+      sessionId={examSession.id}
       evaluatorId={user.id}
       segments={segments}
       modelNumber={modelNumberFinal}
