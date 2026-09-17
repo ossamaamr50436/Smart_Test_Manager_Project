@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { requireUser, requireRole, getActorTenantId, requireTenantId } from "@/lib/security";
 import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
@@ -13,14 +13,14 @@ import {
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { generateCertificatePdfBuffer } from "@/lib/certificate-pdf";
-import { uploadFileToDrive } from "@/lib/google-drive";
+import { uploadFile } from "@/lib/file-storage";
 import {
   isUniqueConstraintError,
   friendlyUniqueMessage,
 } from "@/lib/actions/unique-guard";
 import { getPlatformSettings } from "@/lib/actions/settings-actions";
 import {
-  downloadTemplateFromDrive,
+  downloadTemplateBytes,
   fillPdfTemplate,
 } from "@/lib/certificate-template";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -162,8 +162,8 @@ export async function generateCertificate(studentId: string) {
   let pdfBuffer: Buffer;
 
   if (settings.useTemplateMode && settings.templateFileId) {
-    // القالب الذكي: تحميل القالب من Drive وتعبئته
-    const templateBytes = await downloadTemplateFromDrive(
+    // القالب الذكي: تحميل القالب من وحدة التخزين وتعبئته
+    const templateBytes = await downloadTemplateBytes(
       settings.templateFileId
     );
     const dateStr = new Date().toLocaleDateString("ar-SA", {
@@ -192,15 +192,15 @@ export async function generateCertificate(studentId: string) {
   // 2) رفع الشهادة على Google Drive (المادة 3)
   let fileUrl = "";
   try {
-    const uploaded = await uploadFileToDrive(
+    const uploaded = await uploadFile(
       pdfBuffer,
       `${serialNumber}-${student.name}.pdf`,
       "application/pdf"
     );
     fileUrl = uploaded.webViewLink;
   } catch (uploadError) {
-    // عدم توفر إعدادات Drive يمنع إتمام الإصدار — لا نخزن الملف محلياً (المادة 3)
-    throw new Error("تعذر رفع الشهادة على Google Drive — تحقق من إعدادات الاتصال");
+    // عدم توفر إعدادات التخزين يمنع إتمام الإصدار
+    throw new Error("تعذر رفع الشهادة على وحدة التخزين — تحقق من الإعدادات");
   }
 
   // 3) حفظ سجل الشهادة
@@ -359,7 +359,7 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
   }
 
   // رفع صورة التوقيع على Google Drive (المادة 3)
-  const uploaded = await uploadFileToDrive(
+  const uploaded = await uploadFile(
     buffer,
     `signature-${certificate.serialNumber}.png`,
     "image/png"

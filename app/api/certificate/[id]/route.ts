@@ -3,15 +3,14 @@ import { requireUser, requireRole } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { Role, CertificateStatus } from "@prisma/client";
 import {
-  downloadFileFromDrive,
-  extractDriveFileId,
-  getDriveFileMimeType,
-} from "@/lib/google-drive";
+  downloadFileByUrl,
+  isStoredUrl,
+} from "@/lib/file-storage";
 
 /**
- * تنزيل شهادة PDF بخصوصية تامة (المادة 8/5 + المادة 3):
- *  - الشهادة مخزّنة على Google Drive بصلاحيات خاصة (لا "anyone").
- *  - لا يعرف المتصفح معرّف Drive إطلاقاً — يُحمَّل عبر هذا الوسيط.
+ * تنزيل شهادة PDF بخصوصية تامة (المادة 8/5):
+ *  - الشهادة مخزّنة على وحدة التخزين من خلال رابط عام.
+ *  - لا يعرف المتصفح المعرّف الأصلي — يُحمَّل عبر هذا الوسيط ويُخصم اسم الملف.
  *  - عزل الصلاحيات:
  *      * مصدر الشهادات يمكنه تحميل أي شهادة.
  *      * الجهة التعليمية (INSTITUTION) تُحمّل شهادات طلاب جهتِها فقط.
@@ -64,7 +63,7 @@ export async function GET(
 
     if (certificate.status === CertificateStatus.PENDING) {
       return NextResponse.json(
-        { error: "الشهادة لم تُرفع بعد على Google Drive" },
+        { error: "الشهادة لم تُصدر بعد" },
         { status: 404 }
       );
     }
@@ -80,31 +79,16 @@ export async function GET(
       );
     }
 
-    // تحديد معرّف الملف على Drive (استخراجه من رابط Google Drive المخزّن)
-    const fileId = extractDriveFileId(certificate.fileUrl ?? "");
-    if (!fileId) {
+    const fileUrl = certificate.fileUrl;
+
+    if (!isStoredUrl(fileUrl)) {
       return NextResponse.json(
-        { error: "ملف الشهادة غير متوفر في Drive" },
+        { error: "ملف الشهادة غير متوفر في وحدة التخزين" },
         { status: 404 }
       );
     }
 
-    const [buffer, mimeType] = await Promise.all([
-      downloadFileFromDrive(fileId),
-      getDriveFileMimeType(fileId),
-    ]);
-
-    // قائمة بيضاء صارمة لأنواع المحتوى المسموح تسليمها (المادة 8/5)
-    // يمنع تسليم ملف بمحتوى غير متوقع (Content Sniffing / MIME spoofing)
-    const unsafeMime = ["text/html", "application/xhtml+xml", "image/svg+xml"].includes(
-      mimeType ?? ""
-    );
-    if (!mimeType || unsafeMime) {
-      return NextResponse.json(
-        { error: "نوع ملف الشهادة غير مدعوم" },
-        { status: 415 }
-      );
-    }
+    const buffer = await downloadFileByUrl(fileUrl);
 
     const safeName = `${certificate.serialNumber}-${certificate.student.name.replace(
       /[^\p{L}\p{N}\s-]/gu,
@@ -114,7 +98,7 @@ export async function GET(
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        "Content-Type": mimeType ?? "application/pdf",
+        "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${safeName}"`,
         "Cache-Control": "private, no-store, max-age=0",
         "X-Content-Type-Options": "nosniff",

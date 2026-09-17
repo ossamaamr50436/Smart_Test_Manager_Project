@@ -1,19 +1,19 @@
-import { PDFDocument, rgb } from "pdf-lib";
-import { downloadFileFromDrive } from "./google-drive";
+﻿import { PDFDocument, rgb } from "pdf-lib";
+import { downloadFileByUrl } from "./file-storage";
 
 // ============================================================
 // القالب الذكي للشهادات (pdf-lib)
-// يحمّل ملف PDF قالب من Google Drive ويبحث عن النصوص
+// يحمّل ملف PDF قالب من وحدة التخزين ويبحث عن النصوص
 // [NAME]، [SCORE]، [DATE] ويستبدلها بالبيانات الفعلية
 // ============================================================
 
 /**
- * تحميل ملف القالب من Google Drive
+ * تحميل ملف القالب من رابط مباشر (UploadThing)
  */
-export async function downloadTemplateFromDrive(
-  fileId: string
+export async function downloadTemplateBytes(
+  url: string
 ): Promise<Uint8Array> {
-  const buffer = await downloadFileFromDrive(fileId);
+  const buffer = await downloadFileByUrl(url);
   return new Uint8Array(buffer);
 }
 

@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { requireUser, requireRole, assertInstitutionOwnsStudent, getActorTenantId, requireTenantId } from "@/lib/security";
 import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
@@ -16,12 +16,12 @@ import {
 import { getCurrentSeason } from "./season-actions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getPlatformSettings } from "./settings-actions";
-import { uploadFileToDriveFolder, ensureDriveFolder } from "@/lib/google-drive";
+import { uploadFile } from "@/lib/file-storage";
 import { validateFileUpload } from "@/lib/upload-security";
 
 /**
- * تسجيل حدث في Audit Log
- * (تتبع الشفافية — كل قرار موثّق)
+ * طھط³ط¬ظٹظ„ ط­ط¯ط« ظپظٹ Audit Log
+ * (طھطھط¨ط¹ ط§ظ„ط´ظپط§ظپظٹط© â€” ظƒظ„ ظ‚ط±ط§ط± ظ…ظˆط«ظ‘ظ‚)
  */
 async function recordAudit(userId: string, action: AuditAction, details: unknown) {
   const tenantId = await getActorTenantId(userId);
@@ -40,11 +40,11 @@ export type CreateStudentApplicationResult =
   | { success: false; error: string };
 
 /**
- * 1) ترشيح طالب جديد — خاص بالجهة التعليمية
- * - يقبل الطالب تلقائياً بربط institutionId بالجهة المرتبطة بحساب المستخدم
- * - الحالة PENDING + إشعار لأخصائي الاختبارات
- * - يرفع نموذج الاختبار الممسوح (PDF) إلى مجلد الجهة على Google Drive
- *   عند تفعيل الإعداد العام requireStudentApplicationFile
+ * 1) طھط±ط´ظٹط­ ط·ط§ظ„ط¨ ط¬ط¯ظٹط¯ â€” ط®ط§طµ ط¨ط§ظ„ط¬ظ‡ط© ط§ظ„طھط¹ظ„ظٹظ…ظٹط©
+ * - ظٹظ‚ط¨ظ„ ط§ظ„ط·ط§ظ„ط¨ طھظ„ظ‚ط§ط¦ظٹط§ظ‹ ط¨ط±ط¨ط· institutionId ط¨ط§ظ„ط¬ظ‡ط© ط§ظ„ظ…ط±طھط¨ط·ط© ط¨ط­ط³ط§ط¨ ط§ظ„ظ…ط³طھط®ط¯ظ…
+ * - ط§ظ„ط­ط§ظ„ط© PENDING + ط¥ط´ط¹ط§ط± ظ„ط£ط®طµط§ط¦ظٹ ط§ظ„ط§ط®طھط¨ط§ط±ط§طھ
+ * - ظٹط±ظپط¹ ظ†ظ…ظˆط°ط¬ ط§ظ„ط§ط®طھط¨ط§ط± ط§ظ„ظ…ظ…ط³ظˆط­ (PDF) ط¥ظ„ظ‰ ظ…ط¬ظ„ط¯ ط§ظ„ط¬ظ‡ط© ط¹ظ„ظ‰ Google Drive
+ *   ط¹ظ†ط¯ طھظپط¹ظٹظ„ ط§ظ„ط¥ط¹ط¯ط§ط¯ ط§ظ„ط¹ط§ظ… requireStudentApplicationFile
  */
 export async function createStudentApplication(
   input: StudentApplicationInput,
@@ -58,38 +58,38 @@ export async function createStudentApplication(
   try {
     user = await requireUser();
 
-    // عزل الصلاحيات: الجهة التعليمية فقط
+    // ط¹ط²ظ„ ط§ظ„طµظ„ط§ط­ظٹط§طھ: ط§ظ„ط¬ظ‡ط© ط§ظ„طھط¹ظ„ظٹظ…ظٹط© ظپظ‚ط·
     requireRole(user, [Role.INSTITUTION]);
   } catch {
-    return { success: false, error: "غير مصرح — يجب تسجيل الدخول بحساب جهة تعليمية" };
+    return { success: false, error: "ط؛ظٹط± ظ…طµط±ط­ â€” ظٹط¬ط¨ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ط­ط³ط§ط¨ ط¬ظ‡ط© طھط¹ظ„ظٹظ…ظٹط©" };
   }
   if (!user.institutionId) {
-    return { success: false, error: "حساب الجهة غير مرتبط بمؤسسة تعليمية" };
+    return { success: false, error: "ط­ط³ط§ط¨ ط§ظ„ط¬ظ‡ط© ط؛ظٹط± ظ…ط±طھط¨ط· ط¨ظ…ط¤ط³ط³ط© طھط¹ظ„ظٹظ…ظٹط©" };
   }
 
-  // منع إساءة الاستخدام: حد أقصى 20 طالب لكل جهة خلال 15 دقيقة
+  // ظ…ظ†ط¹ ط¥ط³ط§ط،ط© ط§ظ„ط§ط³طھط®ط¯ط§ظ…: ط­ط¯ ط£ظ‚طµظ‰ 20 ط·ط§ظ„ط¨ ظ„ظƒظ„ ط¬ظ‡ط© ط®ظ„ط§ظ„ 15 ط¯ظ‚ظٹظ‚ط©
   try {
     await checkRateLimit(`student-create:${user.id}`, 20);
   } catch (e) {
     return {
       success: false,
-      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+      error: e instanceof Error ? e.message : "طھظ… طھط¬ط§ظˆط² ط­ط¯ ط§ظ„ط·ظ„ط¨ط§طھ ط§ظ„ظ…ط³ظ…ظˆط­طŒ ط­ط§ظˆظ„ ظ„ط§ط­ظ‚ط§ظ‹",
     };
   }
 
-  // التحقق من صحة البيانات
+  // ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† طµط­ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ
   const parsed = studentApplicationSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
+    return { success: false, error: parsed.error.issues[0]?.message ?? "ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©" };
   }
   const data = parsed.data;
 
-  // إعدادات المنصة: هل رفع نموذج اختبار الطالب إجباري؟
+  // ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ…ظ†طµط©: ظ‡ظ„ ط±ظپط¹ ظ†ظ…ظˆط°ط¬ ط§ط®طھط¨ط§ط± ط§ظ„ط·ط§ظ„ط¨ ط¥ط¬ط¨ط§ط±ظٹطں
   let settings;
   try {
     settings = await getPlatformSettings();
   } catch {
-    return { success: false, error: "تعذر تحميل إعدادات المنصة — حاول مرة أخرى" };
+    return { success: false, error: "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ…ظ†طµط© â€” ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰" };
   }
   const requireFile = settings.requireStudentApplicationFile;
 
@@ -98,10 +98,10 @@ export async function createStudentApplication(
 
   if (requireFile || applicationFile) {
     if (!applicationFile) {
-      return { success: false, error: "يجب رفع نموذج اختبار الطالب (PDF) لإكمال الترشيح" };
+      return { success: false, error: "ظٹط¬ط¨ ط±ظپط¹ ظ†ظ…ظˆط°ط¬ ط§ط®طھط¨ط§ط± ط§ظ„ط·ط§ظ„ط¨ (PDF) ظ„ط¥ظƒظ…ط§ظ„ ط§ظ„طھط±ط´ظٹط­" };
     }
 
-    // التحقق من أن الملف PDF فعلياً وبحد أقصى للحجم (OWASP — منع DoS)
+    // ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط£ظ† ط§ظ„ظ…ظ„ظپ PDF ظپط¹ظ„ظٹط§ظ‹ ظˆط¨ط­ط¯ ط£ظ‚طµظ‰ ظ„ظ„ط­ط¬ظ… (OWASP â€” ظ…ظ†ط¹ DoS)
     const buffer = Buffer.from(applicationFile.buffer);
     try {
       validateFileUpload(buffer, applicationFile.mimeType, applicationFile.fileName, {
@@ -109,10 +109,10 @@ export async function createStudentApplication(
         allowedMimes: ["application/pdf"],
       });
     } catch {
-      return { success: false, error: "نموذج الاختبار يجب أن يكون ملف PDF (الحد الأقصى 20MB)" };
+      return { success: false, error: "ظ†ظ…ظˆط°ط¬ ط§ظ„ط§ط®طھط¨ط§ط± ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ظ…ظ„ظپ PDF (ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ 20MB)" };
     }
 
-    // مجلد خاص بالجهة داخل مجلد الجذر (يُنشأ عند الحاجة)
+    // ظ…ط¬ظ„ط¯ ط®ط§طµ ط¨ط§ظ„ط¬ظ‡ط© ط¯ط§ط®ظ„ ظ…ط¬ظ„ط¯ ط§ظ„ط¬ط°ط± (ظٹظڈظ†ط´ط£ ط¹ظ†ط¯ ط§ظ„ط­ط§ط¬ط©)
     let institution;
     try {
       institution = await prisma.institution.findUnique({
@@ -120,20 +120,17 @@ export async function createStudentApplication(
         select: { name: true },
       });
     } catch {
-      return { success: false, error: "تعذر قراءة بيانات الجهة — حاول مرة أخرى" };
+      return { success: false, error: "طھط¹ط°ط± ظ‚ط±ط§ط،ط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¬ظ‡ط© â€” ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰" };
     }
     if (!institution) {
-      return { success: false, error: "الجهة التعليمية غير موجودة" };
+      return { success: false, error: "ط§ظ„ط¬ظ‡ط© ط§ظ„طھط¹ظ„ظٹظ…ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" };
     }
 
     try {
-      const folderId = await ensureDriveFolder(institution.name);
-      const uploaded = await uploadFileToDriveFolder(
+      const uploaded = await uploadFile(
         buffer,
-        `نموذج اختبار الطالب (${data.name}).pdf`,
-        "application/pdf",
-        folderId
-      );
+        `ظ†ظ…ظˆط°ط¬ ط§ط®طھط¨ط§ط± ط§ظ„ط·ط§ظ„ط¨ (${data.name}).pdf`,
+        "application/pdf");
       applicationFileId = uploaded.fileId;
       applicationFileUrl = uploaded.webViewLink;
     } catch (error) {
@@ -142,7 +139,7 @@ export async function createStudentApplication(
         error:
           error instanceof Error
             ? error.message
-            : "تعذر رفع نموذج الاختبار على Google Drive — حاول مرة أخرى",
+            : "طھط¹ط°ط± ط±ظپط¹ ظ†ظ…ظˆط°ط¬ ط§ظ„ط§ط®طھط¨ط§ط± ط¹ظ„ظ‰ Google Drive â€” ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰",
       };
     }
   }
@@ -167,10 +164,10 @@ export async function createStudentApplication(
       },
     });
   } catch {
-    return { success: false, error: "حدث خطأ غير متوقع أثناء حفظ الطلب — أعد المحاولة" };
+    return { success: false, error: "ط­ط¯ط« ط®ط·ط£ ط؛ظٹط± ظ…طھظˆظ‚ط¹ ط£ط«ظ†ط§ط، ط­ظپط¸ ط§ظ„ط·ظ„ط¨ â€” ط£ط¹ط¯ ط§ظ„ظ…ط­ط§ظˆظ„ط©" };
   }
 
-  // إشعار بالأخصائي (قد يكون أكثر من أخصائي) — فشل الإشعار لا يمنع حفظ الطلب
+  // ط¥ط´ط¹ط§ط± ط¨ط§ظ„ط£ط®طµط§ط¦ظٹ (ظ‚ط¯ ظٹظƒظˆظ† ط£ظƒط«ط± ظ…ظ† ط£ط®طµط§ط¦ظٹ) â€” ظپط´ظ„ ط§ظ„ط¥ط´ط¹ط§ط± ظ„ط§ ظٹظ…ظ†ط¹ ط­ظپط¸ ط§ظ„ط·ظ„ط¨
   try {
     const specialists = await prisma.user.findMany({
       where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
@@ -181,14 +178,14 @@ export async function createStudentApplication(
       await prisma.notification.createMany({
         data: specialists.map((s) => ({
           userId: s.id,
-          message: `طلب ترشيح جديد للطالب «${student.name}» بانتظار المراجعة`,
+          message: `ط·ظ„ط¨ طھط±ط´ظٹط­ ط¬ط¯ظٹط¯ ظ„ظ„ط·ط§ظ„ط¨ آ«${student.name}آ» ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ط±ط§ط¬ط¹ط©`,
           type: NotificationType.RECRUITMENT,
           tenantId: requireTenantId(user),
         })),
       });
     }
   } catch {
-    // غير حاسم — الطلب محفوظ بالفعل
+    // ط؛ظٹط± ط­ط§ط³ظ… â€” ط§ظ„ط·ظ„ط¨ ظ…ط­ظپظˆط¸ ط¨ط§ظ„ظپط¹ظ„
   }
 
   try {
@@ -198,7 +195,7 @@ export async function createStudentApplication(
       name: student.name,
     });
   } catch {
-    // فشل سجل التدقيق لا يمنع النجاح
+    // ظپط´ظ„ ط³ط¬ظ„ ط§ظ„طھط¯ظ‚ظٹظ‚ ظ„ط§ ظٹظ…ظ†ط¹ ط§ظ„ظ†ط¬ط§ط­
   }
 
   revalidatePath("/test-specialist/requests");
@@ -207,13 +204,13 @@ export async function createStudentApplication(
 }
 
 /**
- * 2) مراجعة طلب الترشيح (قبول/رفض) — خاص بأخصائي الاختبارات
- * - تحدث حالة الطالب + إشعار للجهة بالنتيجة
+ * 2) ظ…ط±ط§ط¬ط¹ط© ط·ظ„ط¨ ط§ظ„طھط±ط´ظٹط­ (ظ‚ط¨ظˆظ„/ط±ظپط¶) â€” ط®ط§طµ ط¨ط£ط®طµط§ط¦ظٹ ط§ظ„ط§ط®طھط¨ط§ط±ط§طھ
+ * - طھط­ط¯ط« ط­ط§ظ„ط© ط§ظ„ط·ط§ظ„ط¨ + ط¥ط´ط¹ط§ط± ظ„ظ„ط¬ظ‡ط© ط¨ط§ظ„ظ†طھظٹط¬ط©
  */
 export async function reviewStudentApplication(studentId: string, decision: ReviewDecision) {
   const user = await requireUser();
 
-  // عزل الصلاحيات: الأخصائي أو المسؤول (المهمة C)
+  // ط¹ط²ظ„ ط§ظ„طµظ„ط§ط­ظٹط§طھ: ط§ظ„ط£ط®طµط§ط¦ظٹ ط£ظˆ ط§ظ„ظ…ط³ط¤ظˆظ„ (ط§ظ„ظ…ظ‡ظ…ط© C)
   requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   const student = await prisma.student.findUnique({
@@ -222,20 +219,20 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
   });
 
   if (!student) {
-    throw new Error("الطالب غير موجود");
+    throw new Error("ط§ظ„ط·ط§ظ„ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯");
   }
   assertSameTenant(user, student);
 
-  // منع مراجعة طالب تم مراجعته مسبقاً (يجب أن يكون بحالة PENDING فقط)
+  // ظ…ظ†ط¹ ظ…ط±ط§ط¬ط¹ط© ط·ط§ظ„ط¨ طھظ… ظ…ط±ط§ط¬ط¹طھظ‡ ظ…ط³ط¨ظ‚ط§ظ‹ (ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط¨ط­ط§ظ„ط© PENDING ظپظ‚ط·)
   if (student.status !== StudentStatus.PENDING) {
-    throw new Error("لا يمكن مراجعة طلب تم معالجته مسبقاً");
+    throw new Error("ظ„ط§ ظٹظ…ظƒظ† ظ…ط±ط§ط¬ط¹ط© ط·ظ„ط¨ طھظ… ظ…ط¹ط§ظ„ط¬طھظ‡ ظ…ط³ط¨ظ‚ط§ظ‹");
   }
 
-  // نص السبب الثابت (حالياً)
+  // ظ†طµ ط§ظ„ط³ط¨ط¨ ط§ظ„ط«ط§ط¨طھ (ط­ط§ظ„ظٹط§ظ‹)
   const reason =
     decision === "APPROVED"
-      ? "تم قبول الترشيح من قبل أخصائي الاختبارات"
-      : "تم رفض الترشيح لعدم اكتمال البيانات المطلوبة";
+      ? "طھظ… ظ‚ط¨ظˆظ„ ط§ظ„طھط±ط´ظٹط­ ظ…ظ† ظ‚ط¨ظ„ ط£ط®طµط§ط¦ظٹ ط§ظ„ط§ط®طھط¨ط§ط±ط§طھ"
+      : "طھظ… ط±ظپط¶ ط§ظ„طھط±ط´ظٹط­ ظ„ط¹ط¯ظ… ط§ظƒطھظ…ط§ظ„ ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©";
 
   const status = decision === "APPROVED" ? StudentStatus.APPROVED : StudentStatus.REJECTED;
 
@@ -247,7 +244,7 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
     },
   });
 
-  // إشعار الجهة بالنتيجة
+  // ط¥ط´ط¹ط§ط± ط§ظ„ط¬ظ‡ط© ط¨ط§ظ„ظ†طھظٹط¬ط©
   const institutionUsers = await prisma.user.findMany({
     where: { role: Role.INSTITUTION, institutionId: student.institutionId },
     select: { id: true },
@@ -259,8 +256,8 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
         userId: u.id,
         message:
           decision === "APPROVED"
-            ? `تم قبول ترشيح الطالب «${student.name}»`
-            : `تم رفض ترشيح الطالب «${student.name}». السبب: ${reason}`,
+            ? `طھظ… ظ‚ط¨ظˆظ„ طھط±ط´ظٹط­ ط§ظ„ط·ط§ظ„ط¨ آ«${student.name}آ»`
+            : `طھظ… ط±ظپط¶ طھط±ط´ظٹط­ ط§ظ„ط·ط§ظ„ط¨ آ«${student.name}آ». ط§ظ„ط³ط¨ط¨: ${reason}`,
         type: NotificationType.APPROVAL,
         tenantId: requireTenantId(user),
       })),
@@ -280,38 +277,38 @@ export async function reviewStudentApplication(studentId: string, decision: Revi
 }
 
 /**
- * 3) تشكيل لجنة (جلسة اختبار) وتوزيع الطالب — خاص بأخصائي الاختبارات
- * - ينشئ ExamSession + تغيير حالة الطالب إلى ASSIGNED + إشعارات للمعلمين والجهة
+ * 3) طھط´ظƒظٹظ„ ظ„ط¬ظ†ط© (ط¬ظ„ط³ط© ط§ط®طھط¨ط§ط±) ظˆطھظˆط²ظٹط¹ ط§ظ„ط·ط§ظ„ط¨ â€” ط®ط§طµ ط¨ط£ط®طµط§ط¦ظٹ ط§ظ„ط§ط®طھط¨ط§ط±ط§طھ
+ * - ظٹظ†ط´ط¦ ExamSession + طھط؛ظٹظٹط± ط­ط§ظ„ط© ط§ظ„ط·ط§ظ„ط¨ ط¥ظ„ظ‰ ASSIGNED + ط¥ط´ط¹ط§ط±ط§طھ ظ„ظ„ظ…ط¹ظ„ظ…ظٹظ† ظˆط§ظ„ط¬ظ‡ط©
  */
 export async function assignCommittee(input: CommitteeInput) {
   const user = await requireUser();
 
-  // عزل الصلاحيات: الأخصائي أو المسؤول (المهمة C)
+  // ط¹ط²ظ„ ط§ظ„طµظ„ط§ط­ظٹط§طھ: ط§ظ„ط£ط®طµط§ط¦ظٹ ط£ظˆ ط§ظ„ظ…ط³ط¤ظˆظ„ (ط§ظ„ظ…ظ‡ظ…ط© C)
   requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
 
   const parsed = committeeSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "بيانات غير صحيحة");
+    throw new Error(parsed.error.issues[0]?.message ?? "ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©");
   }
   const data = parsed.data;
 
   if (data.teacher1Id === data.teacher2Id) {
-    throw new Error("لا يمكن اختيار المختبر نفسه في المختبرين الأول والثاني");
+    throw new Error("ظ„ط§ ظٹظ…ظƒظ† ط§ط®طھظٹط§ط± ط§ظ„ظ…ط®طھط¨ط± ظ†ظپط³ظ‡ ظپظٹ ط§ظ„ظ…ط®طھط¨ط±ظٹظ† ط§ظ„ط£ظˆظ„ ظˆط§ظ„ط«ط§ظ†ظٹ");
   }
 
-  // التحقق من أن المختبرين موجودان
+  // ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط£ظ† ط§ظ„ظ…ط®طھط¨ط±ظٹظ† ظ…ظˆط¬ظˆط¯ط§ظ†
   const teachers = await prisma.user.findMany({
     where: { ...getTenantFilter(user), id: { in: [data.teacher1Id, data.teacher2Id] } },
     select: { id: true, role: true },
   });
 
   if (teachers.length !== 2) {
-    throw new Error("أحد المختبرين غير موجود");
+    throw new Error("ط£ط­ط¯ ط§ظ„ظ…ط®طھط¨ط±ظٹظ† ط؛ظٹط± ظ…ظˆط¬ظˆط¯");
   }
 
   for (const t of teachers) {
     if (t.role !== Role.EXAMINER) {
-      throw new Error("يجب أن يكون كل من المختبرين بدور EXAMINER");
+      throw new Error("ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ظƒظ„ ظ…ظ† ط§ظ„ظ…ط®طھط¨ط±ظٹظ† ط¨ط¯ظˆط± EXAMINER");
     }
   }
 
@@ -321,25 +318,25 @@ export async function assignCommittee(input: CommitteeInput) {
   });
 
   if (!student) {
-    throw new Error("الطالب غير موجود");
+    throw new Error("ط§ظ„ط·ط§ظ„ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯");
   }
   assertSameTenant(user, student);
   if (student.status !== StudentStatus.APPROVED) {
-    throw new Error("يجب أن يكون الطالب بحالة APPROVED قبل توزيعه على لجنة");
+    throw new Error("ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط§ظ„ط·ط§ظ„ط¨ ط¨ط­ط§ظ„ط© APPROVED ظ‚ط¨ظ„ طھظˆط²ظٹط¹ظ‡ ط¹ظ„ظ‰ ظ„ط¬ظ†ط©");
   }
 
   const examDate = new Date(data.examDate);
   if (Number.isNaN(examDate.getTime())) {
-    throw new Error("تاريخ الاختبار غير صحيح");
+    throw new Error("طھط§ط±ظٹط® ط§ظ„ط§ط®طھط¨ط§ط± ط؛ظٹط± طµط­ظٹط­");
   }
 
-  // التحقق أن تاريخ الاختبار في المستقبل
+  // ط§ظ„طھط­ظ‚ظ‚ ط£ظ† طھط§ط±ظٹط® ط§ظ„ط§ط®طھط¨ط§ط± ظپظٹ ط§ظ„ظ…ط³طھظ‚ط¨ظ„
   const now = new Date();
   if (examDate <= now) {
-    throw new Error("تاريخ الاختبار يجب أن يكون في المستقبل");
+    throw new Error("طھط§ط±ظٹط® ط§ظ„ط§ط®طھط¨ط§ط± ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ظپظٹ ط§ظ„ظ…ط³طھظ‚ط¨ظ„");
   }
 
-  // التحقق من عدم تضارب مواعيد المختبرين (نفس المختبر في لجنتين بنفس الوقت)
+  // ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط¹ط¯ظ… طھط¶ط§ط±ط¨ ظ…ظˆط§ط¹ظٹط¯ ط§ظ„ظ…ط®طھط¨ط±ظٹظ† (ظ†ظپط³ ط§ظ„ظ…ط®طھط¨ط± ظپظٹ ظ„ط¬ظ†طھظٹظ† ط¨ظ†ظپط³ ط§ظ„ظˆظ‚طھ)
   const conflicting = await prisma.examSession.findFirst({
     where: {
       ...getTenantFilter(user),
@@ -353,19 +350,19 @@ export async function assignCommittee(input: CommitteeInput) {
     },
   });
   if (conflicting) {
-    throw new Error("تضارب في مواعيد أحد المختبرين في نفس التاريخ");
+    throw new Error("طھط¶ط§ط±ط¨ ظپظٹ ظ…ظˆط§ط¹ظٹط¯ ط£ط­ط¯ ط§ظ„ظ…ط®طھط¨ط±ظٹظ† ظپظٹ ظ†ظپط³ ط§ظ„طھط§ط±ظٹط®");
   }
 
-  // الموسم النشط الحالي (المادة 6)
+  // ط§ظ„ظ…ظˆط³ظ… ط§ظ„ظ†ط´ط· ط§ظ„ط­ط§ظ„ظٹ (ط§ظ„ظ…ط§ط¯ط© 6)
   const season = await getCurrentSeason();
   if (!season) {
-    throw new Error("لا يوجد موسم اختبارات نشط حالياً — يجب تفعيل موسم أولاً");
+    throw new Error("ظ„ط§ ظٹظˆط¬ط¯ ظ…ظˆط³ظ… ط§ط®طھط¨ط§ط±ط§طھ ظ†ط´ط· ط­ط§ظ„ظٹط§ظ‹ â€” ظٹط¬ط¨ طھظپط¹ظٹظ„ ظ…ظˆط³ظ… ط£ظˆظ„ط§ظ‹");
   }
   const seasonId = season.id;
 
-  // منع التوزيع المزدوج لنفس الطالب (حماية ذرّية ضد Race Condition)
-  // نستخدم updateMany بشرط الحالة APPROVED داخل معاملة — إن لم يحدّث أي صف
-  // فهذا يعني أن الطالب لم يعد APPROVED (مُوزّع أو غيّرت حالته) → نرفض.
+  // ظ…ظ†ط¹ ط§ظ„طھظˆط²ظٹط¹ ط§ظ„ظ…ط²ط¯ظˆط¬ ظ„ظ†ظپط³ ط§ظ„ط·ط§ظ„ط¨ (ط­ظ…ط§ظٹط© ط°ط±ظ‘ظٹط© ط¶ط¯ Race Condition)
+  // ظ†ط³طھط®ط¯ظ… updateMany ط¨ط´ط±ط· ط§ظ„ط­ط§ظ„ط© APPROVED ط¯ط§ط®ظ„ ظ…ط¹ط§ظ…ظ„ط© â€” ط¥ظ† ظ„ظ… ظٹط­ط¯ظ‘ط« ط£ظٹ طµظپ
+  // ظپظ‡ط°ط§ ظٹط¹ظ†ظٹ ط£ظ† ط§ظ„ط·ط§ظ„ط¨ ظ„ظ… ظٹط¹ط¯ APPROVED (ظ…ظڈظˆط²ظ‘ط¹ ط£ظˆ ط؛ظٹظ‘ط±طھ ط­ط§ظ„طھظ‡) â†’ ظ†ط±ظپط¶.
   const session = await prisma.$transaction(async (tx) => {
     const updated = await tx.student.updateMany({
       where: { id: data.studentId, status: StudentStatus.APPROVED },
@@ -373,7 +370,7 @@ export async function assignCommittee(input: CommitteeInput) {
     });
 
     if (updated.count !== 1) {
-      throw new Error("تعذر توزيع الطالب: يجب أن يكون بحالة APPROVED ولم يُوزَّع مسبقاً");
+      throw new Error("طھط¹ط°ط± طھظˆط²ظٹط¹ ط§ظ„ط·ط§ظ„ط¨: ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط¨ط­ط§ظ„ط© APPROVED ظˆظ„ظ… ظٹظڈظˆط²ظژظ‘ط¹ ظ…ط³ط¨ظ‚ط§ظ‹");
     }
 
     return tx.examSession.create({
@@ -390,7 +387,7 @@ export async function assignCommittee(input: CommitteeInput) {
     });
   });
 
-  // إشعارات للمعلمين والجهة
+  // ط¥ط´ط¹ط§ط±ط§طھ ظ„ظ„ظ…ط¹ظ„ظ…ظٹظ† ظˆط§ظ„ط¬ظ‡ط©
   const institutionUsers = await prisma.user.findMany({
     where: { role: Role.INSTITUTION, institutionId: student.institutionId },
     select: { id: true },
@@ -403,9 +400,9 @@ export async function assignCommittee(input: CommitteeInput) {
   ];
 
   const message =
-    `تم تحديد جلسة اختبار للطالب «${student.name}» بتاريخ ${examDate.toLocaleDateString(
+    `طھظ… طھط­ط¯ظٹط¯ ط¬ظ„ط³ط© ط§ط®طھط¨ط§ط± ظ„ظ„ط·ط§ظ„ط¨ آ«${student.name}آ» ط¨طھط§ط±ظٹط® ${examDate.toLocaleDateString(
       "ar-SA"
-    )} — الفترة ${data.period}`;
+    )} â€” ط§ظ„ظپطھط±ط© ${data.period}`;
 
   await prisma.notification.createMany({
     data: uniq(recipients).map((userId) => ({
@@ -435,8 +432,8 @@ export async function assignCommittee(input: CommitteeInput) {
 }
 
 /**
- * ترشيح طالب من قبل أخصائي الاختبارات — يختار الجهة المرجعية
- * الحالة تبدأ PENDING ثم تُعتمد مباشرة (الأخصائي هو المُراجع الأصلي)
+ * طھط±ط´ظٹط­ ط·ط§ظ„ط¨ ظ…ظ† ظ‚ط¨ظ„ ط£ط®طµط§ط¦ظٹ ط§ظ„ط§ط®طھط¨ط§ط±ط§طھ â€” ظٹط®طھط§ط± ط§ظ„ط¬ظ‡ط© ط§ظ„ظ…ط±ط¬ط¹ظٹط©
+ * ط§ظ„ط­ط§ظ„ط© طھط¨ط¯ط£ PENDING ط«ظ… طھظڈط¹طھظ…ط¯ ظ…ط¨ط§ط´ط±ط© (ط§ظ„ط£ط®طµط§ط¦ظٹ ظ‡ظˆ ط§ظ„ظ…ظڈط±ط§ط¬ط¹ ط§ظ„ط£طµظ„ظٹ)
  */
 export async function createStudentApplicationBySpecialist(
   input: StudentApplicationInput & { institutionId: string },
@@ -451,7 +448,7 @@ export async function createStudentApplicationBySpecialist(
     user = await requireUser();
     requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
   } catch {
-    return { success: false, error: "غير مصرح — يجب أن تكون أخصائي اختبارات أو أدمن" };
+    return { success: false, error: "ط؛ظٹط± ظ…طµط±ط­ â€” ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ط£ط®طµط§ط¦ظٹ ط§ط®طھط¨ط§ط±ط§طھ ط£ظˆ ط£ط¯ظ…ظ†" };
   }
 
   try {
@@ -459,18 +456,18 @@ export async function createStudentApplicationBySpecialist(
   } catch (e) {
     return {
       success: false,
-      error: e instanceof Error ? e.message : "تم تجاوز حد الطلبات المسموح، حاول لاحقاً",
+      error: e instanceof Error ? e.message : "طھظ… طھط¬ط§ظˆط² ط­ط¯ ط§ظ„ط·ظ„ط¨ط§طھ ط§ظ„ظ…ط³ظ…ظˆط­طŒ ط­ط§ظˆظ„ ظ„ط§ط­ظ‚ط§ظ‹",
     };
   }
 
   const parsed = studentApplicationSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
+    return { success: false, error: parsed.error.issues[0]?.message ?? "ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©" };
   }
   const data = parsed.data;
 
   if (!input.institutionId) {
-    return { success: false, error: "اختر الجهة التعليمية" };
+    return { success: false, error: "ط§ط®طھط± ط§ظ„ط¬ظ‡ط© ط§ظ„طھط¹ظ„ظٹظ…ظٹط©" };
   }
 
   const institution = await prisma.institution.findUnique({
@@ -478,7 +475,7 @@ export async function createStudentApplicationBySpecialist(
     select: { id: true, name: true, tenantId: true },
   });
   if (!institution || institution.tenantId !== requireTenantId(user)) {
-    return { success: false, error: "الجهة التعليمية غير موجودة أو لا تنتمي لمؤسستك" };
+    return { success: false, error: "ط§ظ„ط¬ظ‡ط© ط§ظ„طھط¹ظ„ظٹظ…ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط© ط£ظˆ ظ„ط§ طھظ†طھظ…ظٹ ظ„ظ…ط¤ط³ط³طھظƒ" };
   }
 
   const settings = await getPlatformSettings();
@@ -489,7 +486,7 @@ export async function createStudentApplicationBySpecialist(
 
   if (requireFile || applicationFile) {
     if (!applicationFile) {
-      return { success: false, error: "يجب رفع نموذج اختبار الطالب (PDF) لإكمال الترشيح" };
+      return { success: false, error: "ظٹط¬ط¨ ط±ظپط¹ ظ†ظ…ظˆط°ط¬ ط§ط®طھط¨ط§ط± ط§ظ„ط·ط§ظ„ط¨ (PDF) ظ„ط¥ظƒظ…ط§ظ„ ط§ظ„طھط±ط´ظٹط­" };
     }
     const buffer = Buffer.from(applicationFile.buffer);
     try {
@@ -498,16 +495,13 @@ export async function createStudentApplicationBySpecialist(
         allowedMimes: ["application/pdf"],
       });
     } catch {
-      return { success: false, error: "نموذج الاختبار يجب أن يكون ملف PDF (الحد الأقصى 20MB)" };
+      return { success: false, error: "ظ†ظ…ظˆط°ط¬ ط§ظ„ط§ط®طھط¨ط§ط± ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ظ…ظ„ظپ PDF (ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ 20MB)" };
     }
     try {
-      const folderId = await ensureDriveFolder(institution.name);
-      const uploaded = await uploadFileToDriveFolder(
+      const uploaded = await uploadFile(
         buffer,
-        `نموذج اختبار الطالب (${data.name}).pdf`,
-        "application/pdf",
-        folderId
-      );
+        `ظ†ظ…ظˆط°ط¬ ط§ط®طھط¨ط§ط± ط§ظ„ط·ط§ظ„ط¨ (${data.name}).pdf`,
+        "application/pdf");
       applicationFileId = uploaded.fileId;
       applicationFileUrl = uploaded.webViewLink;
     } catch (error) {
@@ -516,7 +510,7 @@ export async function createStudentApplicationBySpecialist(
         error:
           error instanceof Error
             ? error.message
-            : "تعذر رفع نموذج الاختبار على Google Drive — حاول مرة أخرى",
+            : "طھط¹ط°ط± ط±ظپط¹ ظ†ظ…ظˆط°ط¬ ط§ظ„ط§ط®طھط¨ط§ط± ط¹ظ„ظ‰ Google Drive â€” ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰",
       };
     }
   }
@@ -546,7 +540,7 @@ export async function createStudentApplicationBySpecialist(
       return created;
     });
   } catch {
-    return { success: false, error: "حدث خطأ غير متوقع أثناء حفظ الطلب — أعد المحاولة" };
+    return { success: false, error: "ط­ط¯ط« ط®ط·ط£ ط؛ظٹط± ظ…طھظˆظ‚ط¹ ط£ط«ظ†ط§ط، ط­ظپط¸ ط§ظ„ط·ظ„ط¨ â€” ط£ط¹ط¯ ط§ظ„ظ…ط­ط§ظˆظ„ط©" };
   }
 
   try {
@@ -558,14 +552,14 @@ export async function createStudentApplicationBySpecialist(
       await prisma.notification.createMany({
         data: institutionUsers.map((u) => ({
           userId: u.id,
-          message: `تم ترشيح الطالب «${student.name}» من قبل أخصائي الاختبارات — جاهز للتوزيع على لجنة`,
+          message: `طھظ… طھط±ط´ظٹط­ ط§ظ„ط·ط§ظ„ط¨ آ«${student.name}آ» ظ…ظ† ظ‚ط¨ظ„ ط£ط®طµط§ط¦ظٹ ط§ظ„ط§ط®طھط¨ط§ط±ط§طھ â€” ط¬ط§ظ‡ط² ظ„ظ„طھظˆط²ظٹط¹ ط¹ظ„ظ‰ ظ„ط¬ظ†ط©`,
           type: NotificationType.RECRUITMENT,
           tenantId: requireTenantId(user),
         })),
       });
     }
   } catch {
-    // غير حاسم
+    // ط؛ظٹط± ط­ط§ط³ظ…
   }
 
   try {
@@ -577,7 +571,7 @@ export async function createStudentApplicationBySpecialist(
       institutionId: input.institutionId,
     });
   } catch {
-    // فشل سجل التدقيق لا يمنع النجاح
+    // ظپط´ظ„ ط³ط¬ظ„ ط§ظ„طھط¯ظ‚ظٹظ‚ ظ„ط§ ظٹظ…ظ†ط¹ ط§ظ„ظ†ط¬ط§ط­
   }
 
   revalidatePath("/test-specialist/requests");

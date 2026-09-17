@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { uploadFileToDrive } from "@/lib/google-drive";
+import { uploadFile, deleteFile } from "@/lib/file-storage";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { validateFileUpload } from "@/lib/upload-security";
 
@@ -63,7 +63,7 @@ export const getPlatformSettings = cache(
 /**
  * تحديث إعدادات المنصة (SUPER_ADMIN فقط)
  * - يسمح بتغيير الاسم والشعار (إعدادات عامة على مستوى المنصة)
- * - يرفع الشعار الجديد إلى Google Drive (المادة 3)
+ * - يرفع الشعار الجديد إلى وحدة التخزين
  * - يسجّل العملية في AuditLog
  */
 export async function updatePlatformSettings(
@@ -106,27 +106,18 @@ export async function updatePlatformSettings(
       throw new Error("الشعار غير صالح: PNG, JPG, أو WEBP فقط (الحد الأقصى 5MB)");
     }
     try {
-      const uploaded = await uploadFileToDrive(
+      const uploaded = await uploadFile(
         buffer,
         logoFile.fileName,
         logoFile.mimeType
       );
-      // تخزين رابط صورة مباشر (Thumbnail) بدلاً من webViewLink — لأن webViewLink
-      // صفحة HTML ولا يمكن عرضها عبر next/image ولا favicon:
-      // أ) next/image يحتاج بايتات صورة؛ ب) رابط العرض المباشر أسرع وأخف.
-      // https://drive.google.com/thumbnail?id=<fileId>&sz=w512 — لا يتطلب إذناً عاماً
-      if (uploaded.fileId) {
-        data.logoUrl = `https://drive.google.com/thumbnail?id=${uploaded.fileId}&sz=w512`;
-        data.logoFileId = uploaded.fileId;
-      } else {
-        data.logoUrl = uploaded.webViewLink;
-        data.logoFileId = uploaded.fileId;
-      }
+      data.logoUrl = uploaded.webViewLink;
+      data.logoFileId = uploaded.fileId;
     } catch (error) {
       throw new Error(
         error instanceof Error
-          ? `تعذر رفع الشعار على Google Drive: ${error.message}`
-          : "تعذر رفع الشعار على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً"
+          ? `تعذر رفع الشعار: ${error.message}`
+          : "تعذر رفع الشعار — تحقق من إعدادات الاتصال وحاول مجدداً"
       );
     }
   }
@@ -173,6 +164,13 @@ export async function removePlatformLogo(): Promise<{ success: boolean }> {
     where: { id: "singleton" },
     select: { logoFileId: true },
   });
+
+  // حذف الملف القديم من وحدة التخزين إن وُجد
+  try {
+    await deleteFile(current?.logoFileId);
+  } catch {
+    // نستمر بالحذف من قاعدة البيانات حتى لو فشل الحذف من التخزين
+  }
 
   await prisma.appSettings.upsert({
     where: { id: "singleton" },
@@ -231,17 +229,18 @@ export async function updateTemplateSettings(
       throw new Error("قالب الشهادة يجب أن يكون ملف PDF (الحد الأقصى 10MB)");
     }
     try {
-      const uploaded = await uploadFileToDrive(
+      const uploaded = await uploadFile(
         buffer,
         templateFile.fileName,
         templateFile.mimeType
       );
-      data.templateFileId = uploaded.fileId;
+      // نخزّن الرابط المباشر بدلاً من المعرّف — وحدة التخزين لا تحتاج استرجاع عبر المعرّف
+      data.templateFileId = uploaded.webViewLink;
     } catch (error) {
       throw new Error(
         error instanceof Error
-          ? `تعذر رفع قالب الشهادة على Google Drive: ${error.message}`
-          : "تعذر رفع قالب الشهادة على Google Drive — تحقق من إعدادات الاتصال وحاول مجدداً"
+          ? `تعذر رفع قالب الشهادة: ${error.message}`
+          : "تعذر رفع قالب الشهادة — تحقق من إعدادات الاتصال وحاول مجدداً"
       );
     }
   }
