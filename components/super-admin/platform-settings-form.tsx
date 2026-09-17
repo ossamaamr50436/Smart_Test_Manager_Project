@@ -2,6 +2,7 @@
 
 import { useState, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -462,6 +463,28 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
           <Button onClick={handleSaveTemplate} disabled={isPending}>
             {isPending ? "جارٍ الحفظ..." : "حفظ إعدادات القالب"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-amber-200 bg-amber-50">
+        <CardHeader>
+          <CardTitle className="text-amber-900">📦 إعداد مؤسسة تعليمية جديدة</CardTitle>
+          <CardDescription>إنشاء تطبيق على UploadThing لكل مؤسسة</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-amber-800">
+            كل مؤسسة تحتاج إلى مفتاح API خاص بها على UploadThing. اضغط على الزر
+            أدناه للانتقال إلى لوحة التحكم.
+          </p>
+          <a
+            href="https://uploadthing.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-white transition-colors hover:bg-amber-700"
+          >
+            <span>🔗 اذهب إلى UploadThing Dashboard</span>
+            <ExternalLink className="h-4 w-4" />
+          </a>
         </CardContent>
       </Card>
     </div>
