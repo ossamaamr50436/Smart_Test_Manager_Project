@@ -249,8 +249,8 @@ export function AcceptedStudentsManager({
                         <td className="p-2">{s.institution?.name ?? "—"}</td>
                         <td className="p-2">{fmtDate(s.createdAt)}</td>
                         <td className="p-2">{fmtDate(s.approvedAt)}</td>
-                        <td className="p-2">{fmtDate(session?.examDate ?? null)}</td>
-                        <td className="p-2">{session?.period ?? "—"}</td>
+                        <td className="p-2">{session ? fmtDate(session.examDate) : "لم يُحدَّد"}</td>
+                        <td className="p-2">{session?.period ?? "لم يُحدَّد"}</td>
                         <td className="p-2">{s.committee?.name ?? "—"}</td>
                         <td className="p-2">{STATUS_LABELS[s.status]}</td>
                         <td className="p-2 text-center">
