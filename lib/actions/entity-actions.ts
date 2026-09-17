@@ -191,6 +191,102 @@ export async function listInstitutions() {
   return { institutions };
 }
 
+/** تعديل بيانات جهة تعليمية — خاص بالأخصائي/الأدمن (نفس حقول الإنشاء بدون البريد/كلمة المرور) */
+export async function updateInstitution(
+  institutionId: string,
+  input: {
+    name?: string;
+    managerName?: string;
+    supervisorName?: string;
+    managerPhone?: string;
+    supervisorPhone?: string;
+    licenseNumber?: string;
+    district?: string;
+  }
+) {
+  const user = await requireUser();
+  requireRole(user, [Role.TEST_SPECIALIST, Role.ADMIN]);
+
+  await checkRateLimit(`entity-update:${user.id}`, 10);
+
+  if (!institutionId || typeof institutionId !== "string" || institutionId.length < 1 || institutionId.length > 64) {
+    throw new Error("معرّف الجهة غير صالح");
+  }
+  const existing = await prisma.institution.findUnique({ where: { id: institutionId } });
+  if (!existing) throw new Error("الجهة غير موجودة");
+  assertSameTenant(user, existing);
+
+  const data: Prisma.InstitutionUpdateInput = {};
+  if (input.name !== undefined && input.name.trim() !== existing.name) {
+    if (input.name.trim().length < 2) throw new Error("اسم الجهة مطلوب (حرفان على الأقل)");
+    if (input.name.length > 200) throw new Error("اسم الجهة طويل جداً (الحد الأقصى 200 حرف)");
+    if (/<[^>]*>/.test(input.name)) throw new Error("اسم الجهة لا يسمح بوسوم HTML");
+    data.name = input.name.trim();
+  }
+  if (input.managerName !== undefined && input.managerName.trim() !== existing.managerName) {
+    if (input.managerName.trim().length < 2) throw new Error("اسم مدير الجهة مطلوب");
+    data.managerName = input.managerName.trim();
+  }
+  if (input.supervisorName !== undefined && input.supervisorName.trim() !== existing.supervisorName) {
+    if (input.supervisorName.trim().length < 2) throw new Error("اسم مشرف الجهة مطلوب");
+    data.supervisorName = input.supervisorName.trim();
+  }
+  if (input.district !== undefined && input.district.trim() !== existing.district) {
+    if (input.district.trim().length < 2) throw new Error("الحي مطلوب");
+    data.district = input.district.trim();
+  }
+  if (input.managerPhone !== undefined && input.managerPhone.trim() !== existing.managerPhone) {
+    if (!validatePhoneE164(input.managerPhone)) {
+      throw new Error("رقم هاتف المدير غير صالح — يبدأ بـ+ وأرقام فقط (6-15 خانة)");
+    }
+    data.managerPhone = input.managerPhone.trim();
+  }
+  if (input.supervisorPhone !== undefined && input.supervisorPhone.trim() !== existing.supervisorPhone) {
+    if (!validatePhoneE164(input.supervisorPhone)) {
+      throw new Error("رقم هاتف المشرف غير صالح — يبدأ بـ+ وأرقام فقط (6-15 خانة)");
+    }
+    data.supervisorPhone = input.supervisorPhone.trim();
+  }
+  if (input.licenseNumber !== undefined && input.licenseNumber.trim() !== existing.licenseNumber) {
+    if (input.licenseNumber.trim().length < 3) throw new Error("رقم التصريح مطلوب (3 أحرف على الأقل)");
+    if (input.licenseNumber.length > 50) throw new Error("رقم التصريح طويل جداً");
+    // منع التصادم مع جهة أخرى
+    const clash = await prisma.institution.findFirst({
+      where: { id: { not: institutionId }, licenseNumber: input.licenseNumber.trim() },
+      select: { id: true },
+    });
+    if (clash) throw new Error("رقم التصريح مستخدم لجهة أخرى — اختر رقماً آخر");
+    data.licenseNumber = input.licenseNumber.trim();
+  }
+
+  if (Object.keys(data).length === 0) return { success: true, noChange: true as const };
+
+  try {
+    await prisma.institution.update({ where: { id: institutionId }, data });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+    throw error;
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId: requireTenantId(user),
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "Institution",
+        institutionId,
+        updatedFields: Object.keys(data),
+      }),
+    },
+  });
+
+  revalidatePath("/test-specialist/entities");
+  revalidatePath("/admin/institutions");
+
+  return { success: true };
+}
+
 /**
  * حذف جهة تعليمية بالكامل — خاص بالأخصائي/الأدمن (المهمة D)
  * - يوظّف معاملة ذرّية لضمان السلامة.
