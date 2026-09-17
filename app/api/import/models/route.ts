@@ -1,8 +1,8 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { Role, Prisma } from "@prisma/client";
-import { uploadFile } from "@/lib/file-storage";
+import { uploadExamModelFile } from "@/lib/google-drive";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
             });
             continue;
           }
-          driveRef = await uploadFile(
+          driveRef = await uploadExamModelFile(
             buffer,
             `model-${modelNumber}-${Date.now()}.json`,
             "application/json"
