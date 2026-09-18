@@ -7,6 +7,7 @@ import { AuditAction, NotificationType, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { PERIODS } from "@/lib/validations/student";
 import { notifyInstitution } from "@/lib/notifications";
+import { isUniqueConstraintError } from "@/lib/actions/unique-guard";
 
 // ============================================================
 // المهمة 2: إدارة اللجان (Committee)
@@ -133,7 +134,10 @@ export async function createCommittee(input: {
 
       return created;
     });
-  } catch {
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return { success: false, error: "يوجد لجنة بنفس الاسم في هذا الموسم" };
+    }
     return { success: false, error: "حدث خطأ غير متوقع أثناء إنشاء اللجنة" };
   }
 
