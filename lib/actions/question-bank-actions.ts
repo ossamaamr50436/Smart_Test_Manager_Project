@@ -9,6 +9,10 @@ import {
   questionBankSchema,
   type QuestionBankInput,
 } from "@/lib/validations/question-bank";
+import {
+  isUniqueConstraintError,
+  friendlyUniqueMessage,
+} from "@/lib/actions/unique-guard";
 
 const VALID_ROLES: Role[] = [Role.ADMIN, Role.TEST_SPECIALIST];
 
@@ -61,15 +65,21 @@ export async function createQuestionBankModel(input: QuestionBankInput) {
   }
 
   const model = await prisma.$transaction(async (tx) => {
-    const created = await tx.questionBankModel.create({
-      data: {
-        modelNumber: data.modelNumber,
-        branch: data.branch,
-        detailsJSON: { segments },
-        segmentsCount: data.segmentsCount,
-        tenantId: requireTenantId(user),
-      },
-    });
+    let created;
+    try {
+      created = await tx.questionBankModel.create({
+        data: {
+          modelNumber: data.modelNumber,
+          branch: data.branch,
+          detailsJSON: { segments },
+          segmentsCount: data.segmentsCount,
+          tenantId: requireTenantId(user),
+        },
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
+      throw error;
+    }
     await tx.auditLog.create({
       data: {
         userId: user.id,
