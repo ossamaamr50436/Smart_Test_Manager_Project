@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { headOfAffairsFinalApprove } from "@/lib/actions/admin-actions";
 import { rejectStudentByHead } from "@/lib/actions/head-actions";
+import { rejectionReasonError } from "@/lib/validations/rejection-reason";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -44,9 +45,14 @@ export function HeadApprovalTable({ students }: { students: NotifiedStudent[] })
 
   async function handleReject(studentId: string) {
     setError("");
+    const reasonError = rejectionReasonError(rejectReason);
+    if (reasonError) {
+      setError(reasonError);
+      return;
+    }
     setRejectingId(studentId);
     try {
-      await rejectStudentByHead(studentId, rejectReason.trim() || undefined);
+      await rejectStudentByHead(studentId, rejectReason);
       setRejectReason("");
       router.refresh();
     } catch (e) {
@@ -116,13 +122,18 @@ export function HeadApprovalTable({ students }: { students: NotifiedStudent[] })
                           type="text"
                           value={rejectingId === student.id ? rejectReason : ""}
                           onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder="سبب الرفض (اختياري)"
+                          placeholder="سبب الرفض (إلزامي)"
                           className="h-8 w-40 rounded-md border border-input bg-transparent px-2 text-xs"
+                          aria-label="سبب الرفض"
                         />
                         <Button
                           size="sm"
                           variant="destructive"
-                          disabled={processingId === student.id || rejectingId === student.id}
+                          disabled={
+                            processingId === student.id ||
+                            rejectingId === student.id ||
+                            rejectReason.trim().length === 0
+                          }
                           onClick={() => handleReject(student.id)}
                         >
                           {rejectingId === student.id ? "جارٍ الرفض..." : "رفض"}

@@ -33,6 +33,7 @@ enum StudentStatus {
   ASSIGNED // تم توزيعه على لجنة
   COMPLETED // اكتمل تقييمه واعتماده المتسلسل
   NOTIFIED // اعتمد الأخصائي (بانتظار اعتماد رئيس الشؤون)
+  REJECTED_BY_HEAD // رفض رئيس الشؤون التعليمية اعتماد درجته
   READY_FOR_CERTIFICATE // جاهز لإصدار الشهادة
   CERTIFICATE_ISSUED // صدرت شهادته
 }
@@ -50,6 +51,7 @@ enum AssessmentStatus {
   FINALIZED // حالة محفوظة للتوافق مع البيانات القديمة
   ACCEPTED // اعتمده الأخصائي
   NOTIFIED // وافق عليه رئيس الشؤون
+  REJECTED_BY_HEAD // رفضه رئيس الشؤون التعليمية
 }
 
 enum CertificateStatus {
@@ -147,6 +149,7 @@ model User {
   assessments          Assessment[]
   certificatesIssued   Certificate[]  @relation("CertificateIssuer")
   studentNominations   Student[]      @relation("StudentNominations")
+  studentRejections    Student[]      @relation("StudentRejections")
 
   @@index([institutionId])
   @@index([tenantId])
@@ -201,6 +204,9 @@ model Student {
   approvedAt    DateTime? // تاريخ القبول
   assignedAt    DateTime? // تاريخ التوزيع على لجنة
   finalizedAt   DateTime? // تاريخ الاعتماد النهائي
+  rejectedAt    DateTime? // تاريخ رفض رئيس الشؤون التعليمية لاعتماد الدرجة
+  rejectionReason String? // سبب رفض رئيس الشؤون التعليمية (إلزامي عند الرفض)
+  rejectedById  String? // من أصدر قرار الرفض (رئيس الشؤون التعليمية)
   tenantId      String // Multi-Tenant
   createdAt     DateTime      @default(now()) // تاريخ الترشيح
   updatedAt     DateTime      @updatedAt
@@ -209,6 +215,7 @@ model Student {
   institution  Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   committee    Committee?    @relation(fields: [committeeId], references: [id])
   submittedBy  User?         @relation("StudentNominations", fields: [submittedById], references: [id])
+  rejectedBy   User?         @relation("StudentRejections", fields: [rejectedById], references: [id])
   examSessions ExamSession[]
   certificates Certificate[]
 
@@ -224,6 +231,7 @@ model Student {
   @@index([tenantId, institutionId])
   @@index([tenantId, committeeId])
   @@index([tenantId, submittedById])
+  @@index([tenantId, rejectedById])
   @@index([tenantId, createdAt])
   @@map("students")
 }

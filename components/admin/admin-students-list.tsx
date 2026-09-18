@@ -37,6 +37,7 @@ const STATUS_LABELS: Record<StudentStatus, string> = {
   NOTIFIED: "اعتمده الأخصائي",
   READY_FOR_CERTIFICATE: "جاهز للشهادة",
   CERTIFICATE_ISSUED: "صدرت شهادته",
+  REJECTED_BY_HEAD: "رفضه رئيس الشؤون",
 };
 
 export function AdminStudentsList() {

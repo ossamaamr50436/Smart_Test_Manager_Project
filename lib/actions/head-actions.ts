@@ -14,6 +14,10 @@ import {
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { PAGE_SIZE } from "@/lib/utils";
+import {
+  validateRejectionReason,
+  rejectionReasonError,
+} from "@/lib/validations/rejection-reason";
 
 /**
  * تسجيل حدث في Audit Log (شفافية كل قرار — المادة 8)
@@ -72,11 +76,43 @@ export async function getStudentsForHeadReview(
 }
 
 /**
+ * قائمة الطلاب المرفوضين من رئيس الشؤون التعليمية (REJECTED_BY_HEAD)
+ * مع سبب الرفض ومُصدِره — مغلفة بعزل الصلاحيات لكل دور.
+ * عزل الصلاحيات: رئيس الشؤون (كل ما يخص جهته) أو الأخصائي/المسؤول (للمعالجة).
+ */
+export async function getStudentsRejectedByHead() {
+  const user = await requireUser();
+
+  const allowed: Role[] = [Role.HEAD_OF_AFFAIRS, Role.TEST_SPECIALIST, Role.ADMIN];
+  requireRole(user, allowed);
+
+  return prisma.student.findMany({
+    where: { ...getTenantFilter(user), status: StudentStatus.REJECTED_BY_HEAD },
+    include: {
+      institution: { select: { name: true } },
+      rejectedBy: { select: { id: true, name: true } },
+      examSessions: {
+        include: {
+          assessments: {
+            where: { status: AssessmentStatus.REJECTED_BY_HEAD },
+            select: { finalScore: true, status: true },
+          },
+        },
+      },
+    },
+    orderBy: { rejectedAt: "desc" },
+  });
+}
+
+/**
  * رفض رئيس الشؤون التعليمية لطلب تم اعتماده إدارياً من الأخصائي
  *
- * الرفض: يعيد الطالب من NOTIFIED إلى APPROVED (بانتظار إعادة التوزيع/التقييم)
- * ويُعيد تقييمات الأخصائي (ACCEPTED) إلى APPROVED لتصحيح سير العمل،
+ * الرفض: يثبّت الطالب في حالة REJECTED_BY_HEAD (لا يختفي من النظام)،
+ * ويُسجّل سبب الرفض + التوقيت + المُصدِر على الطالب نفسه،
+ * ويحوّل تقييم الأخصائي (ACCEPTED) إلى REJECTED_BY_HEAD،
  * مع إشعار الأخصائيين والجهة التعليمية بالنتيجة.
+ *
+ * السبب إلزامي — لا يُرفض الطلب بسطر فارغ/مسافات فقط (Server-side validation).
  *
  * الهدف: تُوجَّه الإشعارات للأخصائيين والجهة — وليس للمستخدم المتخذ للقرار.
  */
@@ -90,6 +126,13 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
     throw new Error("معرّف الطالب غير صالح");
   }
 
+  // السبب إلزامي — لا يمكن الرفض بدون سبب صالح
+  const reasonError = rejectionReasonError(reason);
+  if (reasonError) {
+    throw new Error(reasonError);
+  }
+  const rejectionReason = validateRejectionReason(reason) as string;
+
   const student = await prisma.student.findUnique({
     where: { id: studentId },
     select: { id: true, name: true, status: true, institutionId: true, tenantId: true },
@@ -102,13 +145,20 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
     throw new Error("الطالب ليس بانتظار مراجعة رئيس الشؤون");
   }
 
-  // إعادة الطالب إلى APPROVED (بانتظار إعادة التوزيع وإعادة التقييم)
+  const rejectedAt = new Date();
+
+  // تثبيت الطالب في REJECTED_BY_HEAD مع أسباب الرفض (لا يحذف ولا يعيده للقائمة)
   await prisma.student.update({
     where: { id: studentId },
-    data: { status: StudentStatus.APPROVED },
+    data: {
+      status: StudentStatus.REJECTED_BY_HEAD,
+      rejectionReason,
+      rejectedAt,
+      rejectedById: user.id,
+    },
   });
 
-  // إعادة تقييم الأخصائي (ACCEPTED) إلى APPROVED لتظل السلسلة منطقية
+  // تحويل تقييم الأخصائي (ACCEPTED) إلى REJECTED_BY_HEAD ليُعكس القرار في سلسلة التقييم
   const session = await prisma.examSession.findFirst({
     where: { studentId, assessments: { some: { status: AssessmentStatus.ACCEPTED } } },
     select: { id: true },
@@ -116,11 +166,9 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
   if (session) {
     await prisma.assessment.updateMany({
       where: { examSessionId: session.id, status: AssessmentStatus.ACCEPTED },
-      data: { status: AssessmentStatus.APPROVED },
+      data: { status: AssessmentStatus.REJECTED_BY_HEAD },
     });
   }
-
-  const reasonText = reason ? ` السبب: ${reason}` : "";
 
   // إشعار لأخصائيي الاختبارات (المسؤولين عن هذه المرحلة)
   const specialists = await prisma.user.findMany({
@@ -131,7 +179,7 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
     await prisma.notification.createMany({
       data: specialists.map((s) => ({
         userId: s.id,
-        message: `رُفض اعتماد الطالب «${student.name}» من رئيس الشؤون التعليمية.${reasonText}`,
+        message: `رُفض اعتماد الطالب «${student.name}» من رئيس الشؤون التعليمية. السبب: ${rejectionReason}`,
         type: NotificationType.APPROVAL,
         tenantId: requireTenantId(user),
       })),
@@ -148,7 +196,7 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
       await prisma.notification.createMany({
         data: institutionUsers.map((u) => ({
           userId: u.id,
-          message: `رُفض اعتماد الطالب «${student.name}» من رئيس الشؤون التعليمية.${reasonText}`,
+          message: `رُفض اعتماد الطالب «${student.name}» من رئيس الشؤون التعليمية. السبب: ${rejectionReason}`,
           type: NotificationType.APPROVAL,
           tenantId: requireTenantId(user),
         })),
@@ -160,14 +208,17 @@ export async function rejectStudentByHead(studentId: string, reason?: string) {
     entity: "Student",
     studentId,
     step: "HEAD_OF_AFFAIRS_REJECT",
-    reason: reason ?? null,
-    newStatus: StudentStatus.APPROVED,
+    reason: rejectionReason,
+    newStatus: StudentStatus.REJECTED_BY_HEAD,
+    rejectedBy: user.id,
   });
 
   revalidatePath("/head-of-affairs");
+  revalidatePath("/head-of-affairs/rejected");
   revalidatePath("/test-specialist/final-review");
+  revalidatePath("/test-specialist/rejected-students");
   revalidatePath("/certificate-source");
   revalidatePath("/admin");
 
-  return { studentId, rejected: true, newStatus: StudentStatus.APPROVED };
+  return { studentId, rejected: true, newStatus: StudentStatus.REJECTED_BY_HEAD };
 }

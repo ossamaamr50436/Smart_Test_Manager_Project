@@ -51,9 +51,11 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
       href: "/test-specialist/final-review",
       label: "مراجعة التقييمات النهائية",
     },
+    { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
   ],
   HEAD_OF_AFFAIRS: [
     { href: "/head-of-affairs", label: "الاعتماد الإداري النهائي" },
+    { href: "/head-of-affairs/rejected", label: "الطلاب المرفوضون" },
     { href: "/admin/reports", label: "التقارير والتحليلات" },
   ],
   CERTIFICATE_SOURCE: [
@@ -75,6 +77,7 @@ const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
       href: "/test-specialist/final-review",
       label: "مراجعة التقييمات النهائية",
     },
+    { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
     { href: "/admin/reports", label: "التقارير والتحليلات" },
   ],
   EXAMINER: [
