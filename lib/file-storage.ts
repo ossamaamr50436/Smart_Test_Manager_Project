@@ -104,3 +104,35 @@ export function isStoredUrl(url: string | null | undefined): url is string {
     !!url && (url.startsWith("http://") || url.startsWith("https://"))
   );
 }
+
+/**
+ * هل الرابط من مضيف UploadThing الموثوق؟
+ * (يُستخدم للتحقق من الروابط القادمة من العميل قبل حفظها في قاعدة البيانات)
+ */
+export function isTrustedStoredUrl(
+  url: string | null | undefined
+): url is string {
+  if (!isStoredUrl(url)) {
+    return false;
+  }
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+  return host === "ufs.sh" || host.endsWith(".ufs.sh") || host === "utfs.io";
+}
+
+/**
+ * هل معرّف ملف UploadThing صالح (key)?
+ */
+export function isValidFileKey(
+  fileKey: string | null | undefined
+): fileKey is string {
+  return (
+    !!fileKey &&
+    fileKey.length <= 200 &&
+    /^[a-zA-Z0-9_-]+$/.test(fileKey)
+  );
+}

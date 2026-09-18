@@ -1,11 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   compress: true,
-  // يسمح التطبيق برفع شعار حتى 5MB وقالب شهادة حتى 10MB،
-  // لكن حد server action الافتراضي 1MB كان يكسر أي ملف أكبر من ذلك في الواجهة
-  serverActions: {
-    bodySizeLimit: "12mb",
-  },
   poweredByHeader: false,
   reactStrictMode: true,
   compiler: {

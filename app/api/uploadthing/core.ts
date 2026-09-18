@@ -6,11 +6,26 @@ const f = createUploadthing();
 
 export const ourFileRouter = {
   // شعار المنصة — SUPER_ADMIN فقط
-  logoUploader: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+  logoUploader: f({ image: { maxFileSize: "8MB", maxFileCount: 1 } })
     .middleware(async () => {
       const user = await getCurrentUser();
       if (!user || user.role !== "SUPER_ADMIN") {
         throw new UploadThingError("غير مصرح برفع شعار");
+      }
+      return { userId: user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return { url: file.ufsUrl, key: file.key };
+    }),
+
+  // قالب الشهادة PDF — ADMIN / SUPER_ADMIN فقط
+  certificateTemplateUploader: f({
+    pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const user = await getCurrentUser();
+      if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
+        throw new UploadThingError("غير مصرح برفع قالب الشهادات");
       }
       return { userId: user.id };
     })

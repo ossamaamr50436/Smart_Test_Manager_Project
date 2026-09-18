@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { UploadButton } from "@/lib/uploadthing";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
 import {
   updatePlatformSettings,
@@ -25,10 +26,16 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
   const { refreshSettings } = usePlatformSettings();
   const [isPending, startTransition] = useTransition();
   const [platformName, setPlatformName] = useState(initial.platformName);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [pendingLogo, setPendingLogo] = useState<{
+    url: string;
+    fileId: string;
+  } | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl);
   const [useTemplateMode, setUseTemplateMode] = useState(initial.useTemplateMode);
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
   const [primaryColor, setPrimaryColor] = useState(initial.primaryColor);
   const [secondaryColor, setSecondaryColor] = useState(initial.secondaryColor);
   const [whatsappNumber, setWhatsappNumber] = useState(initial.whatsappNumber ?? "");
@@ -41,25 +48,12 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
   );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const templateInputRef = useRef<HTMLInputElement>(null);
 
-  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
-  }
-
-  function handleTemplateChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setTemplateFile(file);
-    }
-  }
+  const uploadButtonAppearance = {
+    button:
+      "inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+    allowedContent: "hidden",
+  } as const;
 
   async function handleSavePlatform() {
     if (isPending) return;
@@ -67,18 +61,13 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
     setSuccess("");
     startTransition(async () => {
       try {
-        if (logoFile) {
-          const arrayBuffer = await logoFile.arrayBuffer();
-          await updatePlatformSettings(platformName, {
-            buffer: arrayBuffer,
-            fileName: logoFile.name,
-            mimeType: logoFile.type,
-          });
+        if (pendingLogo) {
+          await updatePlatformSettings(platformName, pendingLogo);
         } else {
           await updatePlatformSettings(platformName);
         }
         setSuccess("تم حفظ إعدادات المنصة بنجاح");
-        setLogoFile(null);
+        setPendingLogo(null);
         router.refresh();
         await refreshSettings();
       } catch (e) {
@@ -95,7 +84,7 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
       try {
         await removePlatformLogo();
         setLogoPreview(null);
-        setLogoFile(null);
+        setPendingLogo(null);
         setSuccess("تمت إزالة الشعار — سيُستخدم الشعار الافتراضي");
         router.refresh();
         await refreshSettings();
@@ -111,17 +100,13 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
     setSuccess("");
     startTransition(async () => {
       try {
-        if (templateFile) {
-          const arrayBuffer = await templateFile.arrayBuffer();
-          await updateTemplateSettings(useTemplateMode, {
-            buffer: arrayBuffer,
-            fileName: templateFile.name,
-            mimeType: templateFile.type,
-          });
+        if (pendingTemplate) {
+          await updateTemplateSettings(useTemplateMode, pendingTemplate.url);
         } else {
           await updateTemplateSettings(useTemplateMode);
         }
         setSuccess("تم حفظ إعدادات القالب بنجاح");
+        setPendingTemplate(null);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
@@ -247,22 +232,21 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
                 />
               )}
               <div>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={handleLogoChange}
-                />
                 <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => logoInputRef.current?.click()}
-                  >
-                    اختيار شعار جديد
-                  </Button>
+                  <UploadButton
+                    endpoint="logoUploader"
+                    content={{ button: "اختيار شعار جديد" }}
+                    appearance={uploadButtonAppearance}
+                    onClientUploadComplete={(res) => {
+                      const uploaded = res[0];
+                      if (!uploaded) return;
+                      setPendingLogo({ url: uploaded.url, fileId: uploaded.key });
+                      setLogoPreview(uploaded.url);
+                    }}
+                    onUploadError={(err) =>
+                      setError(err.message ?? "تعذر رفع الشعار")
+                    }
+                  />
                   {initial.logoUrl && (
                     <Button
                       type="button"
@@ -276,7 +260,7 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
                   )}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  PNG، JPG، أو WEBP
+                  PNG، JPG، أو WEBP — بحد أقصى 5MB
                 </p>
               </div>
             </div>
@@ -433,24 +417,22 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
             <div className="space-y-2">
               <Label>قالب الشهادة (PDF)</Label>
               <div className="flex items-center gap-4">
-                <input
-                  ref={templateInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={handleTemplateChange}
+                <UploadButton
+                  endpoint="certificateTemplateUploader"
+                  content={{ button: "اختيار ملف قالب" }}
+                  appearance={uploadButtonAppearance}
+                  onClientUploadComplete={(res) => {
+                    const uploaded = res[0];
+                    if (!uploaded) return;
+                    setPendingTemplate({ url: uploaded.url, name: uploaded.name });
+                  }}
+                  onUploadError={(err) =>
+                    setError(err.message ?? "تعذر رفع قالب الشهادة")
+                  }
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => templateInputRef.current?.click()}
-                >
-                  اختيار ملف قالب
-                </Button>
-                {templateFile && (
+                {pendingTemplate && (
                   <span className="text-sm text-muted-foreground">
-                    {templateFile.name}
+                    {pendingTemplate.name}
                   </span>
                 )}
               </div>

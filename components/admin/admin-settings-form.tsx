@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { UploadButton } from "@/lib/uploadthing";
 import {
   updateTemplateSettings,
   updateAppearanceSettings,
@@ -34,7 +35,10 @@ export function AdminSettingsForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [useTemplateMode, setUseTemplateMode] = useState(initialUseTemplateMode);
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
   const [primaryColor, setPrimaryColor] = useState(initialPrimaryColor);
   const [secondaryColor, setSecondaryColor] = useState(initialSecondaryColor);
   const [darkModeEnabled, setDarkModeEnabled] = useState(initialDarkModeEnabled);
@@ -46,14 +50,12 @@ export function AdminSettingsForm({
   );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const templateInputRef = useRef<HTMLInputElement>(null);
 
-  function handleTemplateChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setTemplateFile(file);
-    }
-  }
+  const uploadButtonAppearance = {
+    button:
+      "inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+    allowedContent: "hidden",
+  } as const;
 
   async function handleSaveTemplate() {
     if (isPending) return;
@@ -61,17 +63,13 @@ export function AdminSettingsForm({
     setSuccess("");
     startTransition(async () => {
       try {
-        if (templateFile) {
-          const arrayBuffer = await templateFile.arrayBuffer();
-          await updateTemplateSettings(useTemplateMode, {
-            buffer: arrayBuffer,
-            fileName: templateFile.name,
-            mimeType: templateFile.type,
-          });
+        if (pendingTemplate) {
+          await updateTemplateSettings(useTemplateMode, pendingTemplate.url);
         } else {
           await updateTemplateSettings(useTemplateMode);
         }
         setSuccess("تم حفظ إعدادات القالب بنجاح");
+        setPendingTemplate(null);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
@@ -272,24 +270,22 @@ export function AdminSettingsForm({
             <div className="space-y-2">
               <Label>قالب الشهادة (PDF)</Label>
               <div className="flex items-center gap-4">
-                <input
-                  ref={templateInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={handleTemplateChange}
+                <UploadButton
+                  endpoint="certificateTemplateUploader"
+                  content={{ button: "اختيار ملف قالب" }}
+                  appearance={uploadButtonAppearance}
+                  onClientUploadComplete={(res) => {
+                    const uploaded = res[0];
+                    if (!uploaded) return;
+                    setPendingTemplate({ url: uploaded.url, name: uploaded.name });
+                  }}
+                  onUploadError={(err) =>
+                    setError(err.message ?? "تعذر رفع قالب الشهادة")
+                  }
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => templateInputRef.current?.click()}
-                >
-                  اختيار ملف قالب
-                </Button>
-                {templateFile && (
+                {pendingTemplate && (
                   <span className="text-sm text-muted-foreground">
-                    {templateFile.name}
+                    {pendingTemplate.name}
                   </span>
                 )}
               </div>

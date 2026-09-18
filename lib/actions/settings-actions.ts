@@ -5,9 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { uploadFile, deleteFile } from "@/lib/file-storage";
+import {
+  deleteFile,
+  isTrustedStoredUrl,
+  isValidFileKey,
+} from "@/lib/file-storage";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { validateFileUpload } from "@/lib/upload-security";
 
 // ============================================================
 // إعدادات المنصة الديناميكية (الاسم + الشعار)
@@ -63,12 +66,12 @@ export const getPlatformSettings = cache(
 /**
  * تحديث إعدادات المنصة (SUPER_ADMIN فقط)
  * - يسمح بتغيير الاسم والشعار (إعدادات عامة على مستوى المنصة)
- * - يرفع الشعار الجديد إلى وحدة التخزين
+ * - الشعار يُرفع من الواجهة عبر UploadThing (client-side) ويمرر للدالة URL فقط
  * - يسجّل العملية في AuditLog
  */
 export async function updatePlatformSettings(
   platformName: string,
-  logoFile?: { buffer: ArrayBuffer; fileName: string; mimeType: string }
+  logo?: { url: string; fileId: string }
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
   requireRole(user, [Role.SUPER_ADMIN]);
@@ -83,6 +86,12 @@ export async function updatePlatformSettings(
   if (/<[^>]*>/.test(platformName)) {
     throw new Error("اسم المنصة لا يسمح بوسوم HTML");
   }
+  if (logo) {
+    // الشعار وصل من العميل — التحقق من أنه رابط UploadThing موثوق ومعرّف ملف صالح
+    if (!isTrustedStoredUrl(logo.url) || !isValidFileKey(logo.fileId)) {
+      throw new Error("الرابط المرفوع غير موثوق — أعد رفع الشعار");
+    }
+  }
 
   // منع إساءة الاستخدام (رفع ملفات متكررة)
   await checkRateLimit(`settings-update:${user.id}`, 10);
@@ -93,44 +102,20 @@ export async function updatePlatformSettings(
     logoFileId?: string;
   } = { platformName: platformName.trim() };
 
-  if (logoFile) {
-    // حذف الشعار القديم من وحدة التخزين قبل رفع الجديد (منع تراكم الملفات)
+  if (logo) {
+    // حذف الشعار القديم من وحدة التخزين قبل ربط الجديد (منع تراكم الملفات)
     const prev = await prisma.appSettings.findUnique({
       where: { id: "singleton" },
       select: { logoFileId: true },
     });
-    // التحقق الشامل من نوع الملف وحجمه ومحتواه (OWASP — منع DoS و XSS عبر SVG)
-    // ملاحظة أمنية: مُنع SVG لأن ملفات SVG قد تحمل سكربتات ضارة (XSS)
-    const buffer = Buffer.from(logoFile.buffer);
-    try {
-      validateFileUpload(buffer, logoFile.mimeType, logoFile.fileName, {
-        maxBytes: 5 * 1024 * 1024,
-        allowedMimes: ["image/png", "image/jpeg", "image/webp"],
-      });
-    } catch {
-      throw new Error("الشعار غير صالح: PNG, JPG, أو WEBP فقط (الحد الأقصى 5MB)");
-    }
-    try {
-      const uploaded = await uploadFile(
-        buffer,
-        logoFile.fileName,
-        logoFile.mimeType
-      );
-      data.logoUrl = uploaded.url;
-      data.logoFileId = uploaded.fileId;
-      if (prev?.logoFileId && prev.logoFileId !== uploaded.fileId) {
-        try {
-          await deleteFile(prev.logoFileId);
-        } catch {
-          // الشعار الجديد رُفع بنجاح — فشل حذف القديم لا يمنع التحديث
-        }
+    data.logoUrl = logo.url;
+    data.logoFileId = logo.fileId;
+    if (prev?.logoFileId && prev.logoFileId !== logo.fileId) {
+      try {
+        await deleteFile(prev.logoFileId);
+      } catch {
+        // الشعار الجديد رُبط بنجاح — فشل حذف القديم لا يمنع التحديث
       }
-    } catch (error) {
-      throw new Error(
-        error instanceof Error
-          ? `تعذر رفع الشعار: ${error.message}`
-          : "تعذر رفع الشعار — تحقق من إعدادات الاتصال وحاول مجدداً"
-      );
     }
   }
 
@@ -149,7 +134,7 @@ export async function updatePlatformSettings(
       details: JSON.stringify({
         entity: "AppSettings",
         platformName: data.platformName,
-        logoUpdated: !!logoFile,
+        logoUpdated: !!logo,
       }),
     },
   });
@@ -213,13 +198,18 @@ export async function removePlatformLogo(): Promise<{ success: boolean }> {
 
 /**
  * تحديث وضع القالب الذكي للشهادات (ADMIN فقط)
+ * - قالب PDF يُرفع من الواجهة عبر UploadThing (client-side) ويُمرر للدالة URL فقط
  */
 export async function updateTemplateSettings(
   useTemplateMode: boolean,
-  templateFile?: { buffer: ArrayBuffer; fileName: string; mimeType: string }
+  templateUrl?: string
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
   requireRole(user, [Role.ADMIN, Role.SUPER_ADMIN]);
+
+  if (templateUrl !== undefined && !isTrustedStoredUrl(templateUrl)) {
+    throw new Error("رابط قالب الشهادة غير موثوق — أعد رفع القالب");
+  }
 
   // منع إساءة الاستخدام (رفع قوالب متكررة)
   await checkRateLimit(`settings-update:${user.id}`, 10);
@@ -229,32 +219,9 @@ export async function updateTemplateSettings(
     templateFileId?: string;
   } = { useTemplateMode };
 
-  if (templateFile) {
-    // التحقق الشامل من قالب الشهادة (PDF فقط + حجم + محتوى)
-    const buffer = Buffer.from(templateFile.buffer);
-    try {
-      validateFileUpload(buffer, templateFile.mimeType, templateFile.fileName, {
-        maxBytes: 10 * 1024 * 1024,
-        allowedMimes: ["application/pdf"],
-      });
-    } catch {
-      throw new Error("قالب الشهادة يجب أن يكون ملف PDF (الحد الأقصى 10MB)");
-    }
-    try {
-      const uploaded = await uploadFile(
-        buffer,
-        templateFile.fileName,
-        templateFile.mimeType
-      );
-      // نخزّن الرابط المباشر بدلاً من المعرّف — وحدة التخزين لا تحتاج استرجاع عبر المعرّف
-      data.templateFileId = uploaded.url;
-    } catch (error) {
-      throw new Error(
-        error instanceof Error
-          ? `تعذر رفع قالب الشهادة: ${error.message}`
-          : "تعذر رفع قالب الشهادة — تحقق من إعدادات الاتصال وحاول مجدداً"
-      );
-    }
+  if (templateUrl !== undefined) {
+    // نخزّن الرابط المباشر بدلاً من المعرّف — وحدة التخزين لا تحتاج استرجاع عبر المعرّف
+    data.templateFileId = templateUrl;
   }
 
   await prisma.appSettings.upsert({
@@ -271,7 +238,7 @@ export async function updateTemplateSettings(
       details: JSON.stringify({
         entity: "AppSettings",
         useTemplateMode,
-        templateUpdated: !!templateFile,
+        templateUpdated: templateUrl !== undefined,
       }),
     },
   });
