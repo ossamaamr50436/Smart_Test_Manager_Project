@@ -49,7 +49,7 @@ export function LoginForm({
   }
 
   return (
-    <Card className="w-full overflow-hidden border-t-4 border-t-secondary-300">
+    <Card className="w-full overflow-hidden border-t-4 border-t-secondary shadow-xl shadow-primary-900/20">
       <CardHeader>
         <CardTitle className="text-center text-lg">تسجيل الدخول</CardTitle>
       </CardHeader>

@@ -10,10 +10,18 @@ export default async function LoginPage() {
   const settings = await getPlatformSettings();
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-900 via-primary-500 to-primary-800 p-4">
-      <div className="w-full max-w-md">
+    <main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-[linear-gradient(160deg,var(--primary)_0%,var(--accent)_100%)] p-4 sm:p-6">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-secondary/20 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-secondary/10 blur-3xl"
+      />
+      <div className="relative w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 shadow-lg shadow-primary-900/40">
+          <div className="mx-auto mb-5 flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-card p-2 shadow-xl shadow-black/25">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={settings.logoUrl || "/logo.svg"}
@@ -23,9 +31,12 @@ export default async function LoginPage() {
               className="h-full w-full object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-primary-foreground drop-shadow-sm">
             {settings.platformName}
           </h1>
+          <p className="mt-2 text-sm font-medium text-primary-foreground/85">
+            منصة إدارة الاختبارات وتنظيم اللجان
+          </p>
         </div>
         <LoginForm />
       </div>
