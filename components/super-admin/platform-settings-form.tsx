@@ -13,7 +13,7 @@ import { usePlatformSettings } from "@/components/providers/settings-provider";
 import {
   updatePlatformSettings,
   updateTemplateSettings,
-  updateAppearanceSettings,
+  updateDarkModeSetting,
   updateSupportNumber,
   updateStudentApplicationFileSetting,
   updateTutorialSectionSetting,
@@ -36,8 +36,6 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
     url: string;
     name: string;
   } | null>(null);
-  const [primaryColor, setPrimaryColor] = useState(initial.primaryColor);
-  const [secondaryColor, setSecondaryColor] = useState(initial.secondaryColor);
   const [whatsappNumber, setWhatsappNumber] = useState(initial.whatsappNumber ?? "");
   const [darkModeEnabled, setDarkModeEnabled] = useState(initial.darkModeEnabled);
   const [requireStudentApplicationFile, setRequireStudentApplicationFile] = useState(
@@ -114,18 +112,14 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
     });
   }
 
-  async function handleSaveAppearance() {
+  async function handleSaveDarkMode() {
     if (isPending) return;
     setError("");
     setSuccess("");
     startTransition(async () => {
       try {
-        await updateAppearanceSettings({
-          primaryColor,
-          secondaryColor,
-          darkModeEnabled,
-        });
-        setSuccess("تم حفظ إعدادات المظهر والحوكمة بنجاح");
+        await updateDarkModeSetting(darkModeEnabled);
+        setSuccess("تم حفظ إعداد الوضع المظلم بنجاح");
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "حدث خطأ أثناء الحفظ");
@@ -177,9 +171,6 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
       }
     });
   }
-
-  const colorInputCls =
-    "h-10 w-10 cursor-pointer rounded-md border border-border bg-transparent p-0";
 
   return (
     <div className="space-y-6">
@@ -274,49 +265,13 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
 
       <Card>
         <CardHeader>
-          <CardTitle>الحوكمة والمظهر</CardTitle>
+          <CardTitle>الحوكمة والتفضيلات</CardTitle>
           <CardDescription>
-            تحكّم كامل بألوان المنصة ورقم الدعم الفني والوضع المظلم — يُطبَّق فوراً
+            رقم الدعم الفني والوضع المظلم وتفضيلات التقديم — الألوان أصبحت ضمن
+            «إعدادات التصميم»
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>اللون الأساسي</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className={colorInputCls}
-                />
-                <Input
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  dir="ltr"
-                  className="w-32"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>اللون الثانوي</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={secondaryColor}
-                  onChange={(e) => setSecondaryColor(e.target.value)}
-                  className={colorInputCls}
-                />
-                <Input
-                  value={secondaryColor}
-                  onChange={(e) => setSecondaryColor(e.target.value)}
-                  dir="ltr"
-                  className="w-32"
-                />
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label>رقم الواتساب (الدعم الفني)</Label>
             <Input
@@ -348,8 +303,8 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
             />
           </div>
 
-          <Button onClick={handleSaveAppearance} disabled={isPending}>
-            {isPending ? "جارٍ الحفظ..." : "حفظ إعدادات المظهر والحوكمة"}
+          <Button onClick={handleSaveDarkMode} disabled={isPending}>
+            {isPending ? "جارٍ الحفظ..." : "حفظ إعداد الوضع المظلم"}
           </Button>
 
           <div className="flex items-center justify-between rounded-lg border p-4">

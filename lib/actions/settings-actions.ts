@@ -444,3 +444,142 @@ export async function updateTutorialSectionSetting(
 
   return { success: true };
 }
+
+/**
+ * تفعيل/تعطيل الوضع المظلم في كامل المنصة — SUPER_ADMIN فقط
+ */
+export async function updateDarkModeSetting(
+  enabled: boolean
+): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.SUPER_ADMIN]);
+
+  await checkRateLimit(`settings-update:${user.id}`, 10);
+
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    update: { darkModeEnabled: enabled },
+    create: { id: "singleton", darkModeEnabled: enabled },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "AppSettings",
+        darkModeEnabled: enabled,
+      }),
+    },
+  });
+
+revalidateTag("platform-settings");
+  revalidatePath("/super-admin/settings");
+  revalidatePath("/admin/settings");
+  revalidatePath("/");
+  revalidatePath("/login");
+
+  return { success: true };
+}
+
+/**
+ * تحديث إعدادات التصميم المتقدمة — SUPER_ADMIN فقط
+ * - ألوان: primary/secondary/accent/background/text/border
+ * - خطوط: heading/body
+ * - شكل: radius + shadow + buttonStyle
+ * يُطبَّق فوراً عبر CSS variables في app/layout.tsx (مهما غيّر المظهر من settings)
+ */
+export async function updateDesignSettings(input: {
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  headingFont?: string;
+  bodyFont?: string;
+  borderRadius?: string;
+  shadowIntensity?: string;
+  buttonStyle?: string;
+}): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.SUPER_ADMIN]);
+
+  if ((input.primaryColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.primaryColor!)) {
+    throw new Error("اللون الأساسي غير صالح — استخدم صيغة HEX مثل #015e63");
+  }
+  if ((input.secondaryColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.secondaryColor!)) {
+    throw new Error("اللون الثانوي غير صالح — استخدم صيغة HEX مثل #d3bb8b");
+  }
+  if ((input.accentColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.accentColor!)) {
+    throw new Error("لون التمييز غير صالح — استخدم صيغة HEX مثل #1a262e");
+  }
+  if ((input.backgroundColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.backgroundColor!)) {
+    throw new Error("لون الخلفية غير صالح — استخدم صيغة HEX مثل #ffffff");
+  }
+  if ((input.textColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.textColor!)) {
+    throw new Error("لون النص غير صالح — استخدم صيغة HEX مثل #0f172a");
+  }
+  if ((input.borderColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.borderColor!)) {
+    throw new Error("لون الحدود غير صالح — استخدم صيغة HEX مثل #e2e8f0");
+  }
+
+  const allowedRadius = ["0rem", "0.25rem", "0.5rem", "0.75rem", "1rem"];
+  const allowedShadows = ["none", "sm", "md", "lg", "xl"];
+  const allowedButtonStyles = ["rounded", "square", "pill"];
+
+  const borderRadius = input.borderRadius || "0.5rem";
+  const shadowIntensity = input.shadowIntensity || "md";
+  const buttonStyle = input.buttonStyle || "rounded";
+
+  if (!allowedRadius.includes(borderRadius)) {
+    throw new Error("قيمة استدارة الزوايا غير صالحة");
+  }
+  if (!allowedShadows.includes(shadowIntensity)) {
+    throw new Error("قيمة شدة الظلال غير صالحة");
+  }
+  if (!allowedButtonStyles.includes(buttonStyle)) {
+    throw new Error("قيمة نمط الأزرار غير صالحة");
+  }
+
+  await checkRateLimit(`settings-update:${user.id}`, 10);
+
+  const data = {
+    primaryColor: (input.primaryColor || "#015e63").trim(),
+    secondaryColor: (input.secondaryColor || "#d3bb8b").trim(),
+    accentColor: (input.accentColor || "#1a262e").trim(),
+    backgroundColor: (input.backgroundColor || "#ffffff").trim(),
+    textColor: (input.textColor || "#0f172a").trim(),
+    borderColor: (input.borderColor || "#e2e8f0").trim(),
+    headingFont: (input.headingFont || "Cairo").trim(),
+    bodyFont: (input.bodyFont || "Cairo").trim(),
+    borderRadius,
+    shadowIntensity,
+    buttonStyle,
+  };
+
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    update: data,
+    create: { id: "singleton", ...data },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({ entity: "AppSettings", ...data }),
+    },
+  });
+
+  revalidateTag("platform-settings");
+  revalidatePath("/super-admin/design-settings");
+  revalidatePath("/super-admin/settings");
+  revalidatePath("/admin");
+  revalidatePath("/");
+  revalidatePath("/login");
+
+  return { success: true };
+}
