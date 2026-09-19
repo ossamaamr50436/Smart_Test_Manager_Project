@@ -47,6 +47,7 @@
         "@types/cors": "^2.8.19",
         "@types/lodash": "^4.17.25",
         "@uploadthing/react": "^7.3.3",
+        "@vercel/speed-insights": "^2.0.0",
         "bcryptjs": "^2.4.3",
         "bullmq": "^6.3.4",
         "class-variance-authority": "^0.7.0",

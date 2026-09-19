@@ -26,6 +26,15 @@ export type PlatformSettings = {
   templateFileId: string | null;
   primaryColor: string;
   secondaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  textColor: string;
+  borderColor: string;
+  headingFont: string;
+  bodyFont: string;
+  borderRadius: string;
+  shadowIntensity: string;
+  buttonStyle: string;
   whatsappNumber: string | null;
   darkModeEnabled: boolean;
   requireStudentApplicationFile: boolean;
@@ -59,6 +68,15 @@ export const getPlatformSettings = cache(
       darkModeEnabled: settings.darkModeEnabled,
       requireStudentApplicationFile: settings.requireStudentApplicationFile,
       showTutorialSection: settings.showTutorialSection,
+      accentColor: settings.accentColor,
+      backgroundColor: settings.backgroundColor,
+      textColor: settings.textColor,
+      borderColor: settings.borderColor,
+      headingFont: settings.headingFont,
+      bodyFont: settings.bodyFont,
+      borderRadius: settings.borderRadius,
+      shadowIntensity: settings.shadowIntensity,
+      buttonStyle: settings.buttonStyle,
     };
   }
 );

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Cairo } from "next/font/google";
 import "./globals.css";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getCachedPlatformSettings } from "@/lib/cache";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ServiceWorkerRegister } from "@/components/providers/service-worker-register";
@@ -89,6 +90,15 @@ export default async function RootLayout({
   const settings = await getCachedPlatformSettings();
   const primaryColor = settings.primaryColor || "#015e63";
   const secondaryColor = settings.secondaryColor || "#d3bb8b";
+  const accentColor = settings.accentColor ?? "#1a262e";
+  const backgroundColor = settings.backgroundColor ?? "#ffffff";
+  const textColor = settings.textColor ?? "#0f172a";
+  const borderColor = settings.borderColor ?? "#e2e8f0";
+  const headingFont = settings.headingFont ?? "Cairo";
+  const bodyFont = settings.bodyFont ?? "Cairo";
+  const borderRadius = settings.borderRadius ?? "0.5rem";
+  const shadowIntensity = settings.shadowIntensity ?? "md";
+  const buttonStyle = settings.buttonStyle ?? "rounded";
   const defaultTheme = settings.darkModeEnabled ? "dark" : "light";
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
@@ -99,6 +109,15 @@ export default async function RootLayout({
           :root {
             --primary: ${primaryColor};
             --secondary: ${secondaryColor};
+            --accent: ${accentColor};
+            --background: ${backgroundColor};
+            --foreground: ${textColor};
+            --border: ${borderColor};
+            --font-heading: ${headingFont};
+            --font-body: ${bodyFont};
+            --radius: ${borderRadius};
+            --shadow-intensity: ${shadowIntensity};
+            --button-style: ${buttonStyle};
           }
         `}</style>
         <link rel="icon" href={settings.logoUrl || "/logo.svg"} />
@@ -119,6 +138,7 @@ export default async function RootLayout({
       <body className={`${cairo.variable} font-sans antialiased`}>
         <ThemeProvider defaultTheme={defaultTheme} nonce={nonce}>
           <ServiceWorkerRegister />
+          <SpeedInsights />
           {children}
         </ThemeProvider>
       </body>

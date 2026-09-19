@@ -509,6 +509,15 @@ model AppSettings {
   templateFileId                String? // معرف ملف قالب الشهادة في وحدة التخزين
   primaryColor                  String   @default("#015e63") // اللون الأساسي للمنصة
   secondaryColor                String   @default("#d3bb8b") // اللون الثانوي للمنصة
+  accentColor                   String   @default("#1a262e") // لون التمييز للعناصر التفاعلية
+  backgroundColor               String   @default("#ffffff") // خلفية المنصة
+  textColor                     String   @default("#0f172a") // لون النص الأساسي
+  borderColor                   String   @default("#e2e8f0") // لون الحدود
+  headingFont                   String   @default("Cairo") // خط العناوين
+  bodyFont                      String   @default("Cairo") // خط النصوص
+  borderRadius                  String   @default("0.5rem") // استدارة الزوايا
+  shadowIntensity               String   @default("md") // شدة الظلال
+  buttonStyle                   String   @default("rounded") // نمط الأزرار
   whatsappNumber                String? // رقم الدعم الفني (ديناميكي)
   darkModeEnabled               Boolean  @default(false) // تفعيل الوضع المظلم
   requireStudentApplicationFile Boolean  @default(false) // إلزام الجهات برفع ملف PDF

@@ -1,11 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/auth";
+import NextAuth, { type NextAuthRequest } from "next-auth";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { buildCsp } from "@/lib/csp";
+import { authConfig } from "@/auth.config";
 
-type AuthMiddlewareResult = {
-  status: number;
-  headers: Headers;
-} | null;
+// Middleware يستخدم إعداد Auth الخاص بـ Edge فقط (auth.config.ts)
+// — لا يدخل Prisma أو bcryptjs (المعرّفان في auth.ts) إلى حزمة الـ Middleware
+const { auth: middlewareAuth } = NextAuth(authConfig);
 
 // قائمة النطاقات المسموح قبولها في ترويسة Host
 // (حماية من Host Header Injection / Password Reset Poisoning)
@@ -31,11 +31,12 @@ function getAllowedHosts(): Set<string> {
   return hosts;
 }
 
-export default async function middleware(req: NextRequest) {
+export default async function middleware(req: NextRequest, event: NextFetchEvent) {
   const nonce = crypto.randomUUID();
 
   // حماية من اختطاف النطاق: رفض الطلبات ذات Host غير مصرح
   // يقرأ x-forwarded-host أولاً (خلف Reverse Proxy) ثم host
+  // تُنفَّذ قبل NextAuth حتى لا يُوجه المُهاجم التوجيهَ نحو مضيف غير مصرح
   const allowed = getAllowedHosts();
   if (allowed.size > 0) {
     let raw = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
@@ -53,36 +54,21 @@ export default async function middleware(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
 
-  // تشغيل NextAuth Middleware
-  const nextAuth = auth as unknown as (
-    request: NextRequest
-  ) => Promise<AuthMiddlewareResult | object>;
-  const authResult = await nextAuth(req);
+  // تشغيل NextAuth Middleware (Edge-safe config) بصيغة للغط: تمنح الـ augment
+  // للطلب (req.auth) وتُكمل التوجيه/الحماية عبر authorized في auth.config
+  const nextAuth = middlewareAuth((authReq: NextAuthRequest, _event: NextFetchEvent) => {
+    void authReq;
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("x-nonce", nonce);
+    return response;
+  });
 
-  let response: NextResponse;
+  const authResult = await nextAuth(req, event);
 
   // إن كان NextAuth قد أصدر استجابة (إعادة توجيه مثلاً)، نمررها ثم نضيف رؤوس الأمان
-  if (
-    authResult &&
-    typeof authResult === "object" &&
-    "status" in authResult &&
-    typeof (authResult as AuthMiddlewareResult)?.headers?.get === "function"
-  ) {
-    const headers = (authResult as AuthMiddlewareResult)!.headers;
-    const location = headers.get("location");
-
-    if (location) {
-      response = NextResponse.redirect(location, (authResult as AuthMiddlewareResult)!.status);
-      const setCookie = headers.get("set-cookie");
-      if (setCookie) {
-        response.headers.set("set-cookie", setCookie);
-      }
-    } else {
-      response = NextResponse.next({ request: { headers: requestHeaders } });
-      headers.forEach((value, key) => {
-        response.headers.set(key, value);
-      });
-    }
+  let response: NextResponse;
+  if (authResult instanceof Response) {
+    response = new NextResponse(authResult.body, authResult);
   } else {
     response = NextResponse.next({ request: { headers: requestHeaders } });
   }
