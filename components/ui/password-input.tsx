@@ -15,7 +15,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, InputProps>(
         <Input
           ref={ref}
           type={show ? "text" : "password"}
-          className={cn("ps-9", className)}
+          className={cn("ps-11", className)}
           {...props}
         />
         <button
@@ -23,7 +23,8 @@ const PasswordInput = React.forwardRef<HTMLInputElement, InputProps>(
           tabIndex={-1}
           onClick={() => setShow((prev) => !prev)}
           aria-label={show ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
-          className="absolute start-2 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-pressed={show}
+          className="absolute start-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
