@@ -532,28 +532,6 @@ model AppSettings {
   buttonPrimaryText             String   @default("#ffffff") // نص الزر الأساسي
   buttonSecondaryBg             String   @default("#d3bb8b") // خلفية الزر الثانوي
   buttonSecondaryText           String   @default("#0f172a") // نص الزر الثانوي
-  // Dark Mode Tokens (D1) — نظام ألوان متكامل للوضع الداكن
-  // قيم افتراضية متوازنة تضمن تبايناً واضحاً مع خلفيات الوضع الداكن
-  primaryColorDark              String   @default("#0e6e73") // اللون الأساسي في الوضع الداكن
-  secondaryColorDark            String   @default("#e2d3ab") // اللون الثانوي في الوضع الداكن
-  accentColorDark               String   @default("#0f1a22") // لون التمييز في الوضع الداكن
-  backgroundColorDark           String   @default("#0e171b") // خلفية المنصة في الوضع الداكن
-  textColorDark                 String   @default("#eef1f4") // لون النص الأساسي في الوضع الداكن
-  borderColorDark               String   @default("#24343e") // لون الحدود في الوضع الداكن
-  sidebarBgDark                 String   @default("#071014") // خلفية الشريط الجانبي في الوضع الداكن
-  sidebarTextDark               String   @default("#dbe7ec") // نص الشريط الجانبي في الوضع الداكن
-  sidebarActiveBgDark           String   @default("#015e63") // خلفية العنصر النشط في الوضع الداكن
-  sidebarActiveTextDark         String   @default("#ffffff") // نص العنصر النشط في الوضع الداكن
-  topbarBgDark                  String   @default("#121c22") // خلفية الشريط العلوي في الوضع الداكن
-  topbarTextDark                String   @default("#eef1f4") // نص الشريط العلوي في الوضع الداكن
-  loginBgDark                   String   @default("#0a1416") // خلفية تسجيل الدخول في الوضع الداكن
-  loginGradientFromDark         String   @default("#06282b") // بداية تدرج الدخول في الوضع الداكن
-  loginGradientToDark           String   @default("#182830") // نهاية تدرج الدخول في الوضع الداكن
-  loginCardBgDark               String   @default("#121c22") // خلفية بطاقة الدخول في الوضع الداكن
-  buttonPrimaryBgDark           String   @default("#0e6e73") // خلفية الزر الأساسي في الوضع الداكن
-  buttonPrimaryTextDark         String   @default("#ffffff") // نص الزر الأساسي في الوضع الداكن
-  buttonSecondaryBgDark         String   @default("#d3bb8b") // خلفية الزر الثانوي في الوضع الداكن
-  buttonSecondaryTextDark       String   @default("#0f172a") // نص الزر الثانوي في الوضع الداكن
   whatsappNumber                String? // رقم الدعم الفني (ديناميكي)
   darkModeEnabled               Boolean  @default(false) // تفعيل الوضع المظلم
   requireStudentApplicationFile Boolean  @default(false) // إلزام الجهات برفع ملف PDF

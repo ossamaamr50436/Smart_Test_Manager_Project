@@ -16,7 +16,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-secondary-50 via-background to-primary-50">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-secondary-50/60 via-background to-primary-50/50">
       <DashboardSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

@@ -113,6 +113,27 @@ export default async function RootLayout({
   const buttonPrimaryText = settings.buttonPrimaryText ?? "#ffffff";
   const buttonSecondaryBg = settings.buttonSecondaryBg ?? "#d3bb8b";
   const buttonSecondaryText = settings.buttonSecondaryText ?? "#0f172a";
+  // Dark Mode Tokens (D1) — قيم الوضع الداكن لكل عنصر
+  const primaryColorDark = settings.primaryColorDark ?? "#0e6e73";
+  const secondaryColorDark = settings.secondaryColorDark ?? "#e2d3ab";
+  const accentColorDark = settings.accentColorDark ?? "#0f1a22";
+  const backgroundColorDark = settings.backgroundColorDark ?? "#0e171b";
+  const textColorDark = settings.textColorDark ?? "#eef1f4";
+  const borderColorDark = settings.borderColorDark ?? "#24343e";
+  const sidebarBgDark = settings.sidebarBgDark ?? "#071014";
+  const sidebarTextDark = settings.sidebarTextDark ?? "#dbe7ec";
+  const sidebarActiveBgDark = settings.sidebarActiveBgDark ?? "#015e63";
+  const sidebarActiveTextDark = settings.sidebarActiveTextDark ?? "#ffffff";
+  const topbarBgDark = settings.topbarBgDark ?? "#121c22";
+  const topbarTextDark = settings.topbarTextDark ?? "#eef1f4";
+  const loginBgDark = settings.loginBgDark ?? "#0a1416";
+  const loginGradientFromDark = settings.loginGradientFromDark ?? "#06282b";
+  const loginGradientToDark = settings.loginGradientToDark ?? "#182830";
+  const loginCardBgDark = settings.loginCardBgDark ?? "#121c22";
+  const buttonPrimaryBgDark = settings.buttonPrimaryBgDark ?? "#0e6e73";
+  const buttonPrimaryTextDark = settings.buttonPrimaryTextDark ?? "#ffffff";
+  const buttonSecondaryBgDark = settings.buttonSecondaryBgDark ?? "#d3bb8b";
+  const buttonSecondaryTextDark = settings.buttonSecondaryTextDark ?? "#0f172a";
   const defaultTheme = settings.darkModeEnabled ? "dark" : "light";
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
@@ -150,6 +171,34 @@ export default async function RootLayout({
             --button-primary-text: ${buttonPrimaryText};
             --button-secondary-bg: ${buttonSecondaryBg};
             --button-secondary-text: ${buttonSecondaryText};
+          }
+
+          /* نظام الألوان المتكامل للوضع الداكن (D1) — يتم تفعيله عبر next-themes (.dark) */
+          .dark {
+            --primary: ${primaryColorDark};
+            --secondary: ${secondaryColorDark};
+            --accent: ${accentColorDark};
+            --background: ${backgroundColorDark};
+            --foreground: ${textColorDark};
+            --border: ${borderColorDark};
+
+            --sidebar-bg: ${sidebarBgDark};
+            --sidebar-text: ${sidebarTextDark};
+            --sidebar-active-bg: ${sidebarActiveBgDark};
+            --sidebar-active-text: ${sidebarActiveTextDark};
+
+            --topbar-bg: ${topbarBgDark};
+            --topbar-text: ${topbarTextDark};
+
+            --login-bg: ${loginBgDark};
+            --login-gradient-from: ${loginGradientFromDark};
+            --login-gradient-to: ${loginGradientToDark};
+            --login-card-bg: ${loginCardBgDark};
+
+            --button-primary-bg: ${buttonPrimaryBgDark};
+            --button-primary-text: ${buttonPrimaryTextDark};
+            --button-secondary-bg: ${buttonSecondaryBgDark};
+            --button-secondary-text: ${buttonSecondaryTextDark};
           }
         `}</style>
         <link rel="icon" href={settings.logoUrl || "/logo.svg"} />

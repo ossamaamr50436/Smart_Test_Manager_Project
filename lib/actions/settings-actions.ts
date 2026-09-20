@@ -49,6 +49,27 @@ export type PlatformSettings = {
   buttonPrimaryText: string;
   buttonSecondaryBg: string;
   buttonSecondaryText: string;
+  // Dark Mode Tokens (D1) — نظام ألوان متكامل للوضع الداكن
+  primaryColorDark: string;
+  secondaryColorDark: string;
+  accentColorDark: string;
+  backgroundColorDark: string;
+  textColorDark: string;
+  borderColorDark: string;
+  sidebarBgDark: string;
+  sidebarTextDark: string;
+  sidebarActiveBgDark: string;
+  sidebarActiveTextDark: string;
+  topbarBgDark: string;
+  topbarTextDark: string;
+  loginBgDark: string;
+  loginGradientFromDark: string;
+  loginGradientToDark: string;
+  loginCardBgDark: string;
+  buttonPrimaryBgDark: string;
+  buttonPrimaryTextDark: string;
+  buttonSecondaryBgDark: string;
+  buttonSecondaryTextDark: string;
   whatsappNumber: string | null;
   darkModeEnabled: boolean;
   requireStudentApplicationFile: boolean;
@@ -105,6 +126,26 @@ export const getPlatformSettings = cache(
       buttonPrimaryText: settings.buttonPrimaryText,
       buttonSecondaryBg: settings.buttonSecondaryBg,
       buttonSecondaryText: settings.buttonSecondaryText,
+      primaryColorDark: settings.primaryColorDark,
+      secondaryColorDark: settings.secondaryColorDark,
+      accentColorDark: settings.accentColorDark,
+      backgroundColorDark: settings.backgroundColorDark,
+      textColorDark: settings.textColorDark,
+      borderColorDark: settings.borderColorDark,
+      sidebarBgDark: settings.sidebarBgDark,
+      sidebarTextDark: settings.sidebarTextDark,
+      sidebarActiveBgDark: settings.sidebarActiveBgDark,
+      sidebarActiveTextDark: settings.sidebarActiveTextDark,
+      topbarBgDark: settings.topbarBgDark,
+      topbarTextDark: settings.topbarTextDark,
+      loginBgDark: settings.loginBgDark,
+      loginGradientFromDark: settings.loginGradientFromDark,
+      loginGradientToDark: settings.loginGradientToDark,
+      loginCardBgDark: settings.loginCardBgDark,
+      buttonPrimaryBgDark: settings.buttonPrimaryBgDark,
+      buttonPrimaryTextDark: settings.buttonPrimaryTextDark,
+      buttonSecondaryBgDark: settings.buttonSecondaryBgDark,
+      buttonSecondaryTextDark: settings.buttonSecondaryTextDark,
     };
   }
 );
@@ -544,6 +585,27 @@ borderRadius?: string;
   buttonPrimaryText?: string;
   buttonSecondaryBg?: string;
   buttonSecondaryText?: string;
+  // Dark Mode Tokens (D1)
+  primaryColorDark?: string;
+  secondaryColorDark?: string;
+  accentColorDark?: string;
+  backgroundColorDark?: string;
+  textColorDark?: string;
+  borderColorDark?: string;
+  sidebarBgDark?: string;
+  sidebarTextDark?: string;
+  sidebarActiveBgDark?: string;
+  sidebarActiveTextDark?: string;
+  topbarBgDark?: string;
+  topbarTextDark?: string;
+  loginBgDark?: string;
+  loginGradientFromDark?: string;
+  loginGradientToDark?: string;
+  loginCardBgDark?: string;
+  buttonPrimaryBgDark?: string;
+  buttonPrimaryTextDark?: string;
+  buttonSecondaryBgDark?: string;
+  buttonSecondaryTextDark?: string;
 }): Promise<{ success: boolean }> {
   const user = await requireUser();
   requireRole(user, [Role.SUPER_ADMIN]);
@@ -608,6 +670,66 @@ if ((input.borderColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.borderCo
   if ((input.buttonSecondaryText ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonSecondaryText!)) {
     throw new Error("لون نص الزر الثانوي غير صالح — استخدم صيغة HEX");
   }
+  if ((input.primaryColorDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.primaryColorDark!)) {
+    throw new Error("اللون الأساسي الداكن غير صالح — استخدم صيغة HEX مثل #0e6e73");
+  }
+  if ((input.secondaryColorDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.secondaryColorDark!)) {
+    throw new Error("اللون الثانوي الداكن غير صالح — استخدم صيغة HEX مثل #e2d3ab");
+  }
+  if ((input.accentColorDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.accentColorDark!)) {
+    throw new Error("لون التمييز الداكن غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.backgroundColorDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.backgroundColorDark!)) {
+    throw new Error("خلفية الوضع الداكن غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.textColorDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.textColorDark!)) {
+    throw new Error("لون نص الوضع الداكن غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.borderColorDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.borderColorDark!)) {
+    throw new Error("لون حدود الوضع الداكن غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.sidebarBgDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarBgDark!)) {
+    throw new Error("خلفية الشريط الجانبي الداكنة غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.sidebarTextDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarTextDark!)) {
+    throw new Error("نص الشريط الجانبي الداكن غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.sidebarActiveBgDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarActiveBgDark!)) {
+    throw new Error("خلفية العنصر النشط الداكنة غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.sidebarActiveTextDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarActiveTextDark!)) {
+    throw new Error("نص العنصر النشط الداكن غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.topbarBgDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.topbarBgDark!)) {
+    throw new Error("خلفية الشريط العلوي الداكنة غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.topbarTextDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.topbarTextDark!)) {
+    throw new Error("نص الشريط العلوي الداكن غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.loginBgDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginBgDark!)) {
+    throw new Error("خلفية تسجيل الدخول الداكنة غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.loginGradientFromDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginGradientFromDark!)) {
+    throw new Error("بداية تدرج الدخول الداكن غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.loginGradientToDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginGradientToDark!)) {
+    throw new Error("نهاية تدرج الدخول الداكن غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.loginCardBgDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginCardBgDark!)) {
+    throw new Error("خلفية بطاقة الدخول الداكنة غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.buttonPrimaryBgDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonPrimaryBgDark!)) {
+    throw new Error("خلفية الزر الأساسي الداكنة غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.buttonPrimaryTextDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonPrimaryTextDark!)) {
+    throw new Error("نص الزر الأساسي الداكن غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.buttonSecondaryBgDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonSecondaryBgDark!)) {
+    throw new Error("خلفية الزر الثانوي الداكنة غير صالحة — استخدم صيغة HEX");
+  }
+  if ((input.buttonSecondaryTextDark ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonSecondaryTextDark!)) {
+    throw new Error("نص الزر الثانوي الداكن غير صالح — استخدم صيغة HEX");
+  }
 
   const allowedRadius = ["0rem", "0.25rem", "0.5rem", "0.75rem", "1rem"];
   const allowedShadows = ["none", "sm", "md", "lg", "xl"];
@@ -655,6 +777,26 @@ borderRadius,
     buttonPrimaryText: (input.buttonPrimaryText || "#ffffff").trim(),
     buttonSecondaryBg: (input.buttonSecondaryBg || "#d3bb8b").trim(),
     buttonSecondaryText: (input.buttonSecondaryText || "#0f172a").trim(),
+    primaryColorDark: (input.primaryColorDark || "#0e6e73").trim(),
+    secondaryColorDark: (input.secondaryColorDark || "#e2d3ab").trim(),
+    accentColorDark: (input.accentColorDark || "#0f1a22").trim(),
+    backgroundColorDark: (input.backgroundColorDark || "#0e171b").trim(),
+    textColorDark: (input.textColorDark || "#eef1f4").trim(),
+    borderColorDark: (input.borderColorDark || "#24343e").trim(),
+    sidebarBgDark: (input.sidebarBgDark || "#071014").trim(),
+    sidebarTextDark: (input.sidebarTextDark || "#dbe7ec").trim(),
+    sidebarActiveBgDark: (input.sidebarActiveBgDark || "#015e63").trim(),
+    sidebarActiveTextDark: (input.sidebarActiveTextDark || "#ffffff").trim(),
+    topbarBgDark: (input.topbarBgDark || "#121c22").trim(),
+    topbarTextDark: (input.topbarTextDark || "#eef1f4").trim(),
+    loginBgDark: (input.loginBgDark || "#0a1416").trim(),
+    loginGradientFromDark: (input.loginGradientFromDark || "#06282b").trim(),
+    loginGradientToDark: (input.loginGradientToDark || "#182830").trim(),
+    loginCardBgDark: (input.loginCardBgDark || "#121c22").trim(),
+    buttonPrimaryBgDark: (input.buttonPrimaryBgDark || "#0e6e73").trim(),
+    buttonPrimaryTextDark: (input.buttonPrimaryTextDark || "#ffffff").trim(),
+    buttonSecondaryBgDark: (input.buttonSecondaryBgDark || "#d3bb8b").trim(),
+    buttonSecondaryTextDark: (input.buttonSecondaryTextDark || "#0f172a").trim(),
   };
 
   await prisma.appSettings.upsert({

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Palette, Shapes, Type } from "lucide-react";
+import { Moon, Palette, Shapes, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -174,11 +174,133 @@ const BUTTON_COLOR_FIELDS = [
   },
 ] as const;
 
+// ===== Dark Mode Tokens (D1) =====
+const DARK_COLOR_FIELDS = [
+  {
+    key: "primaryColorDark",
+    label: "اللون الأساسي الداكن",
+    description: "التنقل والأزرار الأساسية في الوضع الداكن",
+  },
+  {
+    key: "secondaryColorDark",
+    label: "اللون الثانوي الداكن",
+    description: "اللمسات الثانوية في الوضع الداكن",
+  },
+  {
+    key: "accentColorDark",
+    label: "لون التمييز الداكن",
+    description: "الأسطح الداكنة والعناوين في الوضع الداكن",
+  },
+  {
+    key: "backgroundColorDark",
+    label: "خلفية الوضع الداكن",
+    description: "خلفية المنصة العامة في الوضع الداكن",
+  },
+  {
+    key: "textColorDark",
+    label: "نص الوضع الداكن",
+    description: "النصوص الأساسية في الوضع الداكن",
+  },
+  {
+    key: "borderColorDark",
+    label: "حدود الوضع الداكن",
+    description: "حدود البطاقات والحقول في الوضع الداكن",
+  },
+] as const;
+
+const DARK_SIDEBAR_COLOR_FIELDS = [
+  {
+    key: "sidebarBgDark",
+    label: "خلفية الشريط الجانبي الداكنة",
+    description: "خلفية القوائم في الوضع الداكن",
+  },
+  {
+    key: "sidebarTextDark",
+    label: "نص الشريط الجانبي الداكن",
+    description: "لون النصوص في القوائم الداكنة",
+  },
+  {
+    key: "sidebarActiveBgDark",
+    label: "خلفية العنصر النشط الداكنة",
+    description: "خلفية الرابط المحدد في الوضع الداكن",
+  },
+  {
+    key: "sidebarActiveTextDark",
+    label: "نص العنصر النشط الداكن",
+    description: "لون نص الرابط المحدد في الوضع الداكن",
+  },
+] as const;
+
+const DARK_TOPBAR_COLOR_FIELDS = [
+  {
+    key: "topbarBgDark",
+    label: "خلفية الشريط العلوي الداكنة",
+    description: "خلفية الشريط العلوي في الوضع الداكن",
+  },
+  {
+    key: "topbarTextDark",
+    label: "نص الشريط العلوي الداكن",
+    description: "لون النصوص في الشريط العلوي الداكن",
+  },
+] as const;
+
+const DARK_LOGIN_COLOR_FIELDS = [
+  {
+    key: "loginBgDark",
+    label: "خلفية الدخول الداكنة",
+    description: "خلفية صفحة تسجيل الدخول في الوضع الداكن",
+  },
+  {
+    key: "loginGradientFromDark",
+    label: "بداية التدرج الداكن",
+    description: "بداية تدرج خلفية الدخول في الوضع الداكن",
+  },
+  {
+    key: "loginGradientToDark",
+    label: "نهاية التدرج الداكن",
+    description: "نهاية تدرج خلفية الدخول في الوضع الداكن",
+  },
+  {
+    key: "loginCardBgDark",
+    label: "خلفية بطاقة الدخول الداكنة",
+    description: "خلفية بطاقة تسجيل الدخول في الوضع الداكن",
+  },
+] as const;
+
+const DARK_BUTTON_COLOR_FIELDS = [
+  {
+    key: "buttonPrimaryBgDark",
+    label: "خلفية الزر الأساسي الداكنة",
+    description: "خلفية الأزرار الأساسية في الوضع الداكن",
+  },
+  {
+    key: "buttonPrimaryTextDark",
+    label: "نص الزر الأساسي الداكن",
+    description: "لون نص الأزرار الأساسية في الوضع الداكن",
+  },
+  {
+    key: "buttonSecondaryBgDark",
+    label: "خلفية الزر الثانوي الداكنة",
+    description: "خلفية الأزرار الثانوية في الوضع الداكن",
+  },
+  {
+    key: "buttonSecondaryTextDark",
+    label: "نص الزر الثانوي الداكن",
+    description: "لون نص الأزرار الثانوية في الوضع الداكن",
+  },
+] as const;
+
 type SectionColorKey =
   | (typeof SIDEBAR_COLOR_FIELDS)[number]["key"]
   | (typeof TOPBAR_COLOR_FIELDS)[number]["key"]
   | (typeof LOGIN_COLOR_FIELDS)[number]["key"]
   | (typeof BUTTON_COLOR_FIELDS)[number]["key"];
+
+type DarkSectionColorKey =
+  | (typeof DARK_SIDEBAR_COLOR_FIELDS)[number]["key"]
+  | (typeof DARK_TOPBAR_COLOR_FIELDS)[number]["key"]
+  | (typeof DARK_LOGIN_COLOR_FIELDS)[number]["key"]
+  | (typeof DARK_BUTTON_COLOR_FIELDS)[number]["key"];
 
 function ColorRow({
   label,
@@ -238,6 +360,26 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
     buttonPrimaryText: initial.buttonPrimaryText,
     buttonSecondaryBg: initial.buttonSecondaryBg,
     buttonSecondaryText: initial.buttonSecondaryText,
+    primaryColorDark: initial.primaryColorDark,
+    secondaryColorDark: initial.secondaryColorDark,
+    accentColorDark: initial.accentColorDark,
+    backgroundColorDark: initial.backgroundColorDark,
+    textColorDark: initial.textColorDark,
+    borderColorDark: initial.borderColorDark,
+    sidebarBgDark: initial.sidebarBgDark,
+    sidebarTextDark: initial.sidebarTextDark,
+    sidebarActiveBgDark: initial.sidebarActiveBgDark,
+    sidebarActiveTextDark: initial.sidebarActiveTextDark,
+    topbarBgDark: initial.topbarBgDark,
+    topbarTextDark: initial.topbarTextDark,
+    loginBgDark: initial.loginBgDark,
+    loginGradientFromDark: initial.loginGradientFromDark,
+    loginGradientToDark: initial.loginGradientToDark,
+    loginCardBgDark: initial.loginCardBgDark,
+    buttonPrimaryBgDark: initial.buttonPrimaryBgDark,
+    buttonPrimaryTextDark: initial.buttonPrimaryTextDark,
+    buttonSecondaryBgDark: initial.buttonSecondaryBgDark,
+    buttonSecondaryTextDark: initial.buttonSecondaryTextDark,
   });
   const [headingFont, setHeadingFont] = useState(initial.headingFont);
   const [bodyFont, setBodyFont] = useState(initial.bodyFont);
@@ -247,7 +389,10 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  function setColor(key: ColorKey | SectionColorKey, value: string) {
+  function setColor(
+    key: ColorKey | SectionColorKey | (typeof DARK_COLOR_FIELDS)[number]["key"] | DarkSectionColorKey,
+    value: string
+  ) {
     setColors((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -281,6 +426,26 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
           buttonPrimaryText: colors.buttonPrimaryText,
           buttonSecondaryBg: colors.buttonSecondaryBg,
           buttonSecondaryText: colors.buttonSecondaryText,
+          primaryColorDark: colors.primaryColorDark,
+          secondaryColorDark: colors.secondaryColorDark,
+          accentColorDark: colors.accentColorDark,
+          backgroundColorDark: colors.backgroundColorDark,
+          textColorDark: colors.textColorDark,
+          borderColorDark: colors.borderColorDark,
+          sidebarBgDark: colors.sidebarBgDark,
+          sidebarTextDark: colors.sidebarTextDark,
+          sidebarActiveBgDark: colors.sidebarActiveBgDark,
+          sidebarActiveTextDark: colors.sidebarActiveTextDark,
+          topbarBgDark: colors.topbarBgDark,
+          topbarTextDark: colors.topbarTextDark,
+          loginBgDark: colors.loginBgDark,
+          loginGradientFromDark: colors.loginGradientFromDark,
+          loginGradientToDark: colors.loginGradientToDark,
+          loginCardBgDark: colors.loginCardBgDark,
+          buttonPrimaryBgDark: colors.buttonPrimaryBgDark,
+          buttonPrimaryTextDark: colors.buttonPrimaryTextDark,
+          buttonSecondaryBgDark: colors.buttonSecondaryBgDark,
+          buttonSecondaryTextDark: colors.buttonSecondaryTextDark,
           headingFont,
           bodyFont,
           borderRadius: radius,
@@ -412,6 +577,218 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
               />
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Moon className="h-5 w-5" />
+            الوضع الداكن
+          </CardTitle>
+          <CardDescription>
+            نظام ألوان متكامل للوضع الداكن — تُطبَّق هذه القيم عند تفعيل الوضع الليلي بدل ألوان الوضع النهاري
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <div
+            className="rounded-lg border p-5"
+            style={{
+              backgroundColor: colors.backgroundColorDark,
+              color: colors.textColorDark,
+              borderColor: colors.borderColorDark,
+              borderRadius: radius,
+              boxShadow: SHADOW_STYLES[shadow] ?? "none",
+              fontFamily: bodyFont,
+            }}
+          >
+            <p className="text-sm font-semibold" style={{ color: colors.primaryColorDark }}>
+              منصة مجتاز — الوضع الداكن
+            </p>
+            <p className="mt-1 text-xs" style={{ color: colors.textColorDark, opacity: 0.75 }}>
+              معاينة مباشرة لتباين ألوان الوضع الداكن قبل الحفظ.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                style={{
+                  backgroundColor: colors.buttonPrimaryBgDark,
+                  color: colors.buttonPrimaryTextDark,
+                  borderRadius: previewRadius,
+                }}
+              >
+                زر أساسي
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                style={{
+                  backgroundColor: colors.buttonSecondaryBgDark,
+                  color: colors.buttonSecondaryTextDark,
+                  borderRadius: previewRadius,
+                }}
+              >
+                زر ثانوي
+              </button>
+            </div>
+            <div
+              className="mt-4 rounded-md p-3 text-sm"
+              style={{
+                backgroundColor: colors.accentColorDark,
+                color: colors.textColorDark,
+                borderRadius: previewRadius,
+              }}
+            >
+              <span className="font-semibold" style={{ fontFamily: headingFont }}>
+                عنوان في الوضع الداكن
+              </span>
+              <span className="ms-3 opacity-75">نص توضيحي لتباين النصوص</span>
+            </div>
+          </div>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">الخلفيات والنصوص</h3>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {DARK_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">الشريط الجانبي الداكن</h3>
+            <div
+              className="rounded-lg p-4"
+              style={{
+                backgroundColor: colors.sidebarBgDark,
+                color: colors.sidebarTextDark,
+              }}
+            >
+              <p className="text-sm font-semibold">لوحة التحكم</p>
+              <div
+                className="mt-2 rounded-md px-3 py-2 text-sm"
+                style={{
+                  backgroundColor: colors.sidebarActiveBgDark,
+                  color: colors.sidebarActiveTextDark,
+                }}
+              >
+                القائمة النشطة
+              </div>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {DARK_SIDEBAR_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">الشريط العلوي الداكن</h3>
+            <div
+              className="flex items-center justify-between rounded-t-lg px-4 py-3"
+              style={{ backgroundColor: colors.topbarBgDark, color: colors.topbarTextDark }}
+            >
+              <p className="text-sm font-semibold">الشريط العلوي</p>
+              <p className="text-xs opacity-75">اسم المستخدم</p>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {DARK_TOPBAR_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">تسجيل الدخول الداكن</h3>
+            <div>
+              <div
+                className="rounded-lg p-4"
+                style={{
+                  backgroundColor: colors.loginBgDark,
+                  backgroundImage: `linear-gradient(160deg, ${colors.loginGradientFromDark} 0%, ${colors.loginGradientToDark} 100%)`,
+                }}
+              >
+                <div
+                  className="mx-auto max-w-[200px] rounded-md px-4 py-3 text-center shadow-md"
+                  style={{
+                    backgroundColor: colors.loginCardBgDark,
+                    color: colors.textColorDark,
+                  }}
+                >
+                  <p className="text-sm font-semibold">تسجيل الدخول</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {DARK_LOGIN_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">الأزرار الداكنة</h3>
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border p-4">
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                style={{
+                  backgroundColor: colors.buttonPrimaryBgDark,
+                  color: colors.buttonPrimaryTextDark,
+                  borderRadius: previewRadius,
+                }}
+              >
+                زر أساسي
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                style={{
+                  backgroundColor: colors.buttonSecondaryBgDark,
+                  color: colors.buttonSecondaryTextDark,
+                  borderRadius: previewRadius,
+                }}
+              >
+                زر ثانوي
+              </button>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {DARK_BUTTON_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
         </CardContent>
       </Card>
 
