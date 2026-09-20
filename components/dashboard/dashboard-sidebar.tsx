@@ -268,14 +268,18 @@ export function DashboardSidebar({
         )}
       >
         <div className="flex items-center justify-between border-b border-white/10 p-4">
-          <div className="flex items-center gap-2">
+          <Link
+            href="/"
+            className="group flex items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+            aria-label="الانتقال إلى الصفحة الرئيسية"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={settings?.logoUrl || "/logo.svg"}
               alt={platformName}
               height={56}
               width={56}
-              className="h-14 w-14 shrink-0 rounded-lg bg-white/95 object-contain p-1"
+              className="h-14 w-14 shrink-0 rounded-lg bg-white/95 object-contain p-1 transition-transform duration-150 group-hover:scale-105 group-focus-visible:scale-105"
             />
             <div className="min-w-0">
               <p className="text-base font-bold leading-tight text-[var(--sidebar-text)]">
@@ -287,7 +291,7 @@ export function DashboardSidebar({
                 </p>
               )}
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             onClick={onClose}
