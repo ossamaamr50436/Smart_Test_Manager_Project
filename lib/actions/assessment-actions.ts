@@ -169,9 +169,14 @@ export async function saveAssessment(input: AssessmentInput) {
 }
 
 /**
- * اعتماد التقييم — يعتمد المختبر تقييمه الخاص بشكل مستقل
- * (بدون ترتيب حسب العمر، وبدون انتظار تقييم مختبر آخر).
- * الحالة النهائية لتقييم المختبر: APPROVED.
+ * اعتماد التقييم — يعتمد المختبر تقييمه الخاص بشكل مستقل.
+ *
+ * بوابة اعتماد مزدوجة (B5): لا يكفي اعتماد مختبر واحد لإغلاق التقييم.
+ * - المختبر الأول يعتمد → تقييمه APPROVED والطالب يبقى بانتظار اعتماد المختبر الثاني
+ *   (لا تتغير حالة الطالب، ولا يظهر للأخصائي بعد).
+ * - المختبر الثاني يعتمد → بعد اعتماد المختبرين معاً: الطالب COMPLETED ويظهر
+ *   للأخصائي في قائمة المراجعة النهائية.
+ * الحالة النهائية لتقييم كل مختبر: APPROVED — وبعدها يمنع التعديل عبر saveAssessment.
  */
 export async function approveAssessment(examSessionId: string) {
   const user = await requireUser();
@@ -203,6 +208,11 @@ export async function approveAssessment(examSessionId: string) {
     throw new Error("تم اعتماد هذا التقييم مسبقاً");
   }
 
+  // قد يشير المعرّف إلى لجنة (كل طلابها في نفس الجلسات) — المختبران من الجلسة/اللجنة
+  const requiredEvaluators = new Set([session.teacher1Id, session.teacher2Id]);
+
+  let allApproved = false;
+
   await prisma.$transaction(async (tx) => {
     // اعتماد تقييم المختبر الحالي فقط
     await tx.assessment.update({
@@ -210,27 +220,60 @@ export async function approveAssessment(examSessionId: string) {
       data: { status: AssessmentStatus.APPROVED },
     });
 
-    // الطالب لديه الآن تقييم معتمد — يُعرض للأخصائي للمراجعة
-    await tx.student.update({
-      where: { id: session.student.id },
-      data: { status: StudentStatus.COMPLETED },
+    // البوابة الحرجة (B5): لا يُغلق التقييم باعتماد مختبر واحد
+    const approved = await tx.assessment.findMany({
+      where: { examSessionId: session.id, status: AssessmentStatus.APPROVED },
+      select: { evaluatorId: true },
     });
+    const approvedSet = new Set(approved.map((a) => a.evaluatorId));
+    allApproved = [...requiredEvaluators].every((id) => approvedSet.has(id));
 
-    // إشعار الأخصائيين بمراجعة تقييم الطالب المعتمد
-    const specialists = await tx.user.findMany({
-      where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
-      select: { id: true },
-    });
-    if (specialists.length > 0) {
-      await tx.notification.createMany({
-        data: specialists.map((s) => ({
-          userId: s.id,
-          message: `اعتمد المختبر تقييم الطالب «${session.student.name}» — بانتظار مراجعتك`,
-          type: NotificationType.ASSESSMENT,
-          examSessionId: session.id,
-          tenantId: requireTenantId(user),
-        })),
+    if (allApproved) {
+      // اعتمد المختبران معاً → الطالب جاهز للمراجعة النهائية (الأخصائي)
+      await tx.student.update({
+        where: { id: session.student.id },
+        data: { status: StudentStatus.COMPLETED },
       });
+
+      // إشعار الأخصائيين بمراجعة تقييم الطالب المعتمد
+      const specialists = await tx.user.findMany({
+        where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
+        select: { id: true },
+      });
+      if (specialists.length > 0) {
+        await tx.notification.createMany({
+          data: specialists.map((s) => ({
+            userId: s.id,
+            message: `اعتمد المختبران تقييم الطالب «${session.student.name}» — بانتظار مراجعتك`,
+            type: NotificationType.ASSESSMENT,
+            examSessionId: session.id,
+            tenantId: requireTenantId(user),
+          })),
+        });
+      }
+    } else {
+      // المختبر الآخر لم يعتمد بعد — يبقى الطالب بانتظار اعتماده (لا يُغلق ولا ينتقل)
+      const pendingEvaluatorId =
+        session.teacher1Id === user.id ? session.teacher2Id : session.teacher1Id;
+      if (pendingEvaluatorId && !approvedSet.has(pendingEvaluatorId)) {
+        const pendingEvaluator = await tx.user.findFirst({
+          where: { id: pendingEvaluatorId, ...getTenantFilter(user) },
+          select: { id: true },
+        });
+        if (pendingEvaluator) {
+          await tx.notification.createMany({
+            data: [
+              {
+                userId: pendingEvaluator.id,
+                message: `اعتمد المختبر الأول تقييم الطالب «${session.student.name}» — بانتظار اعتمادك`,
+                type: NotificationType.ASSESSMENT,
+                examSessionId: session.id,
+                tenantId: requireTenantId(user),
+              },
+            ],
+          });
+        }
+      }
     }
 
     await tx.auditLog.create({
@@ -242,6 +285,7 @@ export async function approveAssessment(examSessionId: string) {
           examSessionId: session.id,
           studentId: session.student.id,
           status: AssessmentStatus.APPROVED,
+          allApproved,
         }),
       },
     });
@@ -251,23 +295,26 @@ export async function approveAssessment(examSessionId: string) {
   revalidatePath("/examiner/assess");
 
   // بعد نجاح المعاملة الذرية: توزيع الإشعارات على القنوات الخارجية (دفع/بريد/SMS)
-  const specialists = await prisma.user.findMany({
-    where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
-    select: { id: true },
-  });
-  await dispatchNotificationChannels({
-    userIds: specialists.map((s) => s.id),
-    message: `اعتمد المختبر تقييم الطالب «${session.student.name}» — بانتظار مراجعتك`,
-    type: NotificationType.ASSESSMENT,
-    examSessionId: session.id,
-  });
+  if (allApproved) {
+    const specialists = await prisma.user.findMany({
+      where: { ...getTenantFilter(user), role: Role.TEST_SPECIALIST },
+      select: { id: true },
+    });
+    await dispatchNotificationChannels({
+      userIds: specialists.map((s) => s.id),
+      message: `اعتمد المختبران تقييم الطالب «${session.student.name}» — بانتظار مراجعتك`,
+      type: NotificationType.ASSESSMENT,
+      examSessionId: session.id,
+    });
+  }
 
   await broadcastAssessmentUpdate(session.id, {
     evaluatorId: user.id,
     assessmentStatus: AssessmentStatus.APPROVED,
+    allApproved,
   });
 
-  return { success: true, status: AssessmentStatus.APPROVED };
+  return { success: true, status: AssessmentStatus.APPROVED, allApproved };
 }
 
 /**

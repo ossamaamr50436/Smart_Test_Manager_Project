@@ -28,6 +28,16 @@ type StudentRow = {
   status: string;
 };
 
+type TestedStudent = {
+  id: string;
+  name: string;
+  branch: string;
+  assessmentStatus: string;
+  finalScore: number | null;
+  updatedAt: Date;
+  modelNumber: number | null;
+};
+
 type CommitteeInfo = {
   name: string;
   modelNumbers: number[];
@@ -35,6 +45,7 @@ type CommitteeInfo = {
 
 type Props = {
   students: StudentRow[];
+  testedStudents: TestedStudent[];
   committee: CommitteeInfo | null;
 };
 
@@ -49,7 +60,12 @@ const STATUS_LABELS: Record<string, string> = {
   CERTIFICATE_ISSUED: "صدرت شهادته",
 };
 
-export function ExaminerDashboardClient({ students, committee }: Props) {
+const ASSESSMENT_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "جارٍ التقييم",
+  APPROVED: "معتمد من قبلك",
+};
+
+export function ExaminerDashboardClient({ students, testedStudents, committee }: Props) {
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [modelNumber, setModelNumber] = useState("");
@@ -105,25 +121,25 @@ export function ExaminerDashboardClient({ students, committee }: Props) {
         </Card>
       )}
 
-      {/* قائمة الطلاب */}
+      {/* قائمة الطلاب بانتظار الاختبار */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">طلاب لجانك</CardTitle>
+          <CardTitle className="text-base">الطلاب بانتظار الاختبار</CardTitle>
           <CardDescription>
-            اضغط «ابدأ الاختبار» بجانب الطالب لبدء التقييم التفاعلي
+            الطلاب الذين لم يقم المختبر بتقييمهم بعد — اضغط «ابدأ الاختبار» بجانب الطالب
           </CardDescription>
         </CardHeader>
         <CardContent>
           {students.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              لم يتم توزيع أي طالب على لجانك بعد
+              لم يتبقَّ طلاب بانتظار اختبارك — اطلع على «الطلاب المختبرون» أدناه
             </p>
           ) : (
             <div className="space-y-2">
               {students.map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between rounded-lg border px-4 py-3"
+                  className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3"
                 >
                   <div>
                     <p className="font-medium">{s.name}</p>
@@ -136,6 +152,77 @@ export function ExaminerDashboardClient({ students, committee }: Props) {
                   </Button>
                 </div>
               ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* الطلاب المختبرون */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">الطلاب المختبرون</CardTitle>
+          <CardDescription>
+            الطلاب الذين قيّمهم المختبر — تقييم معتمد لا يمكن تعديله، والجارٍ يمكن استكماله
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {testedStudents.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              لم يقم المختبر باختبار أي طالب بعد
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {testedStudents.map((s) => {
+                const isApproved = s.assessmentStatus === "APPROVED";
+                return (
+                  <div
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-medium">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {getBranchLabel(s.branch)} —{" "}
+                        {ASSESSMENT_STATUS_LABELS[s.assessmentStatus] ?? s.assessmentStatus}
+                        {s.finalScore !== null && !isApproved && (
+                          <span className="ms-1 font-medium">
+                            — الدرجة الحالية: {s.finalScore}
+                          </span>
+                        )}
+                        {s.updatedAt && (
+                          <span className="ms-1">
+                            — {new Date(s.updatedAt).toLocaleDateString("ar-SA")}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!isApproved ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link
+                            href={
+                              s.modelNumber
+                                ? `/examiner/assess/${s.id}?model=${s.modelNumber}`
+                                : "#"
+                            }
+                          >
+                            استكمال التقييم
+                          </Link>
+                        </Button>
+                      ) : (
+                        <>
+                          <span className="text-sm font-semibold text-primary">
+                            {s.finalScore !== null ? `${s.finalScore} / 100` : ""}
+                          </span>
+                          <Button size="sm" variant="outline" asChild>
+                            <Link href={`/examiner/tested/${s.id}`}>عرض التقييم</Link>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
