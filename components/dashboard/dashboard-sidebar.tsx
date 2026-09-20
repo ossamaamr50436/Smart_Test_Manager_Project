@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
@@ -20,6 +21,78 @@ type NavSection = {
   links: NavLink[];
 };
 
+type AdminContext = {
+  id: "exams" | "institution";
+  label: string;
+  sections: NavSection[];
+};
+
+// سياقات ADMIN المزدوجة — الروابط نفسها التي تُعرض حسب الصلاحيات فقط
+const ADMIN_CONTEXTS: AdminContext[] = [
+  {
+    id: "exams",
+    label: "الاختبارات",
+    sections: [
+      {
+        title: "رئيسية",
+        links: [
+          { href: "/admin", label: "لوحة التحكم" },
+          { href: "/admin/students", label: "الطلاب" },
+          { href: "/admin/accepted-students", label: "الطلاب المقبولون" },
+        ],
+      },
+      {
+        title: "عمل",
+        links: [
+          { href: "/test-specialist/requests", label: "طلبات الترشيح" },
+          { href: "/test-specialist/students/new", label: "الترشيح" },
+          { href: "/test-specialist/committees", label: "اللجان" },
+          { href: "/admin/sessions", label: "الجلسات" },
+          { href: "/admin/models", label: "النماذج" },
+          { href: "/admin/question-bank", label: "الأسئلة" },
+          { href: "/test-specialist/teachers", label: "المختبرون" },
+          { href: "/test-specialist/final-review", label: "المراجعة" },
+          { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
+          { href: "/test-specialist", label: "لوحة الأخصائي" },
+        ],
+      },
+      {
+        title: "مخرجات",
+        links: [{ href: "/admin/certificates", label: "الشهادات" }],
+      },
+    ],
+  },
+  {
+    id: "institution",
+    label: "المؤسسة",
+    sections: [
+      {
+        title: "رئيسية",
+        links: [{ href: "/admin/institutions", label: "لوحة المؤسسة" }],
+      },
+      {
+        title: "إدارة",
+        links: [
+          { href: "/admin/users", label: "المستخدمون" },
+          { href: "/admin/seasons", label: "المواسم" },
+          { href: "/specialist/entities", label: "الجهات" },
+          { href: "/specialist/entities/create", label: "إنشاء جهة" },
+          { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
+          { href: "/admin/settings", label: "الإعدادات" },
+        ],
+      },
+      {
+        title: "مخرجات",
+        links: [{ href: "/admin/reports", label: "التقارير" }],
+      },
+      {
+        title: "حوكمة",
+        links: [{ href: "/audit-log", label: "سجل التدقيق" }],
+      },
+    ],
+  },
+];
+
 // روابط التنقل لكل دور (عزل الصلاحيات — كل دور يرى مساراته فقط)
 // الترتيب وفق المادة 12 (متسلسلة منطقياً)، والجهات للأخصائي فقط (المادة 14)
 const ROLE_SECTIONS: Partial<Record<RoleKey, NavSection[]>> = {
@@ -36,50 +109,6 @@ const ROLE_SECTIONS: Partial<Record<RoleKey, NavSection[]>> = {
         { href: "/super-admin/alerts", label: "التنبيهات" },
         { href: "/super-admin/settings", label: "الإعدادات" },
         { href: "/super-admin/design-settings", label: "إعدادات التصميم" },
-      ],
-    },
-  ],
-  ADMIN: [
-    {
-      title: "رئيسية",
-      links: [
-        { href: "/admin", label: "لوحة التحكم" },
-        { href: "/admin/students", label: "الطلاب" },
-        { href: "/admin/accepted-students", label: "الطلاب المقبولون" },
-        { href: "/test-specialist", label: "لوحة الأخصائي" },
-      ],
-    },
-    {
-      title: "عمل",
-      links: [
-        { href: "/test-specialist/requests", label: "طلبات الترشيح" },
-        { href: "/test-specialist/students/new", label: "الترشيح" },
-        { href: "/test-specialist/committees", label: "اللجان" },
-        { href: "/admin/sessions", label: "الجلسات" },
-        { href: "/admin/models", label: "النماذج" },
-        { href: "/admin/question-bank", label: "الأسئلة" },
-        { href: "/test-specialist/teachers", label: "المختبرون" },
-        { href: "/test-specialist/final-review", label: "المراجعة" },
-        { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
-      ],
-    },
-    {
-      title: "مخرجات",
-      links: [
-        { href: "/admin/certificates", label: "الشهادات" },
-        { href: "/admin/reports", label: "التقارير" },
-      ],
-    },
-    {
-      title: "إدارة",
-      links: [
-        { href: "/admin/users", label: "المستخدمون" },
-        { href: "/admin/seasons", label: "المواسم" },
-        { href: "/specialist/entities", label: "الجهات" },
-        { href: "/specialist/entities/create", label: "إنشاء جهة" },
-        { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
-        { href: "/admin/settings", label: "الإعدادات" },
-        { href: "/audit-log", label: "سجل التدقيق" },
       ],
     },
   ],
@@ -187,7 +216,36 @@ export function DashboardSidebar({
   const user = session?.user;
   const role = (user?.role as RoleKey | undefined) ?? undefined;
   const roleLabel = role ? ROLE_LABELS[role] : "مستخدم";
-  const links = role ? ROLE_SECTIONS[role] ?? [] : [];
+  const sections = role ? ROLE_SECTIONS[role] ?? [] : [];
+
+  const isAdmin = role === "ADMIN";
+  const [activeContextId, setActiveContextId] = useState<AdminContext["id"]>("exams");
+
+  useEffect(() => {
+    if (!isAdmin || !pathname) return;
+    let best: AdminContext["id"] | null = null;
+    let bestDepth = -1;
+    for (const context of ADMIN_CONTEXTS) {
+      for (const section of context.sections) {
+        for (const link of section.links) {
+          if (pathname === link.href || pathname.startsWith(link.href + "/")) {
+            if (link.href.length > bestDepth) {
+              bestDepth = link.href.length;
+              best = context.id;
+            }
+          }
+        }
+      }
+    }
+    if (best) setActiveContextId(best);
+  }, [isAdmin, pathname]);
+
+  const activeAdminContext =
+    ADMIN_CONTEXTS.find((c) => c.id === activeContextId) ?? ADMIN_CONTEXTS[0];
+  const displayedSections = isAdmin && activeAdminContext
+    ? activeAdminContext.sections
+    : sections;
+
   const platformName = settings?.platformName ?? "منصة إدارة الاختبارات الذكية";
   const whatsappNumber = settings?.whatsappNumber ?? null;
   const showTutorialSection = settings?.showTutorialSection ?? true;
@@ -264,9 +322,38 @@ export function DashboardSidebar({
           )}
         </nav>
 
-        {links.length > 0 && (
+        {isAdmin && (
+          <div
+            role="tablist"
+            aria-label="التبديل بين سياقات المسؤول"
+            className="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-white/10 p-1"
+          >
+            {ADMIN_CONTEXTS.map((context) => {
+              const isActive = activeContextId === context.id;
+              return (
+                <button
+                  key={context.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveContextId(context.id)}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
+                    isActive
+                      ? "bg-secondary text-primary-900 shadow-sm"
+                      : "text-white/80 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  {context.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {displayedSections.length > 0 && (
           <nav className="space-y-3">
-            {links.map((section, i) => (
+            {displayedSections.map((section, i) => (
               <div
                 key={section.title}
                 className={cn("space-y-1", i > 0 && "border-t border-white/10 pt-3")}
