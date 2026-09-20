@@ -44,8 +44,8 @@ type CommitteeInfo = {
 };
 
 type Props = {
-  students: StudentRow[];
-  testedStudents: TestedStudent[];
+  pending?: StudentRow[];
+  tested?: TestedStudent[];
   committee: CommitteeInfo | null;
 };
 
@@ -65,7 +65,7 @@ const ASSESSMENT_STATUS_LABELS: Record<string, string> = {
   APPROVED: "معتمد من قبلك",
 };
 
-export function ExaminerDashboardClient({ students, testedStudents, committee }: Props) {
+export function ExaminerDashboardClient({ pending, tested, committee }: Props) {
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [modelNumber, setModelNumber] = useState("");
@@ -122,111 +122,115 @@ export function ExaminerDashboardClient({ students, testedStudents, committee }:
       )}
 
       {/* قائمة الطلاب بانتظار الاختبار */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">الطلاب بانتظار الاختبار</CardTitle>
-          <CardDescription>
-            الطلاب الذين لم يقم المختبر بتقييمهم بعد — اضغط «ابدأ الاختبار» بجانب الطالب
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {students.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              لم يتبقَّ طلاب بانتظار اختبارك — اطلع على «الطلاب المختبرون» أدناه
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {students.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3"
-                >
-                  <div>
-                    <p className="font-medium">{s.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {getBranchLabel(s.branch)} — الحالة: {STATUS_LABELS[s.status] ?? s.status}
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={() => openModal(s.id)}>
-                    ابدأ الاختبار
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* الطلاب المختبرون */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">الطلاب المختبرون</CardTitle>
-          <CardDescription>
-            الطلاب الذين قيّمهم المختبر — تقييم معتمد لا يمكن تعديله، والجارٍ يمكن استكماله
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {testedStudents.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              لم يقم المختبر باختبار أي طالب بعد
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {testedStudents.map((s) => {
-                const isApproved = s.assessmentStatus === "APPROVED";
-                return (
+      {pending !== undefined && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">الطلاب بانتظار الاختبار</CardTitle>
+            <CardDescription>
+              الطلاب الذين لم يقم المختبر بتقييمهم بعد — اضغط «ابدأ الاختبار» بجانب الطالب
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {pending.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                لم يتبقَّ طلاب بانتظار اختبارك — اطلع على «الطلاب المختبرون» أدناه
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {pending.map((s) => (
                   <div
                     key={s.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3"
+                    className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3"
                   >
                     <div>
                       <p className="font-medium">{s.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {getBranchLabel(s.branch)} —{" "}
-                        {ASSESSMENT_STATUS_LABELS[s.assessmentStatus] ?? s.assessmentStatus}
-                        {s.finalScore !== null && !isApproved && (
-                          <span className="ms-1 font-medium">
-                            — الدرجة الحالية: {s.finalScore}
-                          </span>
-                        )}
-                        {s.updatedAt && (
-                          <span className="ms-1">
-                            — {new Date(s.updatedAt).toLocaleDateString("ar-SA")}
-                          </span>
-                        )}
+                        {getBranchLabel(s.branch)} — الحالة: {STATUS_LABELS[s.status] ?? s.status}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {!isApproved ? (
-                        <Button size="sm" variant="outline" asChild>
-                          <Link
-                            href={
-                              s.modelNumber
-                                ? `/examiner/assess/${s.id}?model=${s.modelNumber}`
-                                : "#"
-                            }
-                          >
-                            استكمال التقييم
-                          </Link>
-                        </Button>
-                      ) : (
-                        <>
-                          <span className="text-sm font-semibold text-primary">
-                            {s.finalScore !== null ? `${s.finalScore} / 100` : ""}
-                          </span>
-                          <Button size="sm" variant="outline" asChild>
-                            <Link href={`/examiner/tested/${s.id}`}>عرض التقييم</Link>
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                    <Button size="sm" onClick={() => openModal(s.id)}>
+                      ابدأ الاختبار
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* الطلاب المختبرون */}
+      {tested !== undefined && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">الطلاب المختبرون</CardTitle>
+            <CardDescription>
+              الطلاب الذين قيّمهم المختبر — تقييم معتمد لا يمكن تعديله، والجارٍ يمكن استكماله
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tested.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                لم يقم المختبر باختبار أي طالب بعد
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {tested.map((s) => {
+                  const isApproved = s.assessmentStatus === "APPROVED";
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3"
+                    >
+                      <div>
+                        <p className="font-medium">{s.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {getBranchLabel(s.branch)} —{" "}
+                          {ASSESSMENT_STATUS_LABELS[s.assessmentStatus] ?? s.assessmentStatus}
+                          {s.finalScore !== null && !isApproved && (
+                            <span className="ms-1 font-medium">
+                              — الدرجة الحالية: {s.finalScore}
+                            </span>
+                          )}
+                          {s.updatedAt && (
+                            <span className="ms-1">
+                              — {new Date(s.updatedAt).toLocaleDateString("ar-SA")}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!isApproved ? (
+                          <Button size="sm" variant="outline" asChild>
+                            <Link
+                              href={
+                                s.modelNumber
+                                  ? `/examiner/assess/${s.id}?model=${s.modelNumber}`
+                                  : "#"
+                              }
+                            >
+                              استكمال التقييم
+                            </Link>
+                          </Button>
+                        ) : (
+                          <>
+                            <span className="text-sm font-semibold text-primary">
+                              {s.finalScore !== null ? `${s.finalScore} / 100` : ""}
+                            </span>
+                            <Button size="sm" variant="outline" asChild>
+                              <Link href={`/examiner/tested/${s.id}`}>عرض التقييم</Link>
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* مودال تحديد رقم النموذج */}
       <Dialog open={showModelModal} onOpenChange={setShowModelModal}>

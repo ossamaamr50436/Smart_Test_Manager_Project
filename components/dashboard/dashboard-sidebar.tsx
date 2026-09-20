@@ -167,7 +167,11 @@ const ROLE_SECTIONS: Partial<Record<RoleKey, NavSection[]>> = {
   EXAMINER: [
     {
       title: "رئيسية",
-      links: [{ href: "/examiner", label: "لوحة التحكم" }],
+      links: [
+        { href: "/examiner", label: "لوحة المختبر" },
+        { href: "/examiner/pending", label: "الطلاب بانتظار الاختبار" },
+        { href: "/examiner/tested", label: "الطلاب المختبرون" },
+      ],
     },
     {
       title: "مخرجات",
