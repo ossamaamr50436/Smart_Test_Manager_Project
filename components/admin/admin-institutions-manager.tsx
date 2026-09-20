@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useTransition } from "react";
+import { Fragment, useState, useEffect, useCallback, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -261,56 +261,6 @@ export function AdminInstitutionsManager() {
         </Card>
       )}
 
-      {editing && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">تعديل: {editing.name}</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>اسم الجهة</Label>
-                <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} dir="rtl" />
-              </div>
-              <div className="space-y-1">
-                <Label>اسم مدير الجهة</Label>
-                <Input value={editForm.managerName} onChange={(e) => setEditForm({ ...editForm, managerName: e.target.value })} dir="rtl" />
-              </div>
-              <div className="space-y-1">
-                <Label>اسم مشرف الجهة</Label>
-                <Input value={editForm.supervisorName} onChange={(e) => setEditForm({ ...editForm, supervisorName: e.target.value })} dir="rtl" />
-              </div>
-              <div className="space-y-1">
-                <Label>رقم التصريح</Label>
-                <Input value={editForm.licenseNumber} onChange={(e) => setEditForm({ ...editForm, licenseNumber: e.target.value })} dir="ltr" />
-              </div>
-              <div className="space-y-1">
-                <PhoneInput
-                  id="editManagerPhone"
-                  label="رقم هاتف المدير"
-                  value={editForm.managerPhone}
-                  onChange={(v) => setEditForm({ ...editForm, managerPhone: v })}
-                />
-              </div>
-              <div className="space-y-1">
-                <PhoneInput
-                  id="editSupervisorPhone"
-                  label="رقم هاتف المشرف"
-                  value={editForm.supervisorPhone}
-                  onChange={(v) => setEditForm({ ...editForm, supervisorPhone: v })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>الحي</Label>
-                <Input value={editForm.district} onChange={(e) => setEditForm({ ...editForm, district: e.target.value })} dir="rtl" />
-              </div>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Button disabled={isPending} onClick={handleSaveEdit}>حفظ</Button>
-              <Button variant="outline" onClick={() => setEditing(null)}>إلغاء</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">قائمة الجهات</CardTitle>
@@ -337,7 +287,8 @@ export function AdminInstitutionsManager() {
                 </thead>
                 <tbody>
                   {result.institutions.map((inst) => (
-                    <tr key={inst.id} className="border-t">
+                    <Fragment key={inst.id}>
+                    <tr className="border-t">
                       <td className="px-3 py-2 font-medium">{inst.name}</td>
                       <td className="px-3 py-2">
                         <p>{inst.managerName}</p>
@@ -372,6 +323,60 @@ export function AdminInstitutionsManager() {
                         </div>
                       </td>
                     </tr>
+                    {editing && editing.id === inst.id && (
+                      <tr className="bg-muted/40">
+                        <td colSpan={7} className="px-3 py-4">
+                          <Card>
+                            <CardHeader><CardTitle className="text-base">تعديل: {editing.name}</CardTitle></CardHeader>
+                            <CardContent>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1">
+                                  <Label>اسم الجهة</Label>
+                                  <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} dir="rtl" />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>اسم مدير الجهة</Label>
+                                  <Input value={editForm.managerName} onChange={(e) => setEditForm({ ...editForm, managerName: e.target.value })} dir="rtl" />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>اسم مشرف الجهة</Label>
+                                  <Input value={editForm.supervisorName} onChange={(e) => setEditForm({ ...editForm, supervisorName: e.target.value })} dir="rtl" />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>رقم التصريح</Label>
+                                  <Input value={editForm.licenseNumber} onChange={(e) => setEditForm({ ...editForm, licenseNumber: e.target.value })} dir="ltr" />
+                                </div>
+                                <div className="space-y-1">
+                                  <PhoneInput
+                                    id="editManagerPhone"
+                                    label="رقم هاتف المدير"
+                                    value={editForm.managerPhone}
+                                    onChange={(v) => setEditForm({ ...editForm, managerPhone: v })}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <PhoneInput
+                                    id="editSupervisorPhone"
+                                    label="رقم هاتف المشرف"
+                                    value={editForm.supervisorPhone}
+                                    onChange={(v) => setEditForm({ ...editForm, supervisorPhone: v })}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>الحي</Label>
+                                  <Input value={editForm.district} onChange={(e) => setEditForm({ ...editForm, district: e.target.value })} dir="rtl" />
+                                </div>
+                              </div>
+                              <div className="mt-4 flex gap-2">
+                                <Button disabled={isPending} onClick={handleSaveEdit}>حفظ</Button>
+                                <Button variant="outline" onClick={() => setEditing(null)}>إلغاء</Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

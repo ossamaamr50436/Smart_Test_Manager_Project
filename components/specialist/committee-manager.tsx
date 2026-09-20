@@ -1,7 +1,7 @@
 "use client";
 
 import { getBranchLabel } from "@/lib/utils";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCommittee, updateCommittee, deleteCommittee, assignStudentToCommittee } from "@/lib/actions/committee-actions";
 import { BRANCHES } from "@/lib/validations/assessment";
@@ -142,7 +142,120 @@ export function CommitteeManager({
     setSelectedModelIds(c.selectedModels.map((s) => s.model.id));
     setError("");
     setSuccess("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function renderFormFields() {
+    return (
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-2">
+            <Label>اسم اللجنة *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: لجنة 1 — فرع 5 أجزاء" />
+          </div>
+          <div className="space-y-2">
+            <Label>الموسم *</Label>
+            <Select value={seasonId} onValueChange={setSeasonId}>
+              <SelectTrigger><SelectValue placeholder="اختر الموسم" /></SelectTrigger>
+              <SelectContent>
+                {seasons.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>الفرع *</Label>
+            <Select value={branch} onValueChange={(v) => { setBranch(v); setSelectedModelIds([]); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {BRANCHES.map((b) => (
+                  <SelectItem key={b} value={b}>{getBranchLabel(b)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>المختبر الأول *</Label>
+            <Select value={teacher1Id} onValueChange={setTeacher1Id}>
+              <SelectTrigger><SelectValue placeholder="اختر المختبر الأول" /></SelectTrigger>
+              <SelectContent>
+                {examiners.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>المختبر الثاني *</Label>
+            <Select value={teacher2Id} onValueChange={setTeacher2Id}>
+              <SelectTrigger><SelectValue placeholder="اختر المختبر الثاني" /></SelectTrigger>
+              <SelectContent>
+                {examiners.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* اختيار نماذج اللجنة يدوياً من بنك الأسئلة */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label>نماذج اللجنة (من بنك الأسئلة — لا ترتيب) *</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                المحدد: {selectedModelIds.length} من {branchModels.length}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedModelIds(branchModels.map((m) => m.id))}
+                disabled={branchModels.length === 0}
+              >
+                تحديد الكل
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedModelIds([])}
+                disabled={selectedModelIds.length === 0}
+              >
+                مسح
+              </Button>
+            </div>
+          </div>
+          {branchModels.length === 0 ? (
+            <p className="rounded-md bg-muted/50 px-3 py-3 text-sm text-muted-foreground">
+              لا توجد نماذج لفرع {getBranchLabel(branch)} في بنك الأسئلة — أنشئها من صفحة إدارة النماذج أولاً.
+            </p>
+          ) : (
+            <div className="grid max-h-56 grid-cols-6 gap-1.5 overflow-y-auto rounded-md border p-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
+              {branchModels.map((m) => {
+                const active = selectedModelIds.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleModel(m.id)}
+                    className={cn(
+                      "rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
+                    )}
+                    title={`نموذج ${m.modelNumber}`}
+                  >
+                    {m.modelNumber}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   async function handleDelete(id: string) {
@@ -206,137 +319,28 @@ export function CommitteeManager({
   return (
     <div className="space-y-6">
       {/* نموذج إنشاء لجنة */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{editingId ? "تعديل اللجنة" : "إنشاء لجنة جديدة"}</CardTitle>
-          <CardDescription>
-            حدد الاسم والمختبرين والفرع ثم اختر نماذج اللجنة يدوياً من بنك الأسئلة (بلا ترتيب)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-2">
-              <Label>اسم اللجنة *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: لجنة 1 — فرع 5 أجزاء" />
-            </div>
-            <div className="space-y-2">
-              <Label>الموسم *</Label>
-              <Select value={seasonId} onValueChange={setSeasonId}>
-                <SelectTrigger><SelectValue placeholder="اختر الموسم" /></SelectTrigger>
-                <SelectContent>
-                  {seasons.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>الفرع *</Label>
-              <Select value={branch} onValueChange={(v) => { setBranch(v); setSelectedModelIds([]); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {BRANCHES.map((b) => (
-                    <SelectItem key={b} value={b}>{getBranchLabel(b)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>المختبر الأول *</Label>
-              <Select value={teacher1Id} onValueChange={setTeacher1Id}>
-                <SelectTrigger><SelectValue placeholder="اختر المختبر الأول" /></SelectTrigger>
-                <SelectContent>
-                  {examiners.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>المختبر الثاني *</Label>
-              <Select value={teacher2Id} onValueChange={setTeacher2Id}>
-                <SelectTrigger><SelectValue placeholder="اختر المختبر الثاني" /></SelectTrigger>
-                <SelectContent>
-                  {examiners.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+      {!editingId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">إنشاء لجنة جديدة</CardTitle>
+            <CardDescription>
+              حدد الاسم والمختبرين والفرع ثم اختر نماذج اللجنة يدوياً من بنك الأسئلة (بلا ترتيب)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {renderFormFields()}
 
-          {/* اختيار نماذج اللجنة يدوياً من بنك الأسئلة */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>نماذج اللجنة (من بنك الأسئلة — لا ترتيب) *</Label>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  المحدد: {selectedModelIds.length} من {branchModels.length}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedModelIds(branchModels.map((m) => m.id))}
-                  disabled={branchModels.length === 0}
-                >
-                  تحديد الكل
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedModelIds([])}
-                  disabled={selectedModelIds.length === 0}
-                >
-                  مسح
-                </Button>
-              </div>
-            </div>
-            {branchModels.length === 0 ? (
-              <p className="rounded-md bg-muted/50 px-3 py-3 text-sm text-muted-foreground">
-                لا توجد نماذج لفرع {getBranchLabel(branch)} في بنك الأسئلة — أنشئها من صفحة إدارة النماذج أولاً.
-              </p>
-            ) : (
-              <div className="grid max-h-56 grid-cols-6 gap-1.5 overflow-y-auto rounded-md border p-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
-                {branchModels.map((m) => {
-                  const active = selectedModelIds.includes(m.id);
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => toggleModel(m.id)}
-                      className={cn(
-                        "rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors",
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
-                      )}
-                      title={`نموذج ${m.modelNumber}`}
-                    >
-                      {m.modelNumber}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+            {success && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">{success}</p>}
 
-          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-          {success && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">{success}</p>}
-
-          <div className="flex items-center gap-2">
-            <Button onClick={handleCreate} disabled={loading || !name || !seasonId || !teacher1Id || !teacher2Id || selectedModelIds.length === 0}>
-              {loading ? "جارٍ الحفظ..." : editingId ? "حفظ التعديلات" : "إنشاء اللجنة"}
-            </Button>
-            {editingId && (
-              <Button variant="ghost" onClick={resetForm} disabled={loading}>
-                إلغاء
+            <div className="flex items-center gap-2">
+              <Button onClick={handleCreate} disabled={loading || !name || !seasonId || !teacher1Id || !teacher2Id || selectedModelIds.length === 0}>
+                {loading ? "جارٍ الحفظ..." : "إنشاء اللجنة"}
               </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* جدول اللجان */}
       <Card>
@@ -362,35 +366,66 @@ export function CommitteeManager({
                 </thead>
                 <tbody>
                   {committees.map((c) => (
-                    <tr key={c.id} className="border-b">
-                      <td className="p-2 font-medium">{c.name}</td>
-                      <td className="p-2">{getBranchLabel(c.branch)}</td>
-                      <td className="p-2">{c.teacher1.name}</td>
-                      <td className="p-2">{c.teacher2.name}</td>
-                      <td className="p-2">{c._count.students}</td>
-                      <td className="p-2">
-                        {c.selectedModels.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">بدون نماذج</span>
-                        ) : (
-                          <span className="text-xs">
-                            {c.selectedModels.map((s) => s.model.modelNumber).join("، ")}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 text-center">
-                        {confirmDeleteId === c.id ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <Button variant="destructive" size="sm" disabled={loading} onClick={() => handleDelete(c.id)}>تأكيد</Button>
-                            <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>إلغاء</Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1">
-                            <Button variant="outline" size="sm" onClick={() => startEdit(c)}>تعديل</Button>
-                            <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(c.id)}>حذف</Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                    <Fragment key={c.id}>
+                      <tr className="border-b">
+                        <td className="p-2 font-medium">{c.name}</td>
+                        <td className="p-2">{getBranchLabel(c.branch)}</td>
+                        <td className="p-2">{c.teacher1.name}</td>
+                        <td className="p-2">{c.teacher2.name}</td>
+                        <td className="p-2">{c._count.students}</td>
+                        <td className="p-2">
+                          {c.selectedModels.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">بدون نماذج</span>
+                          ) : (
+                            <span className="text-xs">
+                              {c.selectedModels.map((s) => s.model.modelNumber).join("، ")}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 text-center">
+                          {confirmDeleteId === c.id ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="destructive" size="sm" disabled={loading} onClick={() => handleDelete(c.id)}>تأكيد</Button>
+                              <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>إلغاء</Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="outline" size="sm" onClick={() => startEdit(c)}>تعديل</Button>
+                              <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(c.id)}>حذف</Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      {editingId === c.id && (
+                        <tr className="border-b bg-muted/40">
+                          <td colSpan={7} className="p-3">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-base">تعديل: {c.name}</CardTitle>
+                                <CardDescription>
+                                  حدد الاسم والمختبرين والفرع ثم اختر نماذج اللجنة يدوياً من بنك الأسئلة (بلا ترتيب)
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                {renderFormFields()}
+
+                                {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+                                {success && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">{success}</p>}
+
+                                <div className="flex items-center gap-2">
+                                  <Button onClick={handleCreate} disabled={loading || !name || !seasonId || !teacher1Id || !teacher2Id || selectedModelIds.length === 0}>
+                                    {loading ? "جارٍ الحفظ..." : "حفظ التعديلات"}
+                                  </Button>
+                                  <Button variant="ghost" onClick={resetForm} disabled={loading}>
+                                    إلغاء
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

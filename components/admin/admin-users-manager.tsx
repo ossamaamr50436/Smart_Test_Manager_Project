@@ -383,50 +383,6 @@ export function AdminUsersManager() {
         </CardContent>
       </Card>
 
-      {/* نموذج تعديل */}
-      {editing && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">تعديل: {editing.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>الاسم</Label>
-                <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} dir="rtl" />
-              </div>
-              <div className="space-y-1">
-                <Label>البريد الإلكتروني</Label>
-                <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} dir="ltr" />
-              </div>
-              <div className="space-y-1">
-                <Label>الدور</Label>
-                <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-                  {ROLE_ORDER.map((r) => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                  ))}
-                </select>
-              </div>
-              {editForm.role === Role.INSTITUTION && (
-                <div className="space-y-1">
-                  <Label>الجهة التعليمية</Label>
-                  <select value={editForm.institutionId} onChange={(e) => setEditForm({ ...editForm, institutionId: e.target.value })} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-                    <option value="">اختر الجهة...</option>
-                    {institutions.map((i) => (
-                      <option key={i.id} value={i.id}>{i.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Button disabled={isPending} onClick={handleSaveEdit}>حفظ</Button>
-              <Button variant="outline" onClick={() => setEditing(null)}>إلغاء</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* نموذج تغيير كلمة المرور */}
       {passwordTarget && (
         <Card>
@@ -471,33 +427,71 @@ export function AdminUsersManager() {
           {!isPending && result && result.users.length > 0 && (
             <div className="space-y-2">
               {result.users.map((u) => (
-                <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3">
-                  <div className="space-y-1">
-                    <p className="font-medium">{u.name}</p>
-                    <p className="text-xs text-muted-foreground" dir="ltr">
-                      {u.email}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center rounded-full bg-secondary-100 px-2 py-0.5 font-medium text-primary-700">
-                        {ROLE_LABELS[u.role]}
-                      </span>
-                      {u.institution?.name && <span>{u.institution.name}</span>}
-                      <span>
-                        {new Date(u.createdAt).toLocaleDateString("ar-SA")}
-                      </span>
+                <div key={u.id} className="rounded-lg border px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-medium">{u.name}</p>
+                      <p className="text-xs text-muted-foreground" dir="ltr">
+                        {u.email}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center rounded-full bg-secondary-100 px-2 py-0.5 font-medium text-primary-700">
+                          {ROLE_LABELS[u.role]}
+                        </span>
+                        {u.institution?.name && <span>{u.institution.name}</span>}
+                        <span>
+                          {new Date(u.createdAt).toLocaleDateString("ar-SA")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(u)}>
+                        تعديل
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setPasswordTarget(u)}>
+                        تغيير كلمة المرور
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDelete(u)}>
+                        حذف
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => openEdit(u)}>
-                      تعديل
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setPasswordTarget(u)}>
-                      تغيير كلمة المرور
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDelete(u)}>
-                      حذف
-                    </Button>
-                  </div>
+
+                  {editing && editing.id === u.id && (
+                    <div className="mt-3 grid gap-3 border-t border-dashed pt-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>الاسم</Label>
+                        <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} dir="rtl" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>البريد الإلكتروني</Label>
+                        <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} dir="ltr" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>الدور</Label>
+                        <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                          {ROLE_ORDER.map((r) => (
+                            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {editForm.role === Role.INSTITUTION && (
+                        <div className="space-y-1">
+                          <Label>الجهة التعليمية</Label>
+                          <select value={editForm.institutionId} onChange={(e) => setEditForm({ ...editForm, institutionId: e.target.value })} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                            <option value="">اختر الجهة...</option>
+                            {institutions.map((i) => (
+                              <option key={i.id} value={i.id}>{i.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div className="flex gap-2 sm:col-span-2">
+                        <Button disabled={isPending} onClick={handleSaveEdit}>حفظ</Button>
+                        <Button variant="outline" onClick={() => setEditing(null)}>إلغاء</Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
