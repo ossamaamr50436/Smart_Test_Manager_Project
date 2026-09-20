@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "التعليم والدور" };
+export const metadata: Metadata = { title: "التعليمات" };
 
 export const dynamic = "force-dynamic";
 
@@ -305,7 +305,7 @@ export default async function TutorialPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
       <div className="space-y-1 text-start">
-        <h1 className="text-2xl font-bold">قسم التعليم والدور</h1>
+        <h1 className="text-2xl font-bold">التعليمات</h1>
         <p className="text-sm text-muted-foreground">
           دليل مختصر يشرح مهامك وصلاحياتك داخل المنصة
         </p>

@@ -97,7 +97,7 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
             <DropdownMenuItem asChild>
               <Link href="/settings/tutorial">
                 <GraduationCap className="h-4 w-4" />
-                التعليم والدور
+                التعليمات
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

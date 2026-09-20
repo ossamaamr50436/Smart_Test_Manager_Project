@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { MessageCircle, GraduationCap, X } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
 import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
@@ -248,7 +248,6 @@ export function DashboardSidebar({
 
   const platformName = settings?.platformName ?? "منصة إدارة الاختبارات الذكية";
   const whatsappNumber = settings?.whatsappNumber ?? null;
-  const showTutorialSection = settings?.showTutorialSection ?? true;
 
   return (
     <>
@@ -318,21 +317,6 @@ export function DashboardSidebar({
             <NotificationBadge />
             {NOTIFICATIONS_LINK.label}
           </Link>
-
-          {showTutorialSection && (
-            <Link
-              href="/settings/tutorial"
-              className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-150",
-                pathname === "/settings/tutorial"
-                  ? "bg-[var(--sidebar-active-bg)] font-medium text-[var(--sidebar-active-text)] shadow-md"
-                  : "text-[var(--sidebar-text)] opacity-80 hover:bg-white/10 hover:opacity-100"
-              )}
-            >
-              <GraduationCap className="h-4 w-4" />
-              التعليم والدور
-            </Link>
-          )}
         </nav>
 
         {isAdmin && (
