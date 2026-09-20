@@ -18,8 +18,8 @@
     --input: #e5e7eb;
     --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --accent: #f1ead9;
-    --accent-foreground: #01434a;
+    --accent: #f1f5f9;
+    --accent-foreground: #0f172a;
     --ring: #015e63;
   }
 
@@ -36,8 +36,8 @@
     --input: #24343e;
     --destructive: #7f1d1d;
     --destructive-foreground: #fecaca;
-    --accent: #1a262e;
-    --accent-foreground: #eef1f4;
+    --accent: #1e293b;
+    --accent-foreground: #f1f5f9;
   }
 
   * {
