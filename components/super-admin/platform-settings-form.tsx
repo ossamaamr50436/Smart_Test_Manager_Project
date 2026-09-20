@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ImagePlus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,12 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
   const uploadButtonAppearance = {
     button:
       "inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+    allowedContent: "hidden",
+  } as const;
+
+  const logoUploadButtonAppearance = {
+    button:
+      "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-secondary-300 bg-secondary px-4 text-sm font-medium text-secondary-foreground shadow-sm transition-all duration-150 hover:bg-secondary-200 hover:shadow active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-300 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
     allowedContent: "hidden",
   } as const;
 
@@ -226,8 +232,24 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
                 <div className="flex items-center gap-2">
                   <UploadButton
                     endpoint="logoUploader"
-                    content={{ button: "اختيار شعار جديد" }}
-                    appearance={uploadButtonAppearance}
+                    content={{
+                      button: ({ isUploading, uploadProgress }) => (
+                        <span className="inline-flex items-center justify-center gap-2">
+                          {isUploading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <ImagePlus
+                              className="h-4 w-4 shrink-0"
+                              aria-hidden="true"
+                            />
+                          )}
+                          {isUploading
+                            ? `جارٍ الرفع… ${Math.round(uploadProgress)}%`
+                            : "اختيار شعار جديد"}
+                        </span>
+                      ),
+                    }}
+                    appearance={logoUploadButtonAppearance}
                     onClientUploadComplete={(res) => {
                       const uploaded = res[0];
                       if (!uploaded) return;
