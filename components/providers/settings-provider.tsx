@@ -38,6 +38,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       // في حالة الخطأ، نستخدم القيم الافتراضية
       setSettings({
         platformName: "منصة إدارة الاختبارات الذكية",
+        platformNameLine1: null,
+        platformNameLine2: null,
         logoUrl: null,
         logoFileId: null,
         useTemplateMode: false,

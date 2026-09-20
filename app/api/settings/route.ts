@@ -13,6 +13,8 @@ export async function GET() {
     return NextResponse.json(
       {
         platformName: "منصة إدارة الاختبارات الذكية",
+        platformNameLine1: null,
+        platformNameLine2: null,
         logoUrl: null,
         logoFileId: null,
         useTemplateMode: false,

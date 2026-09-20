@@ -35,8 +35,13 @@ export default async function LoginPage() {
               className="h-full w-full object-contain"
             />
           </div>
-          <h1 className="text-3xl font-bold text-primary-foreground drop-shadow-sm">
-            {settings.platformName}
+          <h1 className="text-3xl font-bold leading-tight text-primary-foreground drop-shadow-sm">
+            <span className="block">
+              {settings.platformNameLine1 || settings.platformName}
+            </span>
+            {settings.platformNameLine2 && (
+              <span className="block">{settings.platformNameLine2}</span>
+            )}
           </h1>
           <p className="mt-2 text-sm font-medium text-primary-foreground/85">
             منصة إدارة الاختبارات وتنظيم اللجان

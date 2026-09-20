@@ -156,6 +156,8 @@ export const getCachedPlatformSettings = unstable_cache(
 
     return {
       platformName: settings.platformName,
+      platformNameLine1: settings.platformNameLine1,
+      platformNameLine2: settings.platformNameLine2,
       logoUrl: settings.logoUrl,
       logoFileId: settings.logoFileId,
       useTemplateMode: settings.useTemplateMode,

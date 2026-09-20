@@ -20,6 +20,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 
 export type PlatformSettings = {
   platformName: string;
+  platformNameLine1: string | null;
+  platformNameLine2: string | null;
   logoUrl: string | null;
   logoFileId: string | null;
   useTemplateMode: boolean;
@@ -93,6 +95,8 @@ export const getPlatformSettings = cache(
 
     return {
       platformName: settings.platformName,
+      platformNameLine1: settings.platformNameLine1,
+      platformNameLine2: settings.platformNameLine2,
       logoUrl: settings.logoUrl,
       logoFileId: settings.logoFileId,
       useTemplateMode: settings.useTemplateMode,
@@ -158,10 +162,15 @@ export const getPlatformSettings = cache(
  */
 export async function updatePlatformSettings(
   platformName: string,
-  logo?: { url: string; fileId: string }
+  logo?: { url: string; fileId: string },
+  platformNameLine1?: string,
+  platformNameLine2?: string
 ): Promise<{ success: boolean }> {
   const user = await requireUser();
   requireRole(user, [Role.SUPER_ADMIN]);
+
+  const line1 = platformNameLine1?.trim();
+  const line2 = platformNameLine2?.trim();
 
   if (!platformName || platformName.trim().length === 0) {
     throw new Error("اسم المنصة مطلوب");
@@ -171,6 +180,18 @@ export async function updatePlatformSettings(
   }
   // منع حقن HTML كطبقة دفاع إضافية
   if (/<[^>]*>/.test(platformName)) {
+    throw new Error("اسم المنصة لا يسمح بوسوم HTML");
+  }
+  if (line1 !== undefined && line1.length === 0) {
+    throw new Error("السطر الأول من اسم المنصة مطلوب");
+  }
+  if (line1 !== undefined && (<string>line1).length > 60) {
+    throw new Error("السطر الأول طويل جداً (الحد الأقصى 60 حرفاً)");
+  }
+  if (line2 !== undefined && (<string>line2).length > 60) {
+    throw new Error("السطر الثاني طويل جداً (الحد الأقصى 60 حرفاً)");
+  }
+  if ((line1 !== undefined && /<[^>]*>/.test(line1)) || (line2 !== undefined && /<[^>]*>/.test(line2))) {
     throw new Error("اسم المنصة لا يسمح بوسوم HTML");
   }
   if (logo) {
@@ -183,11 +204,26 @@ export async function updatePlatformSettings(
   // منع إساءة الاستخدام (رفع ملفات متكررة)
   await checkRateLimit(`settings-update:${user.id}`, 10);
 
+  // اسم المنصة = السطران (قيمة واحدة للميتاداتا دون <br>) عند ضبطهما
+  const finalPlatformName =
+    line1 !== undefined
+      ? line2
+        ? `${line1} ${line2}`
+        : line1
+      : platformName.trim();
+
   const data: {
     platformName: string;
+    platformNameLine1?: string;
+    platformNameLine2?: string | null;
     logoUrl?: string;
     logoFileId?: string;
-  } = { platformName: platformName.trim() };
+  } = { platformName: finalPlatformName };
+
+  if (line1 !== undefined) {
+    data.platformNameLine1 = line1;
+    data.platformNameLine2 = line2 ?? null;
+  }
 
   if (logo) {
     // حذف الشعار القديم من وحدة التخزين قبل ربط الجديد (منع تراكم الملفات)
@@ -221,6 +257,8 @@ export async function updatePlatformSettings(
       details: JSON.stringify({
         entity: "AppSettings",
         platformName: data.platformName,
+        platformNameLine1: data.platformNameLine1 ?? null,
+        platformNameLine2: data.platformNameLine2 ?? null,
         logoUpdated: !!logo,
       }),
     },

@@ -277,7 +277,16 @@ export function DashboardSidebar({
               width={56}
               className="h-14 w-14 shrink-0 rounded-lg bg-white/95 object-contain p-1"
             />
-            <p className="text-lg font-bold text-[var(--sidebar-text)]">{platformName}</p>
+            <div className="min-w-0">
+              <p className="text-base font-bold leading-tight text-[var(--sidebar-text)]">
+                {settings?.platformNameLine1 || platformName}
+              </p>
+              {settings?.platformNameLine2 && (
+                <p className="mt-0.5 text-xs font-medium leading-tight text-[var(--sidebar-text)] opacity-80">
+                  {settings.platformNameLine2}
+                </p>
+              )}
+            </div>
           </div>
           <button
             type="button"

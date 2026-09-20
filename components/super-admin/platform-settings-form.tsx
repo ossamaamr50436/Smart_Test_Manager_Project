@@ -25,7 +25,12 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
   const router = useRouter();
   const { refreshSettings } = usePlatformSettings();
   const [isPending, startTransition] = useTransition();
-  const [platformName, setPlatformName] = useState(initial.platformName);
+  const [platformNameLine1, setPlatformNameLine1] = useState(
+    initial.platformNameLine1 ?? initial.platformName
+  );
+  const [platformNameLine2, setPlatformNameLine2] = useState(
+    initial.platformNameLine2 ?? ""
+  );
   const [pendingLogo, setPendingLogo] = useState<{
     url: string;
     fileId: string;
@@ -65,10 +70,17 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
     setSuccess("");
     startTransition(async () => {
       try {
+        const line1 = platformNameLine1.trim();
+        const line2 = platformNameLine2.trim();
+        if (!line1) {
+          setError("السطر الأول من اسم المنصة مطلوب");
+          return;
+        }
+        const combinedName = line2 ? `${line1} ${line2}` : line1;
         if (pendingLogo) {
-          await updatePlatformSettings(platformName, pendingLogo);
+          await updatePlatformSettings(combinedName, pendingLogo, line1, line2 || undefined);
         } else {
-          await updatePlatformSettings(platformName);
+          await updatePlatformSettings(combinedName, undefined, line1, line2 || undefined);
         }
         setSuccess("تم حفظ إعدادات المنصة بنجاح");
         setPendingLogo(null);
@@ -199,15 +211,39 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="platformName">اسم المنصة</Label>
+          <div className="space-y-3">
+            <Label htmlFor="platformNameLine1">اسم المنصة — السطر الأول</Label>
             <Input
-              id="platformName"
-              value={platformName}
-              onChange={(e) => setPlatformName(e.target.value)}
-              placeholder="اسم المنصة"
+              id="platformNameLine1"
+              value={platformNameLine1}
+              onChange={(e) => setPlatformNameLine1(e.target.value)}
+              placeholder="منصة مجتاز"
               dir="rtl"
             />
+            <Label htmlFor="platformNameLine2">اسم المنصة — السطر الثاني</Label>
+            <Input
+              id="platformNameLine2"
+              value={platformNameLine2}
+              onChange={(e) => setPlatformNameLine2(e.target.value)}
+              placeholder="للاختبارات المرحلية"
+              dir="rtl"
+            />
+            <div
+              className="rounded-md border bg-card px-3 py-2 text-center"
+              aria-live="polite"
+            >
+              <span className="block text-sm font-semibold text-foreground">
+                {platformNameLine1.trim() || "منصة مجتاز"}
+              </span>
+              {platformNameLine2.trim() && (
+                <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
+                  {platformNameLine2.trim()}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              يُعرض الاسم على صفحة تسجيل الدخول والشريط الجانبي في سطرين منفصلين.
+            </p>
           </div>
 
           <div className="space-y-2">
