@@ -489,7 +489,7 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
             <img
               src={initial.logoUrl ?? "/logo.svg"}
               alt="شعار المنصة"
-              className="h-16 w-16 rounded-lg border object-contain"
+              className="h-24 w-24 rounded-lg border object-contain"
             />
             <p className="text-sm text-muted-foreground">
               يتم إدارة شعار المنصة من صفحة «إعدادات المنصة»

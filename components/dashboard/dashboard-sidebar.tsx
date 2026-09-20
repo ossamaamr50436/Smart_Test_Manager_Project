@@ -273,9 +273,9 @@ export function DashboardSidebar({
             <img
               src={settings?.logoUrl || "/logo.svg"}
               alt={platformName}
-              height={36}
-              width={36}
-              className="h-9 w-9 rounded-lg bg-white/90 object-contain p-0.5"
+              height={56}
+              width={56}
+              className="h-14 w-14 shrink-0 rounded-lg bg-white/95 object-contain p-1"
             />
             <p className="text-lg font-bold text-[var(--sidebar-text)]">{platformName}</p>
           </div>

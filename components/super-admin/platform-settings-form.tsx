@@ -218,14 +218,14 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
                 <img
                   src={logoPreview}
                   alt="الشعار"
-                  className="h-16 w-16 rounded-lg border object-contain"
+                  className="h-24 w-24 rounded-lg border object-contain"
                 />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src="/logo.svg"
                   alt="الشعار الافتراضي"
-                  className="h-16 w-16 rounded-lg border object-contain"
+                  className="h-24 w-24 rounded-lg border object-contain"
                 />
               )}
               <div>

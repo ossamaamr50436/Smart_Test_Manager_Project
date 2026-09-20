@@ -25,7 +25,7 @@ export default async function LoginPage() {
       />
       <div className="relative w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-card p-2 shadow-xl shadow-black/25">
+          <div className="mx-auto mb-6 flex h-44 w-44 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-card p-2 shadow-xl shadow-black/25">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={settings.logoUrl || "/logo.svg"}
