@@ -15,82 +15,155 @@ type NavLink = {
   showBadge?: boolean;
 };
 
+type NavSection = {
+  title: string;
+  links: NavLink[];
+};
+
 // روابط التنقل لكل دور (عزل الصلاحيات — كل دور يرى مساراته فقط)
 // الترتيب وفق المادة 12 (متسلسلة منطقياً)، والجهات للأخصائي فقط (المادة 14)
-const ROLE_LINKS: Partial<Record<RoleKey, NavLink[]>> = {
+const ROLE_SECTIONS: Partial<Record<RoleKey, NavSection[]>> = {
   SUPER_ADMIN: [
-    { href: "/super-admin", label: "لوحة المالك" },
-    { href: "/super-admin/tenants", label: "المؤسسات" },
-    { href: "/super-admin/tenants/new", label: "إنشاء مؤسسة" },
-    { href: "/super-admin/alerts", label: "التنبيهات الأمنية" },
-    { href: "/super-admin/settings", label: "إعدادات المنصة" },
-    { href: "/super-admin/design-settings", label: "إعدادات التصميم" },
+    {
+      title: "رئيسية",
+      links: [{ href: "/super-admin", label: "لوحة المالك" }],
+    },
+    {
+      title: "إدارة",
+      links: [
+        { href: "/super-admin/tenants", label: "المؤسسات" },
+        { href: "/super-admin/tenants/new", label: "إنشاء مؤسسة" },
+        { href: "/super-admin/alerts", label: "التنبيهات" },
+        { href: "/super-admin/settings", label: "الإعدادات" },
+        { href: "/super-admin/design-settings", label: "إعدادات التصميم" },
+      ],
+    },
   ],
   ADMIN: [
-    { href: "/admin", label: "لوحة التحكم" },
-    { href: "/admin/users", label: "المستخدمون" },
-    { href: "/admin/students", label: "الطلاب" },
-    { href: "/admin/accepted-students", label: "الطلاب المقبولون" },
-    { href: "/admin/seasons", label: "المواسم" },
-    { href: "/admin/models", label: "النماذج" },
-    { href: "/admin/question-bank", label: "بنك الأسئلة" },
-    { href: "/admin/sessions", label: "الجلسات" },
-    { href: "/admin/certificates", label: "الشهادات" },
-    { href: "/admin/reports", label: "التقارير والتحليلات" },
-    { href: "/admin/settings", label: "إعدادات المنصة" },
-    { href: "/audit-log", label: "سجل التدقيق" },
-    { href: "/test-specialist", label: "لوحة الأخصائي" },
-    { href: "/test-specialist/requests", label: "طلبات الترشيح" },
-    { href: "/test-specialist/students/new", label: "ترشيح طالب" },
-    { href: "/test-specialist/committees", label: "تشكيل اللجان" },
-    { href: "/test-specialist/teachers", label: "أعضاء لجنة الاختبار" },
-    { href: "/test-specialist/models", label: "إدارة النماذج" },
-    { href: "/specialist/entities", label: "إدارة الجهات" },
-    { href: "/specialist/entities/create", label: "إنشاء جهة تعليمية" },
-    { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
     {
-      href: "/test-specialist/final-review",
-      label: "مراجعة التقييمات النهائية",
+      title: "رئيسية",
+      links: [
+        { href: "/admin", label: "لوحة التحكم" },
+        { href: "/admin/students", label: "الطلاب" },
+        { href: "/admin/accepted-students", label: "الطلاب المقبولون" },
+        { href: "/test-specialist", label: "لوحة الأخصائي" },
+      ],
     },
-    { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
+    {
+      title: "عمل",
+      links: [
+        { href: "/test-specialist/requests", label: "طلبات الترشيح" },
+        { href: "/test-specialist/students/new", label: "الترشيح" },
+        { href: "/test-specialist/committees", label: "اللجان" },
+        { href: "/admin/sessions", label: "الجلسات" },
+        { href: "/admin/models", label: "النماذج" },
+        { href: "/admin/question-bank", label: "الأسئلة" },
+        { href: "/test-specialist/teachers", label: "المختبرون" },
+        { href: "/test-specialist/final-review", label: "المراجعة" },
+        { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
+      ],
+    },
+    {
+      title: "مخرجات",
+      links: [
+        { href: "/admin/certificates", label: "الشهادات" },
+        { href: "/admin/reports", label: "التقارير" },
+      ],
+    },
+    {
+      title: "إدارة",
+      links: [
+        { href: "/admin/users", label: "المستخدمون" },
+        { href: "/admin/seasons", label: "المواسم" },
+        { href: "/specialist/entities", label: "الجهات" },
+        { href: "/specialist/entities/create", label: "إنشاء جهة" },
+        { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
+        { href: "/admin/settings", label: "الإعدادات" },
+        { href: "/audit-log", label: "سجل التدقيق" },
+      ],
+    },
   ],
   HEAD_OF_AFFAIRS: [
-    { href: "/head-of-affairs", label: "الاعتماد الإداري النهائي" },
-    { href: "/head-of-affairs/rejected", label: "الطلاب المرفوضون" },
-    { href: "/admin/reports", label: "التقارير والتحليلات" },
+    {
+      title: "رئيسية",
+      links: [{ href: "/head-of-affairs", label: "الاعتماد الإداري النهائي" }],
+    },
+    {
+      title: "عمل",
+      links: [{ href: "/head-of-affairs/rejected", label: "الطلاب المرفوضون" }],
+    },
+    {
+      title: "مخرجات",
+      links: [{ href: "/admin/reports", label: "التقارير" }],
+    },
   ],
   CERTIFICATE_SOURCE: [
-    { href: "/certificate-source", label: "إصدار الشهادات" },
+    {
+      title: "رئيسية",
+      links: [{ href: "/certificate-source", label: "إصدار الشهادات" }],
+    },
   ],
   TEST_SPECIALIST: [
-    { href: "/test-specialist", label: "لوحة التحكم" },
-    { href: "/test-specialist/requests", label: "طلبات الترشيح" },
-    { href: "/test-specialist/accepted-students", label: "الطلاب المقبولون" },
-    { href: "/test-specialist/students/new", label: "ترشيح طالب" },
-    { href: "/test-specialist/committees", label: "تشكيل اللجان" },
-    { href: "/test-specialist/teachers", label: "أعضاء لجنة الاختبار" },
-    { href: "/test-specialist/models", label: "إدارة النماذج" },
-    { href: "/admin/question-bank", label: "بنك الأسئلة" },
-    { href: "/specialist/entities", label: "إدارة الجهات" },
-    { href: "/specialist/entities/create", label: "إنشاء جهة تعليمية" },
-    { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
     {
-      href: "/test-specialist/final-review",
-      label: "مراجعة التقييمات النهائية",
+      title: "رئيسية",
+      links: [{ href: "/test-specialist", label: "لوحة التحكم" }],
     },
-    { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
-    { href: "/admin/reports", label: "التقارير والتحليلات" },
+    {
+      title: "عمل",
+      links: [
+        { href: "/test-specialist/accepted-students", label: "الطلاب" },
+        { href: "/test-specialist/requests", label: "طلبات الترشيح" },
+        { href: "/test-specialist/students/new", label: "الترشيح" },
+        { href: "/test-specialist/committees", label: "اللجان" },
+        { href: "/test-specialist/teachers", label: "المختبرون" },
+        { href: "/test-specialist/models", label: "النماذج" },
+        { href: "/admin/question-bank", label: "الأسئلة" },
+        { href: "/test-specialist/final-review", label: "المراجعة" },
+        { href: "/test-specialist/rejected-students", label: "الطلاب المرفوضون" },
+      ],
+    },
+    {
+      title: "مخرجات",
+      links: [{ href: "/admin/reports", label: "التقارير" }],
+    },
+    {
+      title: "إدارة",
+      links: [
+        { href: "/specialist/entities", label: "الجهات" },
+        { href: "/specialist/entities/create", label: "إنشاء جهة تعليمية" },
+        { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
+      ],
+    },
   ],
   EXAMINER: [
-    { href: "/examiner", label: "لوحة التحكم" },
-    { href: "/examiner/reports", label: "تقاريري" },
+    {
+      title: "رئيسية",
+      links: [{ href: "/examiner", label: "لوحة التحكم" }],
+    },
+    {
+      title: "مخرجات",
+      links: [{ href: "/examiner/reports", label: "تقاريري" }],
+    },
   ],
   INSTITUTION: [
-    { href: "/institution", label: "طلاب جهتي" },
-    { href: "/institution/students", label: "بيانات الطلاب" },
-    { href: "/institution/students/new", label: "ترشيح طالب جديد" },
-    { href: "/institution/certificates", label: "شهادات الطلاب" },
-    { href: "/institution/reports", label: "تقارير الجهة" },
+    {
+      title: "رئيسية",
+      links: [
+        { href: "/institution", label: "لوحة التحكم" },
+        { href: "/institution/students", label: "الطلاب" },
+      ],
+    },
+    {
+      title: "عمل",
+      links: [{ href: "/institution/students/new", label: "الترشيح" }],
+    },
+    {
+      title: "مخرجات",
+      links: [
+        { href: "/institution/certificates", label: "الشهادات" },
+        { href: "/institution/reports", label: "التقارير" },
+      ],
+    },
   ],
 };
 
@@ -114,7 +187,7 @@ export function DashboardSidebar({
   const user = session?.user;
   const role = (user?.role as RoleKey | undefined) ?? undefined;
   const roleLabel = role ? ROLE_LABELS[role] : "مستخدم";
-  const links = role ? ROLE_LINKS[role] ?? [] : [];
+  const links = role ? ROLE_SECTIONS[role] ?? [] : [];
   const platformName = settings?.platformName ?? "منصة إدارة الاختبارات الذكية";
   const whatsappNumber = settings?.whatsappNumber ?? null;
   const showTutorialSection = settings?.showTutorialSection ?? true;
@@ -192,24 +265,34 @@ export function DashboardSidebar({
         </nav>
 
         {links.length > 0 && (
-          <nav className="space-y-1">
-            {links.map((link) => {
-              const active = pathname === link.href || pathname.startsWith(link.href + "/");
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    "block rounded-md px-3 py-2 text-sm transition-all duration-150",
-                    active
-                      ? "bg-gradient-to-r from-primary-500 to-primary-600 font-medium text-white shadow-md"
-                      : "text-white/80 hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
+          <nav className="space-y-3">
+            {links.map((section, i) => (
+              <div
+                key={section.title}
+                className={cn("space-y-1", i > 0 && "border-t border-white/10 pt-3")}
+              >
+                <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-white/50">
+                  {section.title}
+                </p>
+                {section.links.map((link) => {
+                  const active = pathname === link.href || pathname.startsWith(link.href + "/");
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className={cn(
+                        "block rounded-md px-3 py-2 text-sm transition-colors duration-150",
+                        active
+                          ? "bg-primary-500/20 font-medium text-white"
+                          : "text-white/80 hover:bg-white/10 hover:text-white"
+                      )}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         )}
 
