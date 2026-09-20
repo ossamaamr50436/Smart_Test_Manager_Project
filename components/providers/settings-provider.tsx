@@ -57,6 +57,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         darkModeEnabled: false,
         requireStudentApplicationFile: false,
         showTutorialSection: true,
+        sidebarBg: "#015e63",
+        sidebarText: "#ffffff",
+        sidebarActiveBg: "#014a4e",
+        sidebarActiveText: "#ffffff",
+        topbarBg: "#ffffff",
+        topbarText: "#0f172a",
+        loginBg: "#015e63",
+        loginGradientFrom: "#014a4e",
+        loginGradientTo: "#d3bb8b",
+        loginCardBg: "#ffffff",
+        buttonPrimaryBg: "#015e63",
+        buttonPrimaryText: "#ffffff",
+        buttonSecondaryBg: "#d3bb8b",
+        buttonSecondaryText: "#0f172a",
       });
     }
   }

@@ -40,7 +40,7 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const avatarChar = displayName.charAt(0);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center border-b bg-gradient-to-r from-card via-card to-primary-50 px-4">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center border-b bg-[var(--topbar-bg)] text-[var(--topbar-text)] px-4">
       <button
         type="button"
         onClick={onMenuClick}
@@ -71,7 +71,7 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
               <AvatarFallback>{avatarChar}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 text-start">
-              <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+              <p className="truncate text-sm font-medium text-[var(--topbar-text)]">{displayName}</p>
               <p className="truncate text-xs text-muted-foreground">{roleLabel}</p>
             </div>
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />

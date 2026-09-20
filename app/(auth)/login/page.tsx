@@ -10,14 +10,18 @@ export default async function LoginPage() {
   const settings = await getPlatformSettings();
 
   return (
-    <main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-[linear-gradient(160deg,var(--primary)_0%,var(--accent)_100%)] p-4 sm:p-6">
+    <main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-[var(--login-bg)] p-4 sm:p-6">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-secondary/20 blur-3xl"
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(160deg,var(--login-gradient-from)_0%,var(--login-gradient-to)_100%)]"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-secondary/10 blur-3xl"
+        className="pointer-events-none absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-[var(--login-gradient-to)] opacity-20 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-[var(--login-gradient-to)] opacity-10 blur-3xl"
       />
       <div className="relative w-full max-w-md">
         <div className="mb-8 text-center">

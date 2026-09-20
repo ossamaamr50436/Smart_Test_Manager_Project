@@ -99,6 +99,20 @@ export default async function RootLayout({
   const borderRadius = settings.borderRadius ?? "0.5rem";
   const shadowIntensity = settings.shadowIntensity ?? "md";
   const buttonStyle = settings.buttonStyle ?? "rounded";
+  const sidebarBg = settings.sidebarBg ?? "#015e63";
+  const sidebarText = settings.sidebarText ?? "#ffffff";
+  const sidebarActiveBg = settings.sidebarActiveBg ?? "#014a4e";
+  const sidebarActiveText = settings.sidebarActiveText ?? "#ffffff";
+  const topbarBg = settings.topbarBg ?? "#ffffff";
+  const topbarText = settings.topbarText ?? "#0f172a";
+  const loginBg = settings.loginBg ?? "#015e63";
+  const loginGradientFrom = settings.loginGradientFrom ?? "#014a4e";
+  const loginGradientTo = settings.loginGradientTo ?? "#d3bb8b";
+  const loginCardBg = settings.loginCardBg ?? "#ffffff";
+  const buttonPrimaryBg = settings.buttonPrimaryBg ?? "#015e63";
+  const buttonPrimaryText = settings.buttonPrimaryText ?? "#ffffff";
+  const buttonSecondaryBg = settings.buttonSecondaryBg ?? "#d3bb8b";
+  const buttonSecondaryText = settings.buttonSecondaryText ?? "#0f172a";
   const defaultTheme = settings.darkModeEnabled ? "dark" : "light";
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
@@ -118,6 +132,24 @@ export default async function RootLayout({
             --radius: ${borderRadius};
             --shadow-intensity: ${shadowIntensity};
             --button-style: ${buttonStyle};
+
+            --sidebar-bg: ${sidebarBg};
+            --sidebar-text: ${sidebarText};
+            --sidebar-active-bg: ${sidebarActiveBg};
+            --sidebar-active-text: ${sidebarActiveText};
+
+            --topbar-bg: ${topbarBg};
+            --topbar-text: ${topbarText};
+
+            --login-bg: ${loginBg};
+            --login-gradient-from: ${loginGradientFrom};
+            --login-gradient-to: ${loginGradientTo};
+            --login-card-bg: ${loginCardBg};
+
+            --button-primary-bg: ${buttonPrimaryBg};
+            --button-primary-text: ${buttonPrimaryText};
+            --button-secondary-bg: ${buttonSecondaryBg};
+            --button-secondary-text: ${buttonSecondaryText};
           }
         `}</style>
         <link rel="icon" href={settings.logoUrl || "/logo.svg"} />

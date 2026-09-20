@@ -518,6 +518,20 @@ model AppSettings {
   borderRadius                  String   @default("0.5rem") // استدارة الزوايا
   shadowIntensity               String   @default("md") // شدة الظلال
   buttonStyle                   String   @default("rounded") // نمط الأزرار
+  sidebarBg                     String   @default("#015e63") // خلفية الشريط الجانبي
+  sidebarText                   String   @default("#ffffff") // نص الشريط الجانبي
+  sidebarActiveBg               String   @default("#014a4e") // خلفية العنصر النشط في الشريط الجانبي
+  sidebarActiveText             String   @default("#ffffff") // نص العنصر النشط في الشريط الجانبي
+  topbarBg                      String   @default("#ffffff") // خلفية الشريط العلوي
+  topbarText                    String   @default("#0f172a") // نص الشريط العلوي
+  loginBg                       String   @default("#015e63") // خلفية صفحة تسجيل الدخول
+  loginGradientFrom             String   @default("#014a4e") // بداية تدرج صفحة تسجيل الدخول
+  loginGradientTo               String   @default("#d3bb8b") // نهاية تدرج صفحة تسجيل الدخول
+  loginCardBg                   String   @default("#ffffff") // خلفية بطاقة تسجيل الدخول
+  buttonPrimaryBg               String   @default("#015e63") // خلفية الزر الأساسي
+  buttonPrimaryText             String   @default("#ffffff") // نص الزر الأساسي
+  buttonSecondaryBg             String   @default("#d3bb8b") // خلفية الزر الثانوي
+  buttonSecondaryText           String   @default("#0f172a") // نص الزر الثانوي
   whatsappNumber                String? // رقم الدعم الفني (ديناميكي)
   darkModeEnabled               Boolean  @default(false) // تفعيل الوضع المظلم
   requireStudentApplicationFile Boolean  @default(false) // إلزام الجهات برفع ملف PDF

@@ -92,6 +92,94 @@ const COLOR_FIELDS = [
 
 type ColorKey = (typeof COLOR_FIELDS)[number]["key"];
 
+const SIDEBAR_COLOR_FIELDS = [
+  {
+    key: "sidebarBg",
+    label: "خلفية الشريط الجانبي",
+    description: "خلفية الأعمدة والقوائم",
+  },
+  {
+    key: "sidebarText",
+    label: "نص الشريط الجانبي",
+    description: "لون النصوص في القوائم",
+  },
+  {
+    key: "sidebarActiveBg",
+    label: "خلفية العنصر النشط",
+    description: "خلفية الرابط المحدد",
+  },
+  {
+    key: "sidebarActiveText",
+    label: "نص العنصر النشط",
+    description: "لون نص الرابط المحدد",
+  },
+] as const;
+
+const TOPBAR_COLOR_FIELDS = [
+  {
+    key: "topbarBg",
+    label: "خلفية الشريط العلوي",
+    description: "خلفية الشريط العلوي",
+  },
+  {
+    key: "topbarText",
+    label: "نص الشريط العلوي",
+    description: "لون النصوص في الشريط العلوي",
+  },
+] as const;
+
+const LOGIN_COLOR_FIELDS = [
+  {
+    key: "loginBg",
+    label: "خلفية تسجيل الدخول",
+    description: "خلفية صفحة تسجيل الدخول",
+  },
+  {
+    key: "loginGradientFrom",
+    label: "بداية التدرج",
+    description: "بداية التدرج اللوني لخلفية الدخول",
+  },
+  {
+    key: "loginGradientTo",
+    label: "نهاية التدرج",
+    description: "نهاية التدرج اللوني لخلفية الدخول",
+  },
+  {
+    key: "loginCardBg",
+    label: "خلفية بطاقة الدخول",
+    description: "خلفية بطاقة تسجيل الدخول",
+  },
+] as const;
+
+const BUTTON_COLOR_FIELDS = [
+  {
+    key: "buttonPrimaryBg",
+    label: "خلفية الزر الأساسي",
+    description: "خلفية الأزرار الأساسية",
+  },
+  {
+    key: "buttonPrimaryText",
+    label: "نص الزر الأساسي",
+    description: "لون نص الأزرار الأساسية",
+  },
+  {
+    key: "buttonSecondaryBg",
+    label: "خلفية الزر الثانوي",
+    description: "خلفية الأزرار الثانوية",
+  },
+  {
+    key: "buttonSecondaryText",
+    label: "نص الزر الثانوي",
+    description: "لون نص الأزرار الثانوية",
+  },
+] as const;
+
+type SectionColorKey =
+  | (typeof SIDEBAR_COLOR_FIELDS)[number]["key"]
+  | (typeof TOPBAR_COLOR_FIELDS)[number]["key"]
+  | (typeof LOGIN_COLOR_FIELDS)[number]["key"]
+  | (typeof BUTTON_COLOR_FIELDS)[number]["key"];
+
 function ColorRow({
   label,
   description,
@@ -136,6 +224,20 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
     backgroundColor: initial.backgroundColor,
     textColor: initial.textColor,
     borderColor: initial.borderColor,
+    sidebarBg: initial.sidebarBg,
+    sidebarText: initial.sidebarText,
+    sidebarActiveBg: initial.sidebarActiveBg,
+    sidebarActiveText: initial.sidebarActiveText,
+    topbarBg: initial.topbarBg,
+    topbarText: initial.topbarText,
+    loginBg: initial.loginBg,
+    loginGradientFrom: initial.loginGradientFrom,
+    loginGradientTo: initial.loginGradientTo,
+    loginCardBg: initial.loginCardBg,
+    buttonPrimaryBg: initial.buttonPrimaryBg,
+    buttonPrimaryText: initial.buttonPrimaryText,
+    buttonSecondaryBg: initial.buttonSecondaryBg,
+    buttonSecondaryText: initial.buttonSecondaryText,
   });
   const [headingFont, setHeadingFont] = useState(initial.headingFont);
   const [bodyFont, setBodyFont] = useState(initial.bodyFont);
@@ -145,7 +247,7 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  function setColor(key: ColorKey, value: string) {
+  function setColor(key: ColorKey | SectionColorKey, value: string) {
     setColors((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -165,6 +267,20 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
           backgroundColor: colors.backgroundColor,
           textColor: colors.textColor,
           borderColor: colors.borderColor,
+          sidebarBg: colors.sidebarBg,
+          sidebarText: colors.sidebarText,
+          sidebarActiveBg: colors.sidebarActiveBg,
+          sidebarActiveText: colors.sidebarActiveText,
+          topbarBg: colors.topbarBg,
+          topbarText: colors.topbarText,
+          loginBg: colors.loginBg,
+          loginGradientFrom: colors.loginGradientFrom,
+          loginGradientTo: colors.loginGradientTo,
+          loginCardBg: colors.loginCardBg,
+          buttonPrimaryBg: colors.buttonPrimaryBg,
+          buttonPrimaryText: colors.buttonPrimaryText,
+          buttonSecondaryBg: colors.buttonSecondaryBg,
+          buttonSecondaryText: colors.buttonSecondaryText,
           headingFont,
           bodyFont,
           borderRadius: radius,
@@ -296,6 +412,141 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
               />
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            تفاصيل الواجهة
+          </CardTitle>
+          <CardDescription>
+            الشريط الجانبي، الشريط العلوي، تسجيل الدخول، والأزرار — تُطبَّق فوراً عبر متغيرات CSS
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">الشريط الجانبي</h3>
+            <div
+              className="rounded-lg p-4"
+              style={{ backgroundColor: colors.sidebarBg, color: colors.sidebarText }}
+            >
+              <p className="text-sm font-semibold">لوحة التحكم</p>
+              <div
+                className="mt-2 rounded-md px-3 py-2 text-sm"
+                style={{
+                  backgroundColor: colors.sidebarActiveBg,
+                  color: colors.sidebarActiveText,
+                }}
+              >
+                القائمة النشطة
+              </div>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {SIDEBAR_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">الشريط العلوي</h3>
+            <div
+              className="flex items-center justify-between rounded-t-lg px-4 py-3"
+              style={{ backgroundColor: colors.topbarBg, color: colors.topbarText }}
+            >
+              <p className="text-sm font-semibold">الشريط العلوي</p>
+              <p className="text-xs opacity-80">اسم المستخدم</p>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {TOPBAR_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">تسجيل الدخول</h3>
+            <div>
+              <div
+                className="rounded-lg p-4"
+                style={{
+                  backgroundColor: colors.loginBg,
+                  backgroundImage: `linear-gradient(160deg, ${colors.loginGradientFrom} 0%, ${colors.loginGradientTo} 100%)`,
+                }}
+              >
+                <div
+                  className="mx-auto max-w-[200px] rounded-md px-4 py-3 text-center shadow-md"
+                  style={{ backgroundColor: colors.loginCardBg, color: colors.textColor }}
+                >
+                  <p className="text-sm font-semibold">تسجيل الدخول</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {LOGIN_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold">الأزرار</h3>
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border p-4">
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                style={{
+                  backgroundColor: colors.buttonPrimaryBg,
+                  color: colors.buttonPrimaryText,
+                  borderRadius: previewRadius,
+                }}
+              >
+                زر أساسي
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                style={{
+                  backgroundColor: colors.buttonSecondaryBg,
+                  color: colors.buttonSecondaryText,
+                  borderRadius: previewRadius,
+                }}
+              >
+                زر ثانوي
+              </button>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {BUTTON_COLOR_FIELDS.map((field) => (
+                <ColorRow
+                  key={field.key}
+                  label={field.label}
+                  description={field.description}
+                  value={colors[field.key]}
+                  onChange={(value) => setColor(field.key, value)}
+                />
+              ))}
+            </div>
+          </section>
         </CardContent>
       </Card>
 

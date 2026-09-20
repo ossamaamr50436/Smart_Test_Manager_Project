@@ -425,13 +425,13 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
         </CardContent>
       </Card>
 
-      <Card className="border-amber-200 bg-amber-50">
+      <Card className="border-border bg-muted">
         <CardHeader>
-          <CardTitle className="text-amber-900">📦 إعداد مؤسسة تعليمية جديدة</CardTitle>
+          <CardTitle className="text-foreground">📦 إعداد مؤسسة تعليمية جديدة</CardTitle>
           <CardDescription>إنشاء تطبيق على UploadThing لكل مؤسسة</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="mb-4 text-sm text-amber-800">
+          <p className="mb-4 text-sm text-muted-foreground">
             كل مؤسسة تحتاج إلى مفتاح API خاص بها على UploadThing. اضغط على الزر
             أدناه للانتقال إلى لوحة التحكم.
           </p>
@@ -439,7 +439,7 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
             href="https://uploadthing.com/"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-white transition-colors hover:bg-amber-700"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <span>🔗 اذهب إلى UploadThing Dashboard</span>
             <ExternalLink className="h-4 w-4" />

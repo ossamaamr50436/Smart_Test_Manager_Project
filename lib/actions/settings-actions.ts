@@ -35,6 +35,20 @@ export type PlatformSettings = {
   borderRadius: string;
   shadowIntensity: string;
   buttonStyle: string;
+  sidebarBg: string;
+  sidebarText: string;
+  sidebarActiveBg: string;
+  sidebarActiveText: string;
+  topbarBg: string;
+  topbarText: string;
+  loginBg: string;
+  loginGradientFrom: string;
+  loginGradientTo: string;
+  loginCardBg: string;
+  buttonPrimaryBg: string;
+  buttonPrimaryText: string;
+  buttonSecondaryBg: string;
+  buttonSecondaryText: string;
   whatsappNumber: string | null;
   darkModeEnabled: boolean;
   requireStudentApplicationFile: boolean;
@@ -77,6 +91,20 @@ export const getPlatformSettings = cache(
       borderRadius: settings.borderRadius,
       shadowIntensity: settings.shadowIntensity,
       buttonStyle: settings.buttonStyle,
+      sidebarBg: settings.sidebarBg,
+      sidebarText: settings.sidebarText,
+      sidebarActiveBg: settings.sidebarActiveBg,
+      sidebarActiveText: settings.sidebarActiveText,
+      topbarBg: settings.topbarBg,
+      topbarText: settings.topbarText,
+      loginBg: settings.loginBg,
+      loginGradientFrom: settings.loginGradientFrom,
+      loginGradientTo: settings.loginGradientTo,
+      loginCardBg: settings.loginCardBg,
+      buttonPrimaryBg: settings.buttonPrimaryBg,
+      buttonPrimaryText: settings.buttonPrimaryText,
+      buttonSecondaryBg: settings.buttonSecondaryBg,
+      buttonSecondaryText: settings.buttonSecondaryText,
     };
   }
 );
@@ -499,9 +527,23 @@ export async function updateDesignSettings(input: {
   borderColor?: string;
   headingFont?: string;
   bodyFont?: string;
-  borderRadius?: string;
+borderRadius?: string;
   shadowIntensity?: string;
   buttonStyle?: string;
+  sidebarBg?: string;
+  sidebarText?: string;
+  sidebarActiveBg?: string;
+  sidebarActiveText?: string;
+  topbarBg?: string;
+  topbarText?: string;
+  loginBg?: string;
+  loginGradientFrom?: string;
+  loginGradientTo?: string;
+  loginCardBg?: string;
+  buttonPrimaryBg?: string;
+  buttonPrimaryText?: string;
+  buttonSecondaryBg?: string;
+  buttonSecondaryText?: string;
 }): Promise<{ success: boolean }> {
   const user = await requireUser();
   requireRole(user, [Role.SUPER_ADMIN]);
@@ -521,8 +563,50 @@ export async function updateDesignSettings(input: {
   if ((input.textColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.textColor!)) {
     throw new Error("لون النص غير صالح — استخدم صيغة HEX مثل #0f172a");
   }
-  if ((input.borderColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.borderColor!)) {
+if ((input.borderColor ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.borderColor!)) {
     throw new Error("لون الحدود غير صالح — استخدم صيغة HEX مثل #e2e8f0");
+  }
+  if ((input.sidebarBg ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarBg!)) {
+    throw new Error("لون خلفية الشريط الجانبي غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.sidebarText ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarText!)) {
+    throw new Error("لون نص الشريط الجانبي غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.sidebarActiveBg ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarActiveBg!)) {
+    throw new Error("لون خلفية العنصر النشط غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.sidebarActiveText ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.sidebarActiveText!)) {
+    throw new Error("لون نص العنصر النشط غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.topbarBg ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.topbarBg!)) {
+    throw new Error("لون خلفية الشريط العلوي غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.topbarText ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.topbarText!)) {
+    throw new Error("لون نص الشريط العلوي غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.loginBg ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginBg!)) {
+    throw new Error("لون خلفية تسجيل الدخول غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.loginGradientFrom ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginGradientFrom!)) {
+    throw new Error("لون بداية التدرج غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.loginGradientTo ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginGradientTo!)) {
+    throw new Error("لون نهاية التدرج غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.loginCardBg ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.loginCardBg!)) {
+    throw new Error("لون بطاقة تسجيل الدخول غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.buttonPrimaryBg ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonPrimaryBg!)) {
+    throw new Error("لون الزر الأساسي غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.buttonPrimaryText ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonPrimaryText!)) {
+    throw new Error("لون نص الزر الأساسي غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.buttonSecondaryBg ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonSecondaryBg!)) {
+    throw new Error("لون الزر الثانوي غير صالح — استخدم صيغة HEX");
+  }
+  if ((input.buttonSecondaryText ?? "") !== "" && !/^#[0-9a-fA-F]{6}$/.test(input.buttonSecondaryText!)) {
+    throw new Error("لون نص الزر الثانوي غير صالح — استخدم صيغة HEX");
   }
 
   const allowedRadius = ["0rem", "0.25rem", "0.5rem", "0.75rem", "1rem"];
@@ -554,9 +638,23 @@ export async function updateDesignSettings(input: {
     borderColor: (input.borderColor || "#e2e8f0").trim(),
     headingFont: (input.headingFont || "Cairo").trim(),
     bodyFont: (input.bodyFont || "Cairo").trim(),
-    borderRadius,
+borderRadius,
     shadowIntensity,
     buttonStyle,
+    sidebarBg: (input.sidebarBg || "#015e63").trim(),
+    sidebarText: (input.sidebarText || "#ffffff").trim(),
+    sidebarActiveBg: (input.sidebarActiveBg || "#014a4e").trim(),
+    sidebarActiveText: (input.sidebarActiveText || "#ffffff").trim(),
+    topbarBg: (input.topbarBg || "#ffffff").trim(),
+    topbarText: (input.topbarText || "#0f172a").trim(),
+    loginBg: (input.loginBg || "#015e63").trim(),
+    loginGradientFrom: (input.loginGradientFrom || "#014a4e").trim(),
+    loginGradientTo: (input.loginGradientTo || "#d3bb8b").trim(),
+    loginCardBg: (input.loginCardBg || "#ffffff").trim(),
+    buttonPrimaryBg: (input.buttonPrimaryBg || "#015e63").trim(),
+    buttonPrimaryText: (input.buttonPrimaryText || "#ffffff").trim(),
+    buttonSecondaryBg: (input.buttonSecondaryBg || "#d3bb8b").trim(),
+    buttonSecondaryText: (input.buttonSecondaryText || "#0f172a").trim(),
   };
 
   await prisma.appSettings.upsert({

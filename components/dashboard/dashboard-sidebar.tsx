@@ -263,7 +263,7 @@ export function DashboardSidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-64 shrink-0 flex-col border-l bg-gradient-to-b from-primary-700 to-primary-900 transition-transform duration-300 md:static md:z-auto md:translate-x-0 md:transition-none",
+          "fixed inset-y-0 right-0 z-50 flex w-64 shrink-0 flex-col border-l bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] transition-transform duration-300 md:static md:z-auto md:translate-x-0 md:transition-none",
           open ? "translate-x-0" : "translate-x-full md:translate-x-0"
         )}
       >
@@ -277,13 +277,13 @@ export function DashboardSidebar({
               width={36}
               className="h-9 w-9 rounded-lg bg-white/90 object-contain p-0.5"
             />
-            <p className="text-lg font-bold text-white">{platformName}</p>
+            <p className="text-lg font-bold text-[var(--sidebar-text)]">{platformName}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="إغلاق القائمة"
-            className="flex h-11 w-11 items-center justify-center rounded-md text-white/80 hover:bg-white/10 hover:text-white md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--sidebar-text)] opacity-80 hover:bg-white/10 hover:opacity-100 md:hidden"
           >
             <X className="h-5 w-5" />
           </button>
@@ -298,8 +298,8 @@ export function DashboardSidebar({
             className={cn(
               "relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-150",
               pathname === NOTIFICATIONS_LINK.href
-                ? "bg-gradient-to-r from-primary-500 to-primary-600 font-medium text-white shadow-md"
-                : "text-white/80 hover:bg-white/10 hover:text-white"
+                ? "bg-[var(--sidebar-active-bg)] font-medium text-[var(--sidebar-active-text)] shadow-md"
+                : "text-[var(--sidebar-text)] opacity-80 hover:bg-white/10 hover:opacity-100"
             )}
           >
             <NotificationBadge />
@@ -312,8 +312,8 @@ export function DashboardSidebar({
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-150",
                 pathname === "/settings/tutorial"
-                  ? "bg-gradient-to-r from-primary-500 to-primary-600 font-medium text-white shadow-md"
-                  : "text-white/80 hover:bg-white/10 hover:text-white"
+                  ? "bg-[var(--sidebar-active-bg)] font-medium text-[var(--sidebar-active-text)] shadow-md"
+                  : "text-[var(--sidebar-text)] opacity-80 hover:bg-white/10 hover:opacity-100"
               )}
             >
               <GraduationCap className="h-4 w-4" />
@@ -340,8 +340,8 @@ export function DashboardSidebar({
                   className={cn(
                     "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
                     isActive
-                      ? "bg-secondary text-primary-900 shadow-sm"
-                      : "text-white/80 hover:bg-white/10 hover:text-white"
+                      ? "bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active-text)] shadow-sm"
+                      : "text-[var(--sidebar-text)] opacity-80 hover:bg-white/10 hover:opacity-100"
                   )}
                 >
                   {context.label}
@@ -358,7 +358,7 @@ export function DashboardSidebar({
                 key={section.title}
                 className={cn("space-y-1", i > 0 && "border-t border-white/10 pt-3")}
               >
-                <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-white/50">
+                <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-[var(--sidebar-text)] opacity-50">
                   {section.title}
                 </p>
                 {section.links.map((link) => {
@@ -370,8 +370,8 @@ export function DashboardSidebar({
                       className={cn(
                         "block rounded-md px-3 py-2 text-sm transition-colors duration-150",
                         active
-                          ? "bg-primary-500/20 font-medium text-white"
-                          : "text-white/80 hover:bg-white/10 hover:text-white"
+                          ? "bg-[var(--sidebar-active-bg)] font-medium text-[var(--sidebar-active-text)]"
+                          : "text-[var(--sidebar-text)] opacity-80 hover:bg-white/10 hover:opacity-100"
                       )}
                     >
                       {link.label}
@@ -388,7 +388,7 @@ export function DashboardSidebar({
             href={`https://wa.me/${whatsappNumber}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+            className="mt-4 flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-[var(--sidebar-text)] transition-colors hover:bg-white/20"
           >
             <MessageCircle className="h-4 w-4" />
             تواصل مع الدعم الفني

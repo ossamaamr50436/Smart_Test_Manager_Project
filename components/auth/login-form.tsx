@@ -49,7 +49,10 @@ export function LoginForm({
   }
 
   return (
-    <Card className="w-full overflow-hidden border-t-4 border-t-secondary shadow-xl shadow-primary-900/20">
+    <Card
+      style={{ backgroundColor: "var(--login-card-bg)" }}
+      className="w-full overflow-hidden border-t-4 border-t-secondary shadow-xl shadow-black/25"
+    >
       <CardHeader>
         <CardTitle className="text-center text-lg">تسجيل الدخول</CardTitle>
       </CardHeader>
