@@ -121,7 +121,7 @@ export function CertificateTable({
                   <div className="flex items-center gap-3">
                     <p className="text-sm font-semibold">
                       {student.finalScore !== null
-                        ? `${student.finalScore} / 20`
+                        ? `${student.finalScore} / 100`
                         : "—"}
                     </p>
                     <Button
@@ -166,7 +166,7 @@ export function CertificateTable({
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {getBranchLabel(cert.branch)} — {cert.finalScore} / 20 —
+                      {getBranchLabel(cert.branch)} — {cert.finalScore} / 100 —
                       {cert.issuedDate
                         ? new Date(cert.issuedDate).toLocaleDateString("ar-SA")
                         : "—"}

@@ -141,7 +141,7 @@ export function AdminCertificatesList() {
                           <span className="text-xs text-muted-foreground" dir="ltr">({c.serialNumber})</span>
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          الجهة: {c.student?.institution?.name ?? "—"} — الدرجة: {c.finalScore} / 20
+                          الجهة: {c.student?.institution?.name ?? "—"} — الدرجة: {c.finalScore} / 100
                         </p>
                         <p className="text-xs text-muted-foreground">
                           أصدرها: {c.issuedBy?.name ?? "—"}

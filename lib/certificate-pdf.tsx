@@ -166,7 +166,7 @@ function CertificateDocument({ data }: { data: CertificatePdfData }) {
           قد اجتاز بنجاح اختبار حفظ القرآن الكريم، وقد حصل
           على الدرجة التالية:
         </Text>
-        <Text style={styles.score}>الدرجة النهائية: {finalScore} / 20</Text>
+        <Text style={styles.score}>الدرجة النهائية: {finalScore} / 100</Text>
         <Text style={styles.date}>صدرت بتاريخ {dateStr}</Text>
 
         <View style={styles.footer}>

@@ -34,7 +34,7 @@ export async function fillPdfTemplate(
 
   const fieldValues: Record<string, string> = {
     NAME: studentName,
-    SCORE: `${score} / 20`,
+    SCORE: `${score} / 100`,
     DATE: date,
   };
 

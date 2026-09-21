@@ -60,7 +60,7 @@ export function RejectedStudentsTable({
                   <td className="py-3">{getBranchLabel(student.branch)}</td>
                   <td className="py-3">
                     {student.finalScore !== null
-                      ? `${student.finalScore.toFixed(2)} / 20`
+                      ? `${student.finalScore.toFixed(2)} / 100`
                       : "—"}
                   </td>
                   <td className="py-3">
