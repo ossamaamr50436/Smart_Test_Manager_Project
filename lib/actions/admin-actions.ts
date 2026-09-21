@@ -136,7 +136,10 @@ export async function specialistFinalApprove(
  * - يحوّل الطالب (NOTIFIED) إلى READY_FOR_CERTIFICATE (جاهز للشهادة).
  * - يحدّث تقييمه إلى NOTIFIED ويرسل إشعاراً لمصدر الشهادات.
  */
-export async function headOfAffairsFinalApprove(studentId: string) {
+export async function headOfAffairsFinalApprove(
+  studentId: string,
+  overrideScore?: number | null
+) {
   const user = await requireUser();
 
   // عزل الصلاحيات: رئيس الشؤون فقط
@@ -144,6 +147,18 @@ export async function headOfAffairsFinalApprove(studentId: string) {
 
   if (!studentId || typeof studentId !== "string" || studentId.length < 1 || studentId.length > 64) {
     throw new Error("معرّف الطالب غير صالح");
+  }
+
+  // درجة نهائية معدّلة اختيارية (§8.1): تصريح صريح + توثيق في سجل التدقيق
+  let finalOverride: number | null = null;
+  if (overrideScore !== undefined && overrideScore !== null) {
+    if (typeof overrideScore !== "number" || !Number.isFinite(overrideScore)) {
+      throw new Error("الدرجة المعدّلة غير صحيحة");
+    }
+    if (overrideScore < 0 || overrideScore > 100) {
+      throw new Error("الدرجة المعدّلة يجب أن تكون بين 0 و 100");
+    }
+    finalOverride = Math.round(overrideScore * 10) / 10;
   }
 
   const student = await prisma.student.findUnique({
@@ -164,16 +179,35 @@ export async function headOfAffairsFinalApprove(studentId: string) {
     data: { status: StudentStatus.READY_FOR_CERTIFICATE, finalizedAt: new Date() },
   });
 
-  // تحديث سجل التقييم المعتمد إلى NOTIFIED
+  // تحديث سجل التقييم المعتمد إلى NOTIFIED — مع إمكانية تعديل الدرجة النهائية
   const session = await prisma.examSession.findFirst({
     where: { studentId, assessments: { some: { status: AssessmentStatus.ACCEPTED } } },
     select: { id: true },
   });
   if (session) {
+    const assessments = await prisma.assessment.findMany({
+      where: { examSessionId: session.id, status: AssessmentStatus.ACCEPTED },
+      select: { id: true, finalScore: true, evaluatorId: true },
+    });
     await prisma.assessment.updateMany({
       where: { examSessionId: session.id, status: AssessmentStatus.ACCEPTED },
-      data: { status: AssessmentStatus.NOTIFIED },
+      data: {
+        status: AssessmentStatus.NOTIFIED,
+        ...(finalOverride !== null ? { finalScore: finalOverride } : {}),
+      },
     });
+    // أثر التعديل: لا يُحذف التقييم السابق بلا أثر — يُسجَّل في سجل التدقيق
+    if (finalOverride !== null) {
+      await recordAudit(user.id, AuditAction.APPROVE, {
+        studentId,
+        step: "HEAD_OFFICIAL_SCORE_OVERRIDE",
+        previousScores: assessments.map((a) => ({
+          evaluatorId: a.evaluatorId,
+          score: a.finalScore,
+        })),
+        newScore: finalOverride,
+      });
+    }
   }
 
   // إشعار لمصدر الشهادات

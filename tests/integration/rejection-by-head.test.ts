@@ -255,3 +255,100 @@ test("B4-4: عزل الصلاحيات — لا تسريب بيانات عبر UR
   assert.throws(() => requireRoleForRejection(Role.INSTITUTION));
   assert.throws(() => requireRoleForRejection(Role.CERTIFICATE_SOURCE));
 });
+
+// ==== §8.1 — تعديل الدرجة الاختياري من رئيس الشؤون عند الاعتماد النهائي ====
+test("B4-5: §8.1 — اعتماد الرئيس مع درجة معدّلة اختيارية يطبّق الدرجة ويوثّقها", async () => {
+  const name = `B4 طالب اعتماد معدّل ${Date.now()}`;
+  const { studentId } = await createScenarioStudent(name);
+  const OVERRIDE = 88.5;
+
+  try {
+    // يحاكي headOfAffairsFinalApprove(studentId, 88.5):
+    // NOTIFIED → READY_FOR_CERTIFICATE + finalizedAt؛ التقييم ACCEPTED → NOTIFIED
+    // مع تحديث finalScore وحفظ سجل التدقيق step=HEAD_OFFICIAL_SCORE_OVERRIDE
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { id: true, status: true, tenantId: true },
+    });
+    assert.equal(student?.status, StudentStatus.NOTIFIED);
+
+    await prisma.student.update({
+      where: { id: studentId },
+      data: { status: StudentStatus.READY_FOR_CERTIFICATE, finalizedAt: new Date() },
+    });
+
+    const session = await prisma.examSession.findFirst({
+      where: { studentId, assessments: { some: { status: AssessmentStatus.ACCEPTED } } },
+      select: { id: true },
+    });
+    assert.ok(session, "الجلسة موجودة");
+    const beforeAssessments = await prisma.assessment.findMany({
+      where: { examSessionId: session!.id, status: AssessmentStatus.ACCEPTED },
+      select: { id: true, finalScore: true, evaluatorId: true },
+    });
+    assert.equal(beforeAssessments.length, 1);
+    assert.equal(beforeAssessments[0]!.finalScore, 95);
+
+    await prisma.assessment.updateMany({
+      where: { examSessionId: session!.id, status: AssessmentStatus.ACCEPTED },
+      data: { status: AssessmentStatus.NOTIFIED, finalScore: OVERRIDE },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: HEAD_ID,
+        tenantId: TENANT_ID,
+        action: AuditAction.APPROVE,
+        details: JSON.stringify({
+          studentId,
+          step: "HEAD_OFFICIAL_SCORE_OVERRIDE",
+          previousScores: beforeAssessments.map((a) => ({
+            evaluatorId: a.evaluatorId,
+            score: a.finalScore,
+          })),
+          newScore: OVERRIDE,
+        }),
+      },
+    });
+
+    // التحقق من الحالة الجديدة والدرجة المعدّلة
+    const after = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { status: true, finalizedAt: true },
+    });
+    assert.equal(after?.status, StudentStatus.READY_FOR_CERTIFICATE);
+    assert.ok(after?.finalizedAt, "زمن الاعتماد النهائي مسجل");
+
+    const assessed = await prisma.assessment.findFirst({
+      where: { examSessionId: session!.id },
+      select: { status: true, finalScore: true },
+    });
+    assert.equal(assessed?.status, AssessmentStatus.NOTIFIED);
+    assert.equal(assessed?.finalScore, OVERRIDE);
+
+    // سجل التدقيق يحوي الأثر: الدرجة القديمة 95 والجديدة 88.5
+    const audit = await prisma.auditLog.findFirst({
+      where: {
+        tenantId: TENANT_ID,
+        action: AuditAction.APPROVE,
+        userId: HEAD_ID,
+        details: { string_contains: "HEAD_OFFICIAL_SCORE_OVERRIDE" },
+      },
+      orderBy: { timestamp: "desc" },
+      select: { details: true },
+    });
+    assert.ok(audit, "سجل التدقيق لتعديل الرئيس موجود");
+    assert.ok(JSON.stringify(audit!.details).includes("88.5"), "الدرجة الجديدة موثقة في التدقيق");
+    assert.ok(JSON.stringify(audit!.details).includes("95"), "الدرجة القديمة موثقة في التدقيق");
+  } finally {
+    await prisma.auditLog.deleteMany({
+      where: {
+        tenantId: TENANT_ID,
+        action: AuditAction.APPROVE,
+        userId: HEAD_ID,
+        details: { string_contains: "HEAD_OFFICIAL_SCORE_OVERRIDE" },
+      },
+    });
+    await cleanupScenarioStudent(studentId);
+  }
+});
