@@ -184,7 +184,7 @@ export function EntityCreateForm() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border border-emerald-200 bg-white p-4">
+            <div className="rounded-lg border border-emerald-200 bg-card p-4">
               <p className="text-sm text-muted-foreground">بيانات الدخول</p>
               <div className="mt-1 space-y-2">
                 <p className="text-sm" dir="ltr">
@@ -211,7 +211,7 @@ export function EntityCreateForm() {
                     {copied ? "تم النسخ" : "نسخ"}
                   </Button>
                 </div>
-                <p className="text-xs text-emerald-700">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
                   تدخل الجهة مباشرة بهذه البيانات دون طلب تغيير كلمة المرور.
                 </p>
               </div>
