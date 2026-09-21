@@ -28,7 +28,37 @@ type AdminContext = {
 };
 
 // سياقات ADMIN المزدوجة — الروابط نفسها التي تُعرض حسب الصلاحيات فقط
+// المؤسسة أولاً (يمين RTL) والاختبارات ثانياً (يسار RTL) — المادة 1.5/11
 const ADMIN_CONTEXTS: AdminContext[] = [
+  {
+    id: "institution",
+    label: "المؤسسة",
+    sections: [
+      {
+        title: "رئيسية",
+        links: [{ href: "/admin/institutions", label: "لوحة المؤسسة" }],
+      },
+      {
+        title: "إدارة",
+        links: [
+          { href: "/admin/users", label: "المستخدمون" },
+          { href: "/admin/seasons", label: "المواسم" },
+          { href: "/specialist/entities", label: "الجهات" },
+          { href: "/specialist/entities/create", label: "إنشاء جهة" },
+          { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
+          { href: "/admin/settings", label: "الإعدادات" },
+        ],
+      },
+      {
+        title: "مخرجات",
+        links: [{ href: "/admin/reports", label: "التقارير" }],
+      },
+      {
+        title: "حوكمة",
+        links: [{ href: "/audit-log", label: "سجل التدقيق" }],
+      },
+    ],
+  },
   {
     id: "exams",
     label: "الاختبارات",
@@ -59,35 +89,6 @@ const ADMIN_CONTEXTS: AdminContext[] = [
       {
         title: "مخرجات",
         links: [{ href: "/admin/certificates", label: "الشهادات" }],
-      },
-    ],
-  },
-  {
-    id: "institution",
-    label: "المؤسسة",
-    sections: [
-      {
-        title: "رئيسية",
-        links: [{ href: "/admin/institutions", label: "لوحة المؤسسة" }],
-      },
-      {
-        title: "إدارة",
-        links: [
-          { href: "/admin/users", label: "المستخدمون" },
-          { href: "/admin/seasons", label: "المواسم" },
-          { href: "/specialist/entities", label: "الجهات" },
-          { href: "/specialist/entities/create", label: "إنشاء جهة" },
-          { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
-          { href: "/admin/settings", label: "الإعدادات" },
-        ],
-      },
-      {
-        title: "مخرجات",
-        links: [{ href: "/admin/reports", label: "التقارير" }],
-      },
-      {
-        title: "حوكمة",
-        links: [{ href: "/audit-log", label: "سجل التدقيق" }],
       },
     ],
   },
@@ -223,7 +224,8 @@ export function DashboardSidebar({
   const sections = role ? ROLE_SECTIONS[role] ?? [] : [];
 
   const isAdmin = role === "ADMIN";
-  const [activeContextId, setActiveContextId] = useState<AdminContext["id"]>("exams");
+  // السياق الافتراضي: المؤسسة (يمين RTL) — المادة 1.5/11
+  const [activeContextId, setActiveContextId] = useState<AdminContext["id"]>("institution");
 
   useEffect(() => {
     if (!isAdmin || !pathname) return;
