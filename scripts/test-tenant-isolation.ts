@@ -49,6 +49,8 @@ async function main() {
   });
   check("madina-quran تحتوي نماذج اختبار (بياناتها سليمة)", madinaModelsBefore > 0);
 
+  const totalModelsBefore = await prisma.questionBankModel.count();
+
   const madinaModels = await prisma.questionBankModel.findMany({
     where: { tenantId: madina.id },
     select: { tenantId: true },
@@ -220,7 +222,7 @@ async function main() {
   const allModels = await prisma.questionBankModel.count();
   check(
     "لا بقايا لمؤسسات الاختبار وعاد إجمالي النماذج كما كان",
-    leftoverTenants === 0 && allModels === madinaModelsBefore
+    leftoverTenants === 0 && allModels === totalModelsBefore
   );
 
   // خلاصة
