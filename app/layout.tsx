@@ -30,10 +30,15 @@ export async function generateViewport(): Promise<Viewport> {
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getCachedPlatformSettings();
+  // D3: metadata = line1 + " " + line2 (بدون <br>)
+  const line1 = settings.platformNameLine1?.trim();
+  const line2 = settings.platformNameLine2?.trim();
+  const metaName =
+    line1 && line2 ? `${line1} ${line2}` : line1 || line2 || settings.platformName;
   return {
     title: {
-      default: settings.platformName,
-      template: `%s | ${settings.platformName}`,
+      default: metaName,
+      template: `%s | ${metaName}`,
     },
     description:
       "منصة رقمية متعددة المستأجرين لإدارة الاختبارات، وتنظيم اللجان، وتقييم الطلاب، وإصدار الشهادات.",
@@ -49,8 +54,8 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       locale: "ar_SA",
       url: SITE_URL,
-      siteName: settings.platformName,
-      title: settings.platformName,
+      siteName: metaName,
+      title: metaName,
       description:
         "إدارة اختبارات الطلاب، تشكيل اللجان، التقييم، ومتابعة إصدار الشهادات لمؤسسات تعليمية متعددة.",
       images: [
@@ -64,7 +69,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     robots: { index: true, follow: true },
     alternates: { canonical: SITE_URL },
-    applicationName: settings.platformName,
+    applicationName: metaName,
   };
 }
 
