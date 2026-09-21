@@ -111,12 +111,12 @@ export function InstitutionCertificatesClient({
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="relative">
-              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="بحث باسم الطالب…"
-                className="pr-9"
+                className="ps-9"
               />
             </div>
             <Select value={status} onValueChange={setStatus}>
