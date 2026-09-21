@@ -20,7 +20,10 @@ export default async function ExaminerPendingPage() {
       ...getTenantFilter(user),
       OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      seasonId: true,
       selectedModels: {
         select: { model: { select: { modelNumber: true } } },
         orderBy: { createdAt: "asc" },
@@ -45,6 +48,28 @@ export default async function ExaminerPendingPage() {
   });
   const assessedIds = new Set(myAssessments.map((a) => a.examSession.studentId));
 
+  // M9: النماذج المستخدمة = نماذج حُجزت لطلاب آخرين في نفس اللجنة
+  const usedModelNumbers = new Set<number>();
+  if (committee) {
+    const usedSessions = await prisma.examSession.findMany({
+      where: {
+        seasonId: committee.seasonId,
+        student: { committeeId: committee.id },
+        status: { not: "CANCELLED" },
+        model: { isNot: null },
+      },
+      select: {
+        studentId: true,
+        model: { select: { modelNumber: true } },
+      },
+    });
+    for (const s of usedSessions) {
+      if (!assessedIds.has(s.studentId) && s.model?.modelNumber) {
+        usedModelNumbers.add(s.model.modelNumber);
+      }
+    }
+  }
+
   const pendingStudents = (committee?.students ?? [])
     .filter((s) => !assessedIds.has(s.id))
     .map((s) => ({ id: s.id, name: s.name, branch: s.branch, status: s.status }));
@@ -60,6 +85,7 @@ export default async function ExaminerPendingPage() {
 
       <ExaminerDashboardClient
         pending={pendingStudents}
+        usedModelNumbers={[...usedModelNumbers]}
         committee={
           committee
             ? {

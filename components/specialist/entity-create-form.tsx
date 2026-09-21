@@ -154,7 +154,7 @@ export function EntityCreateForm() {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="inst@example.com"
+                  placeholder="جهة@example.com"
                   dir="ltr"
                 />
               </div>

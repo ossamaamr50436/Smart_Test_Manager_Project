@@ -477,7 +477,7 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            <span>🔗 اذهب إلى UploadThing Dashboard</span>
+            <span>🔗 الانتقال إلى لوحة تحكم UploadThing</span>
             <ExternalLink className="h-4 w-4" />
           </a>
         </CardContent>

@@ -155,7 +155,7 @@ function CertificateDocument({ data }: { data: CertificatePdfData }) {
         <Text style={styles.serial}>{serialNumber}</Text>
         <Text style={styles.title}>شهادة اجتياز اختبار القرآن الكريم</Text>
         <Text style={styles.subtitle}>
-          {organizationName ?? "منصة إدارة الاختبارات الذكية"}
+          {organizationName ?? "منصة مجتاز"}
         </Text>
 
         <Text style={styles.body}>

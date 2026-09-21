@@ -44,7 +44,7 @@ const SHADOW_OPTIONS = [
 const BUTTON_STYLE_OPTIONS = [
   { value: "rounded", label: "متوسط الاستدارة" },
   { value: "square", label: "مربع" },
-  { value: "pill", label: "حبة الدواء (Pill)" },
+  { value: "pill", label: "حبة الدواء" },
 ] as const;
 
 const FONT_OPTIONS = ["Cairo", "Noto Sans Arabic", "Tahoma", "Arial"] as const;
@@ -931,7 +931,7 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Type className="h-5 w-5" />
-            Typography
+            الخطوط
           </CardTitle>
           <CardDescription>الخطوط المستخدمة في العناوين والنصوص</CardDescription>
         </CardHeader>
@@ -973,7 +973,7 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shapes className="h-5 w-5" />
-            Shape
+            الشكل العام
           </CardTitle>
           <CardDescription>
             استدارة الزوايا، شدة الظلال، ونمط الأزرار

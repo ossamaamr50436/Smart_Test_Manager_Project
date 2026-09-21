@@ -85,7 +85,7 @@ export default async function AssessStudentPage({
       OR: [{ teacher1Id: user.id }, { teacher2Id: user.id }],
     },
     orderBy: { createdAt: "desc" },
-    select: { id: true },
+    select: { id: true, modelId: true },
   });
 
   if (!examSession) {
@@ -134,8 +134,76 @@ export default async function AssessStudentPage({
       branch: student.branch,
       modelNumber: modelNumberParam,
     },
-    select: { detailsJSON: true, branch: true, modelNumber: true },
+    select: { id: true, detailsJSON: true, branch: true, modelNumber: true },
   });
+
+  // M9: تعريف «النموذج المستخدم» = نموذج مُسند لطالب آخر في نفس اللجنة/الموسم
+  if (examSession.modelId && examSession.modelId !== model?.id) {
+    return (
+      <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-card p-8 text-center">
+        <h1 className="text-2xl font-bold">رقم النموذج غير مسموح</h1>
+        <p className="mt-3 text-muted-foreground">
+          هذا الطالب مُقيَّم بالفعل بنموذج آخر في هذه الجلسة.
+        </p>
+      </div>
+    );
+  }
+
+  const usedModels = await prisma.examSession.findMany({
+    where: {
+      seasonId: committee.seasonId,
+      studentId: { not: student.id },
+      student: { committeeId: student.committeeId },
+      status: { not: "CANCELLED" },
+    },
+    select: { modelId: true },
+  });
+
+  if (!model) {
+    return (
+      <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-card p-8 text-center">
+        <h1 className="text-2xl font-bold">لا يوجد نموذج اختباري</h1>
+        <p className="mt-3 text-muted-foreground">
+          لم يُعثر على نموذج برقم {modelNumberParam} لهذه اللجنة. يرجى التواصل
+          مع أخصائي الاختبارات.
+        </p>
+      </div>
+    );
+  }
+
+  // M9-A/B: رفض نموذج مستخدم مسبقاً من طالب آخر في نفس اللجنة
+  if (usedModels.some((u) => u.modelId === model.id)) {
+    return (
+      <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-destructive/10 p-8 text-center">
+        <h1 className="text-2xl font-bold">هذا النموذج مستخدم مسبقاً</h1>
+        <p className="mt-3 text-muted-foreground">
+          النموذج رقم {modelNumberParam} سبق استخدامه لاختبار طالب آخر في نفس
+          اللجنة. يرجى اختيار نموذج آخر من النماذج المتاحة.
+        </p>
+      </div>
+    );
+  }
+
+  // M9: ربط النموذج بالجلسة (منع التكرار — يُفرض على الخادم)
+  if (!examSession.modelId) {
+    try {
+      await prisma.examSession.update({
+        where: { id: examSession.id },
+        data: { modelId: model.id },
+      });
+    } catch {
+      // قيد فريد (الموسم + النموذج) — النموذج حُجز للتو من مختبر آخر
+      return (
+        <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-destructive/10 p-8 text-center">
+          <h1 className="text-2xl font-bold">هذا النموذج مستخدم مسبقاً</h1>
+          <p className="mt-3 text-muted-foreground">
+            النموذج رقم {modelNumberParam} حُجز للتو لطالب آخر في نفس اللجنة. يرجى
+            تحديث الصفحة واختيار نموذج آخر.
+          </p>
+        </div>
+      );
+    }
+  }
 
   // استرجاع مقاطع النموذج
   let segments: Segment[] = [];

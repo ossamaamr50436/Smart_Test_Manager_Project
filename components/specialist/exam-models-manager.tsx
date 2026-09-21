@@ -62,7 +62,7 @@ const SEGMENT_FIELDS: {
   { key: "toVerse", label: "الآية (النهاية)", placeholder: "مثال: 28", type: "number" },
 ];
 
-const MAX_SEGMENTS = 30;
+const MAX_SEGMENTS = 10;
 
 function emptySegments(count: number): Segment[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -79,13 +79,15 @@ function emptySegments(count: number): Segment[] {
 function segmentsCountFor(m: ModelRow): number {
   if (m.segmentsCount) return m.segmentsCount;
   const raw = m.detailsJSON as { segments?: unknown[] } | null;
-  return raw?.segments?.length ?? 10;
+  return raw?.segments?.length ?? 5;
 }
 
 export function ExamModelsManager({
   models,
+  nextModelNumbers,
 }: {
   models: ModelRow[];
+  nextModelNumbers: Record<string, number>;
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -93,10 +95,11 @@ export function ExamModelsManager({
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [modelNumber, setModelNumber] = useState("1");
+  const defaultModelNumber = nextModelNumbers?.["5"] ?? 1;
+  const [modelNumber, setModelNumber] = useState(String(defaultModelNumber));
   const [branch, setBranch] = useState<Branch>("5");
-  const [segmentsCount, setSegmentsCount] = useState(10);
-  const [segments, setSegments] = useState<Segment[]>(emptySegments(10));
+  const [segmentsCount, setSegmentsCount] = useState(5);
+  const [segments, setSegments] = useState<Segment[]>(emptySegments(5));
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   function resizeSegments(count: number) {
@@ -113,10 +116,10 @@ export function ExamModelsManager({
 
   function resetForm() {
     setEditingId(null);
-    setModelNumber("1");
+    setModelNumber(String(nextModelNumbers?.["5"] ?? 1));
     setBranch("5");
-    setSegmentsCount(10);
-    setSegments(emptySegments(10));
+    setSegmentsCount(5);
+    setSegments(emptySegments(5));
     setError("");
     setSuccess("");
   }
@@ -233,25 +236,39 @@ export function ExamModelsManager({
           <CardTitle className="text-base">
             {editingId ? "تعديل النموذج" : "إنشاء نموذج اختباري جديد"}
           </CardTitle>
-          <CardDescription>
-            وفق لائحة اختيار فرع كامل القرآن — حتى 100 نموذج لكل فرع، وعدد مقاطع من 1 إلى 30
+<CardDescription>
+            وفق لائحة اختيار فرع كامل القرآن — حتى 100 نموذج لكل فرع، وعدد مقاطع من 1 إلى 10
+            {!editingId && (
+              <span className="mt-1 block text-xs text-muted-foreground">
+                رقم النموذج التالي يُحسب تلقائياً على الخادم
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <Label>رقم النموذج (1-100) *</Label>
+              <Label>رقم النموذج *</Label>
               <Input
                 type="number"
                 min={1}
                 max={100}
                 value={modelNumber}
+                readOnly={!editingId}
                 onChange={(e) => setModelNumber(e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label>الفرع *</Label>
-              <Select value={branch} onValueChange={(v) => setBranch(v as Branch)}>
+              <Select
+                value={branch}
+                onValueChange={(v) => {
+                  setBranch(v as Branch);
+                  if (!editingId) {
+                    setModelNumber(String(nextModelNumbers?.[v] ?? 1));
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -265,7 +282,7 @@ export function ExamModelsManager({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>عدد المقاطع (1-30) *</Label>
+              <Label>عدد المقاطع (1-10) *</Label>
               <Select
                 value={String(segmentsCount)}
                 onValueChange={(v) => {

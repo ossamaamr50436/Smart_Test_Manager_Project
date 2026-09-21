@@ -49,15 +49,25 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
       >
         <Menu className="h-6 w-6" />
       </button>
-      <div className="min-w-0 flex-1 px-3">
-        <p className="truncate text-sm font-bold leading-tight text-[var(--topbar-text)]">
-          {settings?.platformNameLine1 || settings?.platformName || "منصة إدارة الاختبارات الذكية"}
-        </p>
-        {settings?.platformNameLine2 && (
-          <p className="truncate text-xs font-medium leading-tight text-[var(--topbar-text)] opacity-70">
-            {settings.platformNameLine2}
+      <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={settings?.logoUrl || "/logo.svg"}
+          alt={settings?.platformName || "منصة مجتاز"}
+          height={40}
+          width={40}
+          className="h-10 w-10 shrink-0 object-contain"
+        />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold leading-tight text-[var(--topbar-text)]">
+            {settings?.platformNameLine1 || settings?.platformName || "منصة مجتاز"}
           </p>
-        )}
+          {settings?.platformNameLine2 && (
+            <p className="truncate text-xs font-medium leading-tight text-[var(--topbar-text)] opacity-70">
+              {settings.platformNameLine2}
+            </p>
+          )}
+        </div>
       </div>
       <div className="ms-auto flex items-center gap-1">
         {mounted && (

@@ -93,6 +93,7 @@ export async function assertExaminerInSession(user: SessionUser, examSessionId: 
       teacher1Id: true,
       teacher2Id: true,
       status: true,
+      modelId: true,
       student: { select: { id: true, name: true, institutionId: true, branch: true } },
     },
   });

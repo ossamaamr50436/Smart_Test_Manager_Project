@@ -14,11 +14,11 @@ export const questionBankSchema = z.object({
     .number({ invalid_type_error: "عدد المقاطع يجب أن يكون رقماً" })
     .int("عدد المقاطع يجب أن يكون عدداً صحيحاً")
     .min(1, "عدد المقاطع لا يقل عن 1")
-    .max(30, "عدد المقاطع لا يتجاوز 30"),
+    .max(10, "عدد المقاطع لا يتجاوز 10"),
   segments: z
     .array(examSegmentSchema)
     .min(1, "يجب أن يتضمن النموذج مقطعاً واحداً على الأقل")
-    .max(30, "عدد المقاطع لا يتجاوز 30"),
+    .max(10, "عدد المقاطع لا يتجاوز 10"),
 });
 
 export type QuestionBankInput = z.infer<typeof questionBankSchema>;

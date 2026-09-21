@@ -3,7 +3,7 @@
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
-import { AuditAction, Role } from "@prisma/client";
+import { AuditAction, Role, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
   questionBankSchema,
@@ -15,6 +15,39 @@ import {
 } from "@/lib/actions/unique-guard";
 
 const VALID_ROLES: Role[] = [Role.ADMIN, Role.TEST_SPECIALIST];
+
+export type NextModelNumbers = Record<string, number>;
+
+// M7: حساب رقم النموذج التالي تلقائياً (MAX + 1) لكل فرع — معزول عزل tenants
+export async function getNextModelNumbers(): Promise<NextModelNumbers> {
+  const user = await requireUser();
+  requireRole(user, VALID_ROLES);
+
+  const grouped = await prisma.questionBankModel.groupBy({
+    by: ["branch"],
+    where: getTenantFilter(user),
+    _max: { modelNumber: true },
+  });
+
+  const next: NextModelNumbers = {};
+  for (const g of grouped) {
+    next[g.branch] = (g._max.modelNumber ?? 0) + 1;
+  }
+  return next;
+}
+
+// M7: حساب MAX + 1 لفرع محدد داخل معاملة لضمان الترقيم التسلسلي
+async function computeNextModelNumber(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  branch: string
+): Promise<number> {
+  const agg = await tx.questionBankModel.aggregate({
+    where: { tenantId, branch },
+    _max: { modelNumber: true },
+  });
+  return (agg._max.modelNumber ?? 0) + 1;
+}
 
 export async function getQuestionBankModels() {
   const user = await requireUser();
@@ -49,31 +82,20 @@ export async function createQuestionBankModel(input: QuestionBankInput) {
     }
   });
 
-  // تحقق من عدم التكرار
-  const existing = await prisma.questionBankModel.findFirst({
-    where: {
-      ...getTenantFilter(user),
-      modelNumber: data.modelNumber,
-      branch: data.branch,
-    },
-    select: { id: true },
-  });
-  if (existing) {
-    throw new Error(
-      `يوجد نموذج برقم ${data.modelNumber} لفرع ${data.branch} أجزاء في بنك الأسئلة`
-    );
-  }
+  const tenantId = requireTenantId(user);
 
   const model = await prisma.$transaction(async (tx) => {
+    // M7: رقم النموذج التالي يُحسب على الخادم (MAX + 1) — يتجاهل قيمة العميل نهائياً
+    const nextModelNumber = await computeNextModelNumber(tx, tenantId, data.branch);
     let created;
     try {
       created = await tx.questionBankModel.create({
         data: {
-          modelNumber: data.modelNumber,
+          modelNumber: nextModelNumber,
           branch: data.branch,
           detailsJSON: { segments },
           segmentsCount: data.segmentsCount,
-          tenantId: requireTenantId(user),
+          tenantId,
         },
       });
     } catch (error) {
@@ -83,12 +105,12 @@ export async function createQuestionBankModel(input: QuestionBankInput) {
     await tx.auditLog.create({
       data: {
         userId: user.id,
-        tenantId: requireTenantId(user),
+        tenantId,
         action: AuditAction.CREATE,
         details: JSON.stringify({
           entity: "QuestionBankModel",
           modelId: created.id,
-          modelNumber: data.modelNumber,
+          modelNumber: nextModelNumber,
           branch: data.branch,
         }),
       },

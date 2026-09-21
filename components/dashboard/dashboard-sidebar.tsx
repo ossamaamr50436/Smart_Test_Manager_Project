@@ -47,6 +47,7 @@ const ADMIN_CONTEXTS: AdminContext[] = [
           { href: "/specialist/entities/create", label: "إنشاء جهة" },
           { href: "/test-specialist/assessment-settings", label: "إعدادات التقييم" },
           { href: "/admin/settings", label: "الإعدادات" },
+          { href: "/admin/design-settings", label: "إعدادات التصميم" },
         ],
       },
       {
@@ -252,7 +253,7 @@ export function DashboardSidebar({
     ? activeAdminContext.sections
     : sections;
 
-  const platformName = settings?.platformName ?? "منصة إدارة الاختبارات الذكية";
+  const platformName = settings?.platformName ?? "منصة مجتاز";
   const whatsappNumber = settings?.whatsappNumber ?? null;
 
   return (
@@ -282,9 +283,9 @@ export function DashboardSidebar({
             <img
               src={settings?.logoUrl || "/logo.svg"}
               alt={platformName}
-              height={56}
-              width={56}
-              className="h-14 w-14 shrink-0 rounded-lg bg-white/95 object-contain p-1 transition-transform duration-150 group-hover:scale-105 group-focus-visible:scale-105"
+              height={80}
+              width={80}
+              className="h-20 w-20 shrink-0 object-contain transition-transform duration-150 group-hover:scale-105 group-focus-visible:scale-105"
             />
             <div className="min-w-0">
               <p className="text-base font-bold leading-tight text-[var(--sidebar-text)]">

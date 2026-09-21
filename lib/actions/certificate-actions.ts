@@ -13,7 +13,7 @@ import {
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { generateCertificatePdfBuffer } from "@/lib/certificate-pdf";
-import { uploadFile } from "@/lib/file-storage";
+import { uploadFile, deleteFile, isTrustedStoredUrl, isValidFileKey } from "@/lib/file-storage";
 import {
   isUniqueConstraintError,
   friendlyUniqueMessage,
@@ -386,6 +386,72 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
   revalidatePath("/certificate-source");
 
   return { success: true, certificateId, signatureUrl: uploaded.url };
+}
+
+/**
+ * ربط ملف شهادة مرفوع من الواجهة (UploadThing) بسجل شهادة — CERTIFICATE_SOURCE فقط
+ * - مطلوب: رابط موثوق (isTrustedStoredUrl) + معرّف ملف صالح (isValidFileKey)
+ * - يرفع حالة الشهادة إلى UPLOADED دون تغيير حالة التوقيع
+ */
+export async function attachCertificateFile(input: {
+  certificateId: string;
+  url: string;
+  fileId: string;
+}) {
+  const user = await requireUser();
+
+  // عزل الصلاحيات: مصدر الشهادات فقط (المادة 8/5)
+  requireRole(user, [Role.CERTIFICATE_SOURCE]);
+
+  await checkRateLimit(`attach-certificate:${user.id}`, 30);
+
+  if (!input.certificateId || input.certificateId.length < 5) {
+    throw new Error("معرّف الشهادة غير صالح");
+  }
+  if (!isTrustedStoredUrl(input.url) || !isValidFileKey(input.fileId)) {
+    throw new Error("الرابط المرفوع غير موثوق — أعد رفع الملف");
+  }
+
+  const certificate = await prisma.certificate.findUnique({
+    where: { id: input.certificateId },
+    select: { id: true, serialNumber: true, status: true, tenantId: true, fileId: true },
+  });
+  if (!certificate) {
+    throw new Error("الشهادة غير موجودة");
+  }
+  assertSameTenant(user, certificate);
+
+  // حذف الملف القديم إن وُجد لتجنب تراكم الملفات
+  if (certificate.fileId && certificate.fileId !== input.fileId) {
+    try {
+      await deleteFile(certificate.fileId);
+    } catch {
+      // استمرار في الربط حتى لو فشل حذف القديم
+    }
+  }
+
+  await prisma.certificate.update({
+    where: { id: input.certificateId },
+    data: {
+      fileUrl: input.url,
+      fileId: input.fileId,
+      issuedDate: new Date(),
+      status: CertificateStatus.UPLOADED,
+    },
+  });
+
+  await recordAudit(user.id, AuditAction.UPDATE, {
+    entity: "Certificate",
+    certificateId: input.certificateId,
+    serialNumber: certificate.serialNumber,
+    fileId: input.fileId,
+    step: "CERTIFICATE_FILE_UPLOADED",
+    status: CertificateStatus.UPLOADED,
+  });
+
+  revalidatePath("/certificate-source");
+
+  return { success: true, certificateId: input.certificateId, url: input.url };
 }
 
 /**

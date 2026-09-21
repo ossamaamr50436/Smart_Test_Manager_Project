@@ -3,7 +3,7 @@
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { getTenantFilter, assertSameTenant } from "@/lib/tenancy";
-import { AuditAction, Role } from "@prisma/client";
+import { AuditAction, Role, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
   questionBankSchema,
@@ -15,6 +15,19 @@ import {
 } from "@/lib/actions/unique-guard";
 
 const VALID_ROLES: Role[] = [Role.TEST_SPECIALIST, Role.ADMIN];
+
+// M7: حساب MAX + 1 لفرع محدد داخل معاملة لضمان الترقيم التسلسلي
+async function computeNextModelNumber(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  branch: string
+): Promise<number> {
+  const agg = await tx.questionBankModel.aggregate({
+    where: { tenantId, branch },
+    _max: { modelNumber: true },
+  });
+  return (agg._max.modelNumber ?? 0) + 1;
+}
 
 export async function createExamModel(input: QuestionBankInput) {
   const user = await requireUser();
@@ -38,16 +51,20 @@ export async function createExamModel(input: QuestionBankInput) {
     }
   });
 
+  const tenantId = requireTenantId(user);
+
   const model = await prisma.$transaction(async (tx) => {
+    // M7: رقم النموذج التالي يُحسب على الخادم (MAX + 1) — يتجاهل قيمة العميل نهائياً
+    const nextModelNumber = await computeNextModelNumber(tx, tenantId, data.branch);
     let created;
     try {
       created = await tx.questionBankModel.create({
         data: {
-          modelNumber: data.modelNumber,
+          modelNumber: nextModelNumber,
           branch: data.branch,
           detailsJSON: { segments },
           segmentsCount: data.segmentsCount,
-          tenantId: requireTenantId(user),
+          tenantId,
         },
       });
     } catch (error) {
@@ -57,12 +74,12 @@ export async function createExamModel(input: QuestionBankInput) {
     await tx.auditLog.create({
       data: {
         userId: user.id,
-        tenantId: requireTenantId(user),
+        tenantId,
         action: AuditAction.CREATE,
         details: JSON.stringify({
           entity: "QuestionBankModel",
           modelId: created.id,
-          modelNumber: data.modelNumber,
+          modelNumber: nextModelNumber,
           branch: data.branch,
         }),
       },

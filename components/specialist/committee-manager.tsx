@@ -3,6 +3,7 @@
 import { getBranchLabel } from "@/lib/utils";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createCommittee, updateCommittee, deleteCommittee, assignStudentToCommittee } from "@/lib/actions/committee-actions";
 import { BRANCHES } from "@/lib/validations/assessment";
 import { PERIODS } from "@/lib/validations/student";
@@ -380,6 +381,21 @@ export function CommitteeManager({
                             <span className="text-xs">
                               {c.selectedModels.map((s) => s.model.modelNumber).join("، ")}
                             </span>
+                          )}
+                          {c._count.students > c.selectedModels.length && (
+                            <div className="mt-1 space-y-1">
+                              <p className="rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+                                تنبيه: عدد الطلاب ({c._count.students}) أكبر من عدد النماذج
+                                المختارة ({c.selectedModels.length}) — لن يتكرر النموذج بين
+                                الطلاب في نفس اللجنة
+                              </p>
+                              <Link
+                                href="/test-specialist/models"
+                                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                              >
+                                إدارة النماذج
+                              </Link>
+                            </div>
                           )}
                         </td>
                         <td className="p-2 text-center">

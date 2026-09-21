@@ -54,7 +54,7 @@ export function CreateTenantForm() {
       <CardHeader>
         <CardTitle>بيانات المؤسسة</CardTitle>
         <CardDescription>
-          المعرّف (slug) يُستخدم كرمز تأكيد للحذف القسري لاحقاً.
+          المعرّف التقني (بأحرف لاتينية) يُستخدم كرمز تأكيد للحذف القسري لاحقاً.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -69,7 +69,7 @@ export function CreateTenantForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="slug">المعرّف (slug)</Label>
+            <Label htmlFor="slug">المعرّف المختصر</Label>
             <Input
               id="slug"
               value={form.slug}

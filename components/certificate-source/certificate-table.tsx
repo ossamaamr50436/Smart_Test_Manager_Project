@@ -5,7 +5,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { generateCertificate, sendCertificateToInstitution } from "@/lib/actions/certificate-actions";
+import { UploadButton } from "@/lib/uploadthing";
+import { generateCertificate, sendCertificateToInstitution, attachCertificateFile } from "@/lib/actions/certificate-actions";
 
 type ReadyStudent = {
   id: string;
@@ -177,6 +178,31 @@ export function CertificateTable({
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {cert.status === "PENDING" && !cert.fileUrl && (
+                      <UploadButton
+                        endpoint="certificateUploader"
+                        onClientUploadComplete={async (res) => {
+                          const file = res[0];
+                          if (!file) return;
+                          try {
+                            await attachCertificateFile({
+                              certificateId: cert.id,
+                              url: file.ufsUrl,
+                              fileId: file.key,
+                            });
+                            setSuccess("تم ربط ملف الشهادة بنجاح");
+                            router.refresh();
+                          } catch (e) {
+                            setError(
+                              e instanceof Error ? e.message : "تعذر ربط ملف الشهادة"
+                            );
+                          }
+                        }}
+                        onUploadError={(err) =>
+                          setError(err.message || "تعذر رفع الملف")
+                        }
+                      />
+                    )}
                     {cert.status === "SIGNED" && (
                       <Button
                         size="sm"

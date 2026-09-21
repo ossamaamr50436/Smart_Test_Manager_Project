@@ -45,6 +45,19 @@ export const ourFileRouter = {
     .onUploadComplete(async ({ metadata, file }) => {
       return { url: file.ufsUrl, key: file.key };
     }),
+
+  // ملف الشهادة النهائي — CERTIFICATE_SOURCE فقط (مرفوع من الواجهة أو PDF مولّد)
+  certificateUploader: f({ pdf: { maxFileSize: "16MB", maxFileCount: 1 } })
+    .middleware(async () => {
+      const user = await getCurrentUser();
+      if (!user || user.role !== "CERTIFICATE_SOURCE") {
+        throw new UploadThingError("غير مصرح برفع ملف شهادة");
+      }
+      return { userId: user.id, tenantId: user.tenantId };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return { url: file.ufsUrl, key: file.key };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;

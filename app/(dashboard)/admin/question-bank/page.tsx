@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser, requireRole } from "@/lib/security";
 import { Role } from "@prisma/client";
-import { getQuestionBankModels } from "@/lib/actions/question-bank-actions";
+import {
+  getQuestionBankModels,
+  getNextModelNumbers,
+} from "@/lib/actions/question-bank-actions";
 import { QuestionBankManager } from "@/components/admin/question-bank-manager";
 
 export const metadata: Metadata = {
@@ -18,6 +21,7 @@ export default async function QuestionBankPage() {
   requireRole(user, [Role.ADMIN, Role.TEST_SPECIALIST]);
 
   const models = await getQuestionBankModels();
+  const nextModelNumbers = await getNextModelNumbers();
 
   return (
     <div className="space-y-6">
@@ -27,7 +31,7 @@ export default async function QuestionBankPage() {
           نماذج اختبارية دائمة (بلا موسم) — مشتركة على مستوى المؤسسة للاستخدام في جميع المواسم
         </p>
       </div>
-      <QuestionBankManager models={models} />
+      <QuestionBankManager models={models} nextModelNumbers={nextModelNumbers} />
     </div>
   );
 }

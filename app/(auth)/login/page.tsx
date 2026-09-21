@@ -43,9 +43,6 @@ export default async function LoginPage() {
               <span className="block">{settings.platformNameLine2}</span>
             )}
           </h1>
-          <p className="mt-2 text-sm font-medium text-primary-foreground/85">
-            منصة إدارة الاختبارات وتنظيم اللجان
-          </p>
         </div>
         <LoginForm />
       </div>

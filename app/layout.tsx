@@ -40,10 +40,9 @@ export async function generateMetadata(): Promise<Metadata> {
       default: metaName,
       template: `%s | ${metaName}`,
     },
-    description:
-      "منصة رقمية متعددة المستأجرين لإدارة الاختبارات، وتنظيم اللجان، وتقييم الطلاب، وإصدار الشهادات.",
+    description: metaName,
     keywords: [
-      "منصة إدارة الاختبارات",
+      "منصة مجتاز",
       "اختبارات",
       "تقييم الطلاب",
       "لجان اختبار",
@@ -56,8 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
       url: SITE_URL,
       siteName: metaName,
       title: metaName,
-      description:
-        "إدارة اختبارات الطلاب، تشكيل اللجان، التقييم، ومتابعة إصدار الشهادات لمؤسسات تعليمية متعددة.",
+      description: metaName,
       images: [
         {
           url: settings.logoUrl || "/logo.svg",
@@ -79,10 +77,9 @@ function buildOrganizationSchema(platformName: string) {
     "@context": "https://schema.org",
     "@type": "EducationalOrganization",
     name: platformName,
-    alternateName: "منصة إدارة الاختبارات الذكية",
+    alternateName: platformName,
     url: SITE_URL,
-    description:
-      "منصة رقمية متعددة المستأجرين لإدارة الاختبارات وتنظيم اللجان وتقييم الطلاب.",
+    description: platformName,
     inLanguage: "ar-SA",
   };
 }

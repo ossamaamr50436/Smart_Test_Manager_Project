@@ -24,27 +24,6 @@ import { dispatchNotificationChannels } from "@/lib/notifications";
 /** تسجيل حدث في Audit Log — تتم داخل prisma.$transaction عبر client المتداول */
 
 /**
- * إيجاد نموذج اختباري للطالب — بنك الأسئلة فقط (المهمة I)
- * يعمل مع الجلسات القديمة واللجان الجديدة
- */
-async function resolveModelId(
-  sessionId: string,
-  branch: string,
-  tenantId: string
-): Promise<string | null> {
-  // محاولة العثور على نموذج في بنك الأسئلة للفرع
-  const model = await prisma.questionBankModel.findFirst({
-    where: { tenantId, branch },
-    select: { id: true, modelNumber: true },
-    orderBy: { modelNumber: "asc" },
-  });
-
-  if (model) return model.id;
-
-  return null;
-}
-
-/**
  * حفظ أو تحديث سجل تقييم — خاص بالمختبرين
  * وفق لائحة اختيار فرع كامل القرآن (100 درجة)
  */
@@ -66,10 +45,13 @@ export async function saveAssessment(input: AssessmentInput) {
 
   const totals = computeTotals(data);
 
-  const modelId = await resolveModelId(session.id, session.student.branch, requireTenantId(user));
+  // M9: النموذج المرتبط بالجلسة (يُعيّن عند بدء التقييم من صفحة المختبر) — يُستخدم دون غيره
+  // لا يمكن للعميل تمرير modelId — الخادم يقرأ الخيار المُرتبط بالجلسة فقط
+  const modelId = "modelId" in session ? (session.modelId ?? null) : null;
 
   if (!modelId) {
-    throw new Error("لا يوجد نموذج اختباري مرتبط بهذه الجهة في الموسم الحالي");
+    // جلسات قديمة بلا نموذج مرتبط — نمنع إنشاء تقييم بلا نموذج محدد (يُنظّم عبر صفحة التقييم)
+    throw new Error("لم يُحدَّد نموذج اختباري لهذه الجلسة — ابدأ التقييم من لوحة المختبر");
   }
 
   const existing = await prisma.assessment.findFirst({

@@ -12,7 +12,7 @@ export async function GET() {
   } catch {
     return NextResponse.json(
       {
-        platformName: "منصة إدارة الاختبارات الذكية",
+        platformName: "منصة مجتاز",
         platformNameLine1: null,
         platformNameLine2: null,
         logoUrl: null,

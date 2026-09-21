@@ -46,6 +46,7 @@ type CommitteeInfo = {
 type Props = {
   pending?: StudentRow[];
   tested?: TestedStudent[];
+  usedModelNumbers?: number[];
   committee: CommitteeInfo | null;
 };
 
@@ -65,7 +66,7 @@ const ASSESSMENT_STATUS_LABELS: Record<string, string> = {
   APPROVED: "معتمد من قبلك",
 };
 
-export function ExaminerDashboardClient({ pending, tested, committee }: Props) {
+export function ExaminerDashboardClient({ pending, tested, usedModelNumbers = [], committee }: Props) {
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [modelNumber, setModelNumber] = useState("");
@@ -91,6 +92,14 @@ export function ExaminerDashboardClient({ pending, tested, committee }: Props) {
     if (committee && committee.modelNumbers.length > 0 && !committee.modelNumbers.includes(num)) {
       setModelError(
         `رقم النموذج ${num} غير مسموح للجنة — النماذج المسموحة: ${committee.modelNumbers.join("، ")}`
+      );
+      return;
+    }
+
+    // M9: منع اختيار نموذج مستخدم مسبقاً في نفس اللجنة
+    if (usedModelNumbers.includes(num)) {
+      setModelError(
+        `رقم النموذج ${num} مستخدم مسبقاً لطالب آخر في اللجنة — اختر نموذجاً متاحاً`
       );
       return;
     }
@@ -246,21 +255,33 @@ export function ExaminerDashboardClient({ pending, tested, committee }: Props) {
               <div className="space-y-2">
                 <Label>اختر رقم النموذج</Label>
                 <div className="grid max-h-44 grid-cols-6 gap-1.5 overflow-y-auto rounded-md border p-2">
-                  {committee.modelNumbers.map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => { setModelNumber(String(num)); setModelError(""); }}
-                      className={`rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors ${
-                        modelNumber === String(num)
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
-                      }`}
-                    >
-                      {num}
-                    </button>
-                  ))}
+                  {committee.modelNumbers.map((num) => {
+                    const used = usedModelNumbers.includes(num);
+                    return (
+                      <button
+                        key={num}
+                        type="button"
+                        disabled={used}
+                        onClick={() => { setModelNumber(String(num)); setModelError(""); }}
+                        title={used ? "مستخدم مسبقاً لطالب آخر في اللجنة" : undefined}
+                        className={`rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors ${
+                          used
+                            ? "cursor-not-allowed border-muted bg-muted text-muted-foreground/40 line-through"
+                            : modelNumber === String(num)
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    );
+                  })}
                 </div>
+                {usedModelNumbers.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    الأرقام المشطوبة مستخدمة مسبقاً لطلاب آخرين في اللجنة
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-2">

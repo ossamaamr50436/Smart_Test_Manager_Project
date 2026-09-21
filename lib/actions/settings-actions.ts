@@ -2,7 +2,7 @@
 
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireRole } from "@/lib/security";
+import { requireUser, requireRole, requireTenantId } from "@/lib/security";
 import { Role, AuditAction } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import {
@@ -377,9 +377,9 @@ export async function updateTemplateSettings(
 }
 
 /**
- * تحديث إعدادات المظهر والحوكمة (ADMIN فقط)
- * - الألوان (primary/secondary)
- * - الوضع المظلم
+ * تحديث إعدادات المظهر الأساسية (ADMIN فقط) — يكتب حصراً ضمن جهة المستخدم
+ * - يخزّن في TenantDesignSettings بدلاً من الـ singleton العام (إصلاح M17/M18)
+ * - SUPER_ADMIN يعدّل الافتراضيات عبر updateDesignSettings (المنصة)
  */
 export async function updateAppearanceSettings(input: {
   primaryColor: string;
@@ -400,20 +400,31 @@ export async function updateAppearanceSettings(input: {
     throw new Error("اللون الثانوي غير صالح — استخدم صيغة HEX مثل #d3bb8b");
   }
 
-  await prisma.appSettings.upsert({
-    where: { id: "singleton" },
-    update: {
+  if (user.role === Role.ADMIN) {
+    // ADMIN → كتابة نطاقية للجهة فقط (إصلاح العيب عبر الـ singleton)
+    const tenantId = requireTenantId(user);
+    const prevTokens = (
+      await prisma.tenantDesignSettings.findUnique({ where: { tenantId } })
+    )?.tokens as Record<string, never> | null ?? {};
+    const nextTokens: Record<string, string | boolean> = {
+      ...prevTokens,
       primaryColor,
       secondaryColor,
       darkModeEnabled,
-    },
-    create: {
-      id: "singleton",
-      primaryColor,
-      secondaryColor,
-      darkModeEnabled,
-    },
-  });
+    };
+    await prisma.tenantDesignSettings.upsert({
+      where: { tenantId },
+      update: { tokens: nextTokens, updatedBy: user.id },
+      create: { tenantId, tokens: nextTokens, updatedBy: user.id },
+    });
+  } else {
+    // SUPER_ADMIN → افتراضيات المنصة (الموضع المنفصل لوضع المنصة — M17-E)
+    await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      update: { primaryColor, secondaryColor, darkModeEnabled },
+      create: { id: "singleton", primaryColor, secondaryColor, darkModeEnabled },
+    });
+  }
 
   await prisma.auditLog.create({
     data: {
@@ -421,7 +432,7 @@ export async function updateAppearanceSettings(input: {
       tenantId: user.tenantId,
       action: AuditAction.UPDATE,
       details: JSON.stringify({
-        entity: "AppSettings",
+        entity: user.role === Role.ADMIN ? "TenantDesignSettings" : "AppSettings",
         primaryColor,
         secondaryColor,
         darkModeEnabled,
@@ -429,7 +440,7 @@ export async function updateAppearanceSettings(input: {
     },
   });
 
-revalidateTag("platform-settings");
+  revalidateTag("platform-settings");
   revalidatePath("/super-admin/settings");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -586,6 +597,332 @@ revalidateTag("platform-settings");
   revalidatePath("/admin/settings");
   revalidatePath("/");
   revalidatePath("/login");
+
+  return { success: true };
+}
+
+/**
+ * جلب إعدادات التصميم الخاصة بجهة معيّنة (M17)
+ * - تُدمج فوق افتراضيات المنصة (AppSettings) — تعود لقيم المنصة عند غياب تجاوز.
+ * - أول استدعاء لا يتطلب مصادقة (يُستخدم في طبقة العرض داخل الجهة فقط).
+ */
+export type DesignTokens = {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  textColor: string;
+  borderColor: string;
+  headingFont: string;
+  bodyFont: string;
+  borderRadius: string;
+  shadowIntensity: string;
+  buttonStyle: string;
+  sidebarBg: string;
+  sidebarText: string;
+  sidebarActiveBg: string;
+  sidebarActiveText: string;
+  topbarBg: string;
+  topbarText: string;
+  loginBg: string;
+  loginGradientFrom: string;
+  loginGradientTo: string;
+  loginCardBg: string;
+  buttonPrimaryBg: string;
+  buttonPrimaryText: string;
+  buttonSecondaryBg: string;
+  buttonSecondaryText: string;
+  primaryColorDark: string;
+  secondaryColorDark: string;
+  accentColorDark: string;
+  backgroundColorDark: string;
+  textColorDark: string;
+  borderColorDark: string;
+  sidebarBgDark: string;
+  sidebarTextDark: string;
+  sidebarActiveBgDark: string;
+  sidebarActiveTextDark: string;
+  topbarBgDark: string;
+  topbarTextDark: string;
+  loginBgDark: string;
+  loginGradientFromDark: string;
+  loginGradientToDark: string;
+  loginCardBgDark: string;
+  buttonPrimaryBgDark: string;
+  buttonPrimaryTextDark: string;
+  buttonSecondaryBgDark: string;
+  buttonSecondaryTextDark: string;
+};
+
+const PLATFORM_DESIGN_DEFAULTS: Omit<DesignTokens, "primaryColor" | "secondaryColor"> & { primaryColor: string; secondaryColor: string } = {
+  primaryColor: "#015e63",
+  secondaryColor: "#d3bb8b",
+  accentColor: "#1a262e",
+  backgroundColor: "#ffffff",
+  textColor: "#0f172a",
+  borderColor: "#e2e8f0",
+  headingFont: "Cairo",
+  bodyFont: "Cairo",
+  borderRadius: "0.5rem",
+  shadowIntensity: "md",
+  buttonStyle: "rounded",
+  sidebarBg: "#015e63",
+  sidebarText: "#ffffff",
+  sidebarActiveBg: "#014a4e",
+  sidebarActiveText: "#ffffff",
+  topbarBg: "#ffffff",
+  topbarText: "#0f172a",
+  loginBg: "#015e63",
+  loginGradientFrom: "#014a4e",
+  loginGradientTo: "#d3bb8b",
+  loginCardBg: "#ffffff",
+  buttonPrimaryBg: "#015e63",
+  buttonPrimaryText: "#ffffff",
+  buttonSecondaryBg: "#d3bb8b",
+  buttonSecondaryText: "#0f172a",
+  primaryColorDark: "#0e6e73",
+  secondaryColorDark: "#e2d3ab",
+  accentColorDark: "#0f1a22",
+  backgroundColorDark: "#0e171b",
+  textColorDark: "#eef1f4",
+  borderColorDark: "#24343e",
+  sidebarBgDark: "#071014",
+  sidebarTextDark: "#dbe7ec",
+  sidebarActiveBgDark: "#015e63",
+  sidebarActiveTextDark: "#ffffff",
+  topbarBgDark: "#121c22",
+  topbarTextDark: "#eef1f4",
+  loginBgDark: "#0a1416",
+  loginGradientFromDark: "#06282b",
+  loginGradientToDark: "#182830",
+  loginCardBgDark: "#121c22",
+  buttonPrimaryBgDark: "#0e6e73",
+  buttonPrimaryTextDark: "#ffffff",
+  buttonSecondaryBgDark: "#d3bb8b",
+  buttonSecondaryTextDark: "#0f172a",
+};
+
+const DESIGN_TOKEN_KEYS = Object.keys(PLATFORM_DESIGN_DEFAULTS);
+
+function pickDesignTokens(source: DesignTokens): DesignTokens {
+  const result = {} as DesignTokens;
+  for (const key of DESIGN_TOKEN_KEYS as (keyof DesignTokens)[]) {
+    result[key] = source[key];
+  }
+  return result;
+}
+
+/** جلب إعدادات التصميم المدموجة لجهة (تجاوزات الجهة فوق افتراضيات المنصة) */
+export async function getTenantDesignSettings(
+  tenantId: string
+): Promise<{ tokens: DesignTokens; hasOverrides: boolean }> {
+  if (!tenantId) {
+    return { tokens: PLATFORM_DESIGN_DEFAULTS, hasOverrides: false };
+  }
+
+  const tenantDesign = await prisma.tenantDesignSettings.findUnique({
+    where: { tenantId },
+    select: { tokens: true },
+  });
+
+  if (!tenantDesign?.tokens) {
+    return { tokens: PLATFORM_DESIGN_DEFAULTS, hasOverrides: false };
+  }
+
+  const stored = tenantDesign.tokens as Record<string, unknown>;
+  const merged = { ...PLATFORM_DESIGN_DEFAULTS };
+  for (const key of DESIGN_TOKEN_KEYS) {
+    const value = stored[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      merged[key as keyof DesignTokens] = value as never;
+    }
+  }
+  return { tokens: merged, hasOverrides: true };
+}
+
+/** جلب التجاوزات المرتبطة بالجهة الحالية للمستخدم (لا يلمس جهات أخرى) */
+export async function getMyTenantDesignTokens(): Promise<DesignTokens | null> {
+  const user = await requireUser();
+  if (!user.tenantId) return null;
+  const { tokens } = await getTenantDesignSettings(user.tenantId);
+  return tokens;
+}
+
+/**
+ * تحديث إعدادات التصميم الخاصة بجهة (M17) — ADMIN فقط وبوجود tenant
+ * - يكتب حصراً ضمن جهة المستخدم (tenantId من الجلسة وليس من الطلب) (M17-B/M18-D)
+ * - لا يعدّل إعدادات المنصة العامة (AppSettings) (M17-E)
+ */
+export async function updateTenantDesignSettings(input: {
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  headingFont?: string;
+  bodyFont?: string;
+  borderRadius?: string;
+  shadowIntensity?: string;
+  buttonStyle?: string;
+  sidebarBg?: string;
+  sidebarText?: string;
+  sidebarActiveBg?: string;
+  sidebarActiveText?: string;
+  topbarBg?: string;
+  topbarText?: string;
+  loginBg?: string;
+  loginGradientFrom?: string;
+  loginGradientTo?: string;
+  loginCardBg?: string;
+  buttonPrimaryBg?: string;
+  buttonPrimaryText?: string;
+  buttonSecondaryBg?: string;
+  buttonSecondaryText?: string;
+  // Dark Mode Tokens (D1)
+  primaryColorDark?: string;
+  secondaryColorDark?: string;
+  accentColorDark?: string;
+  backgroundColorDark?: string;
+  textColorDark?: string;
+  borderColorDark?: string;
+  sidebarBgDark?: string;
+  sidebarTextDark?: string;
+  sidebarActiveBgDark?: string;
+  sidebarActiveTextDark?: string;
+  topbarBgDark?: string;
+  topbarTextDark?: string;
+  loginBgDark?: string;
+  loginGradientFromDark?: string;
+  loginGradientToDark?: string;
+  loginCardBgDark?: string;
+  buttonPrimaryBgDark?: string;
+  buttonPrimaryTextDark?: string;
+  buttonSecondaryBgDark?: string;
+  buttonSecondaryTextDark?: string;
+}): Promise<{ success: boolean }> {
+  const user = await requireUser();
+
+  // عزل الصلاحيات: ADMIN فقط — وليس SUPER_ADMIN (الجهات لا تصمم المنصة)
+  requireRole(user, [Role.ADMIN]);
+  const tenantId = requireTenantId(user); // من الجلسة حصراً — لا يوجد معرّف جهة في الطلب
+
+  const hexOrEmpty = (value?: string) => {
+    if (value === undefined || value.trim() === "") return undefined;
+    if (!/^#[0-9a-fA-F]{6}$/.test(value.trim())) {
+      throw new Error("القيم الملوّنة يجب أن تكون بصيغة HEX مثل #015e63");
+    }
+    return value.trim();
+  };
+
+  const allowedRadius = ["0rem", "0.25rem", "0.5rem", "0.75rem", "1rem"];
+  const allowedShadows = ["none", "sm", "md", "lg", "xl"];
+  const allowedButtonStyles = ["rounded", "square", "pill"];
+  const allowedFonts = ["Cairo", "Noto Sans Arabic", "Tahoma", "Arial"];
+
+  if (input.borderRadius && !allowedRadius.includes(input.borderRadius)) {
+    throw new Error("قيمة استدارة الزوايا غير صالحة");
+  }
+  if (input.shadowIntensity && !allowedShadows.includes(input.shadowIntensity)) {
+    throw new Error("قيمة شدة الظلال غير صالحة");
+  }
+  if (input.buttonStyle && !allowedButtonStyles.includes(input.buttonStyle)) {
+    throw new Error("قيمة نمط الأزرار غير صالحة");
+  }
+  if (input.headingFont && !allowedFonts.includes(input.headingFont)) {
+    throw new Error("الخط غير مسموح");
+  }
+  if (input.bodyFont && !allowedFonts.includes(input.bodyFont)) {
+    throw new Error("الخط غير مسموح");
+  }
+
+  const colorKeys = [
+    "primaryColor",
+    "secondaryColor",
+    "accentColor",
+    "backgroundColor",
+    "textColor",
+    "borderColor",
+    "sidebarBg",
+    "sidebarText",
+    "sidebarActiveBg",
+    "sidebarActiveText",
+    "topbarBg",
+    "topbarText",
+    "loginBg",
+    "loginGradientFrom",
+    "loginGradientTo",
+    "loginCardBg",
+    "buttonPrimaryBg",
+    "buttonPrimaryText",
+    "buttonSecondaryBg",
+    "buttonSecondaryText",
+    "primaryColorDark",
+    "secondaryColorDark",
+    "accentColorDark",
+    "backgroundColorDark",
+    "textColorDark",
+    "borderColorDark",
+    "sidebarBgDark",
+    "sidebarTextDark",
+    "sidebarActiveBgDark",
+    "sidebarActiveTextDark",
+    "topbarBgDark",
+    "topbarTextDark",
+    "loginBgDark",
+    "loginGradientFromDark",
+    "loginGradientToDark",
+    "loginCardBgDark",
+    "buttonPrimaryBgDark",
+    "buttonPrimaryTextDark",
+    "buttonSecondaryBgDark",
+    "buttonSecondaryTextDark",
+  ] as const;
+
+  const tokens: Record<string, string> = {};
+  for (const key of colorKeys) {
+    const cleaned = hexOrEmpty(input[key]);
+    if (cleaned !== undefined) tokens[key] = cleaned;
+  }
+
+  const prev = await prisma.tenantDesignSettings.findUnique({
+    where: { tenantId },
+    select: { tokens: true },
+  });
+
+  const mergedTokens = (prev?.tokens as Record<string, never> | null) ?? {};
+  const nextTokens: Record<string, string | boolean> = { ...mergedTokens, ...tokens };
+
+  if (input.borderRadius) nextTokens.borderRadius = input.borderRadius;
+  if (input.shadowIntensity) nextTokens.shadowIntensity = input.shadowIntensity;
+  if (input.buttonStyle) nextTokens.buttonStyle = input.buttonStyle;
+  if (input.headingFont) nextTokens.headingFont = input.headingFont;
+  if (input.bodyFont) nextTokens.bodyFont = input.bodyFont;
+
+  await checkRateLimit(`tenant-design:${user.id}`, 10);
+
+  await prisma.tenantDesignSettings.upsert({
+    where: { tenantId },
+    update: { tokens: nextTokens, updatedBy: user.id },
+    create: { tenantId, tokens: nextTokens, updatedBy: user.id },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "TenantDesignSettings",
+        tenantId,
+        updatedTokens: Object.keys(tokens).length + (input.borderRadius ? 1 : 0),
+      }),
+    },
+  });
+
+  revalidatePath("/admin/design-settings");
+  revalidatePath("/admin");
+  revalidatePath("/");
 
   return { success: true };
 }
