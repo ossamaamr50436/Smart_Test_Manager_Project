@@ -10,7 +10,7 @@ import type { Role } from "@prisma/client";
 
 const DEMO_PASSWORD = "QuranTest2026!Strong";
 const ROLE_DASHBOARDS: Record<Role, string> = {
-  SUPER_ADMIN: "/admin",
+  SUPER_ADMIN: "/super-admin",
   ADMIN: "/admin",
   INSTITUTION: "/institution",
   EXAMINER: "/examiner",
