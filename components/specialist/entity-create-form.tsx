@@ -204,9 +204,9 @@ export function EntityCreateForm() {
                     onClick={handleCopy}
                   >
                     {copied ? (
-                      <Check className="ml-1 h-4 w-4 text-emerald-600" />
+                      <Check className="me-1 h-4 w-4 text-emerald-600" />
                     ) : (
-                      <Copy className="ml-1 h-4 w-4" />
+                      <Copy className="me-1 h-4 w-4" />
                     )}
                     {copied ? "تم النسخ" : "نسخ"}
                   </Button>

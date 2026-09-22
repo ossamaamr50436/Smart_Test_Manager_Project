@@ -29,6 +29,7 @@ import {
   updateTenantAdmin,
 } from "@/lib/actions/super-admin-actions";
 import { toArabicText } from "@/lib/utils";
+import { ROLE_LABELS_ENTRIES } from "@/lib/roles";
 
 const ACTION_LABELS: Record<string, string> = {
   CREATE: "إنشاء",
@@ -44,14 +45,7 @@ const ACTION_LABELS: Record<string, string> = {
   FAILED_LOGIN: "محاولة دخول فاشلة",
 };
 
-const ROLE_OPTIONS = [
-  { value: "ADMIN", label: "مشرف المؤسسة" },
-  { value: "HEAD_OF_AFFAIRS", label: "رئيس الشؤون التعليمية" },
-  { value: "CERTIFICATE_SOURCE", label: "مصدر الشهادات" },
-  { value: "TEST_SPECIALIST", label: "أخصائي الاختبارات" },
-  { value: "EXAMINER", label: "المختبر" },
-  { value: "INSTITUTION", label: "الجهة التعليمية" },
-];
+const ROLE_OPTIONS = ROLE_LABELS_ENTRIES;
 
 interface TenantDetail {
   id: string;
@@ -400,7 +394,7 @@ function UserRow({
           <p className="font-medium">
             {user.name}
             {isAdmin && (
-              <span className="mr-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+              <span className="ms-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
                 مشرف
               </span>
             )}

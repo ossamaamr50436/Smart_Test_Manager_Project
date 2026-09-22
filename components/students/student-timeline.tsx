@@ -45,7 +45,7 @@ export function formatTimelineDate(date: Date | null): string {
 
 export function StudentTimeline({ steps }: { steps: TimelineStep[] }) {
   return (
-    <ol className="relative space-y-6 border-r-2 border-dashed pr-5">
+    <ol className="relative space-y-6 border-s-2 border-dashed ps-5">
       {steps.map((step) => {
         const meta = ICONS[step.icon];
         const StepIcon = meta.icon;

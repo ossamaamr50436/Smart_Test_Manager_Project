@@ -32,7 +32,7 @@ export default function SegmentError({
         </p>
       ) : null}
       <Button onClick={reset} variant="outline">
-        <RotateCcw className="ml-2 h-4 w-4" />
+        <RotateCcw className="me-2 h-4 w-4" />
         إعادة المحاولة
       </Button>
     </div>

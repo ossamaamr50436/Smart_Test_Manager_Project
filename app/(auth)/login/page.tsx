@@ -36,7 +36,7 @@ export default async function LoginPage() {
               className="h-full w-full object-cover"
             />
           </div>
-          <h1 className="text-3xl font-bold leading-tight text-primary-foreground drop-shadow-sm">
+          <h1 className="inline-block rounded-2xl bg-black/45 px-8 py-5 text-3xl font-bold leading-tight text-white backdrop-blur-sm">
             <span className="block">
               {settings.platformNameLine1 || settings.platformName}
             </span>

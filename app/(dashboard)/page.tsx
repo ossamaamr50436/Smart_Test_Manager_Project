@@ -50,10 +50,10 @@ export default async function DashboardPage() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold">مرحباً، {userName}</h1>
-        <p className="mt-1 text-muted-foreground">
-          دورك:{" "}
-          <span className="font-medium text-secondary">{roleLabel}</span>
-        </p>
+          <p className="mt-1 text-muted-foreground">
+            دورك:{" "}
+            <span className="font-semibold text-primary">{roleLabel}</span>
+          </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

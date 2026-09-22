@@ -326,7 +326,7 @@ export default async function TutorialPage() {
                 <CardTitle className="text-base">{section.heading}</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="list-disc space-y-2 pr-5 text-sm text-muted-foreground">
+                <ul className="list-disc space-y-2 ps-5 text-sm text-muted-foreground">
                   {section.items.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
