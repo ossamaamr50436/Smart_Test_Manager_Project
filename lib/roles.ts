@@ -14,6 +14,16 @@ export const ROLE_LABELS: Record<Role, string> = {
   INSTITUTION: "جهة تعليمية",
 };
 
+// خيارات الأدوار المخصصة للإنشاء داخل جهة (تُشتق من ROLE_LABELS لضمان تطابق المصطلحات)
+export const ROLE_LABELS_ENTRIES: { value: string; label: string }[] = [
+  { value: "ADMIN", label: ROLE_LABELS.ADMIN },
+  { value: "HEAD_OF_AFFAIRS", label: ROLE_LABELS.HEAD_OF_AFFAIRS },
+  { value: "CERTIFICATE_SOURCE", label: ROLE_LABELS.CERTIFICATE_SOURCE },
+  { value: "TEST_SPECIALIST", label: ROLE_LABELS.TEST_SPECIALIST },
+  { value: "EXAMINER", label: ROLE_LABELS.EXAMINER },
+  { value: "INSTITUTION", label: ROLE_LABELS.INSTITUTION },
+];
+
 // المسار الافتراضي لكل دور (يُستخدم في الـ Middleware للتوجيه)
 export const ROLE_DASHBOARD_PATHS: Record<Role, string> = {
   SUPER_ADMIN: "/super-admin",
