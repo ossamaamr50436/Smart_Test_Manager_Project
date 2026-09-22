@@ -4,6 +4,7 @@ import "dotenv/config";
 import { prisma } from "../../lib/prisma";
 import { uploadFile, deleteFile, isStoredUrl } from "../../lib/file-storage";
 import { validateFileUpload } from "../../lib/upload-security";
+import { DEFAULT_PLATFORM_LOGO, resolveLogoUrl } from "../../lib/platform-brand";
 
 // ============================================================
 // B2 — رفع شعار من /super-admin/settings (الدورة الكاملة على مستوى الكود/DB)
@@ -17,7 +18,7 @@ const TINY_PNG = Buffer.from(
   "hex"
 );
 
-const DEFAULT_LOGO = "/logo.svg";
+const DEFAULT_LOGO = DEFAULT_PLATFORM_LOGO;
 
 async function currentLogo() {
   const row = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
@@ -82,7 +83,7 @@ test("B2: رفع → حفظ URL → إعادة قراءة (أعلى بريس) �
   }
 });
 
-test("B2: غياب الشعار → الشعار الافتراضي /logo.svg لا يُكسر", async () => {
+test("B2: غياب الشعار → الشعار الافتراضي platform-logo لا يُكسر", async () => {
   await prisma.appSettings.update({
     where: { id: "singleton" },
     data: { logoUrl: null, logoFileId: null },
@@ -90,4 +91,14 @@ test("B2: غياب الشعار → الشعار الافتراضي /logo.svg ل
   const { logoUrl } = await currentLogo();
   const src = logoUrl || DEFAULT_LOGO;
   assert.equal(src, DEFAULT_LOGO);
+});
+
+test("B2: أولوية الشعار Tenant > Platform > Default (M0)", () => {
+  // Tenant بدون شعار مخصص → شعار المنصة (إن وُجد) ثم الافتراضي
+  assert.equal(resolveLogoUrl(null, null), DEFAULT_PLATFORM_LOGO);
+  assert.equal(resolveLogoUrl(null, "https://ufs.sh/platform.png"), "https://ufs.sh/platform.png");
+  // Tenant مع شعار مخصص → يعلو على شعار المنصة
+  assert.equal(resolveLogoUrl("https://ufs.sh/tenant.png", "https://ufs.sh/platform.png"), "https://ufs.sh/tenant.png");
+  // القيم الفارغة كلها → الافتراضي
+  assert.equal(resolveLogoUrl("", ""), DEFAULT_PLATFORM_LOGO);
 });

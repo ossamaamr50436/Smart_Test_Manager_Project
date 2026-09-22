@@ -24,6 +24,7 @@ import {
   updateDesignSettings,
   type PlatformSettings,
 } from "@/lib/actions/settings-actions";
+import { DEFAULT_PLATFORM_LOGO, PLATFORM_LOGO_ALT } from "@/lib/platform-brand";
 
 const RADIUS_OPTIONS = [
   { value: "0rem", label: "حادة (0)" },
@@ -487,9 +488,9 @@ export function DesignSettingsForm({ initial }: { initial: PlatformSettings }) {
           <div className="flex items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={initial.logoUrl ?? "/logo.svg"}
-              alt="شعار المنصة"
-              className="h-24 w-24 rounded-lg border object-contain"
+              src={initial.logoUrl ?? DEFAULT_PLATFORM_LOGO}
+              alt={PLATFORM_LOGO_ALT}
+              className="h-24 w-24 rounded-2xl border object-cover shadow-sm"
             />
             <p className="text-sm text-muted-foreground">
               يتم إدارة شعار المنصة من صفحة «إعدادات المنصة»

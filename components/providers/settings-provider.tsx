@@ -5,6 +5,7 @@ import type { PlatformSettings, DesignTokens } from "@/lib/actions/settings-acti
 import { getMyTenantColors } from "@/lib/actions/super-admin-actions";
 import { getMyTenantDesignTokens } from "@/lib/actions/settings-actions";
 import { hexToHsl } from "@/lib/colors";
+import { resolveLogoUrl, DEFAULT_PLATFORM_LOGO } from "@/lib/platform-brand";
 
 // ============================================================
 // سياق إعدادات المنصة (لل.'/'.$吉林省/$$ CLIENT Components)
@@ -13,11 +14,15 @@ import { hexToHsl } from "@/lib/colors";
 
 type SettingsContextType = {
   settings: PlatformSettings | null;
+  tenantDesign: DesignTokens | null;
+  logoUrl: string;
   refreshSettings: () => Promise<void>;
 };
 
 const SettingsContext = createContext<SettingsContextType>({
   settings: null,
+  tenantDesign: null,
+  logoUrl: DEFAULT_PLATFORM_LOGO,
   refreshSettings: async () => {},
 });
 
@@ -27,6 +32,7 @@ export function usePlatformSettings() {
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
+  const [tenantDesign, setTenantDesign] = useState<DesignTokens | null>(null);
 
   async function fetchSettings() {
     try {
@@ -110,6 +116,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     try {
       // M17: تطبيق كامل التوكنز المخصصة للجهة (فوق افتراضيات المنصة)
       const designTokens = await getMyTenantDesignTokens();
+      setTenantDesign(designTokens);
       const colors = await getMyTenantColors();
       if (colors) {
         document.documentElement.style.setProperty("--primary", hexToHsl(colors.primaryColor));
@@ -181,7 +188,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SettingsContext.Provider value={{ settings, refreshSettings: fetchSettings }}>
+    <SettingsContext.Provider
+      value={{
+        settings,
+        tenantDesign,
+        logoUrl: resolveLogoUrl(tenantDesign?.logoUrl, settings?.logoUrl),
+        refreshSettings: fetchSettings,
+      }}
+    >
       {children}
     </SettingsContext.Provider>
   );

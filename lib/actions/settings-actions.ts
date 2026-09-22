@@ -652,6 +652,9 @@ export type DesignTokens = {
   buttonPrimaryTextDark: string;
   buttonSecondaryBgDark: string;
   buttonSecondaryTextDark: string;
+  // شعار الجهة (M0) — اختياري، يعلو على شعار المنصة عند وجوده
+  logoUrl: string | null;
+  logoFileId: string | null;
 };
 
 const PLATFORM_DESIGN_DEFAULTS: Omit<DesignTokens, "primaryColor" | "secondaryColor"> & { primaryColor: string; secondaryColor: string } = {
@@ -700,17 +703,11 @@ const PLATFORM_DESIGN_DEFAULTS: Omit<DesignTokens, "primaryColor" | "secondaryCo
   buttonPrimaryTextDark: "#ffffff",
   buttonSecondaryBgDark: "#d3bb8b",
   buttonSecondaryTextDark: "#0f172a",
+  logoUrl: null,
+  logoFileId: null,
 };
 
 const DESIGN_TOKEN_KEYS = Object.keys(PLATFORM_DESIGN_DEFAULTS);
-
-function pickDesignTokens(source: DesignTokens): DesignTokens {
-  const result = {} as DesignTokens;
-  for (const key of DESIGN_TOKEN_KEYS as (keyof DesignTokens)[]) {
-    result[key] = source[key];
-  }
-  return result;
-}
 
 /** جلب إعدادات التصميم المدموجة لجهة (تجاوزات الجهة فوق افتراضيات المنصة) */
 export async function getTenantDesignSettings(
@@ -916,6 +913,129 @@ export async function updateTenantDesignSettings(input: {
         entity: "TenantDesignSettings",
         tenantId,
         updatedTokens: Object.keys(tokens).length + (input.borderRadius ? 1 : 0),
+      }),
+    },
+  });
+
+  revalidatePath("/admin/design-settings");
+  revalidatePath("/admin");
+  revalidatePath("/");
+
+  return { success: true };
+}
+
+/**
+ * تحديث شعار الجهة (ADMIN فقط) — يُخزَّن ضمن TenantDesignSettings للجهة الحالية فقط (M0)
+ * - tenantId يُقرأ من الجلسة حصراً — يستحيل تعديل شعار جهة أخرى
+ * - لا يمس شعار المنصة العام (AppSettings) ولا شعار تسجيل الدخول
+ */
+export async function updateTenantLogo(logo: {
+  url: string;
+  fileId: string;
+}): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+  const tenantId = requireTenantId(user);
+
+  if (!isTrustedStoredUrl(logo.url) || !isValidFileKey(logo.fileId)) {
+    throw new Error("الرابط المرفوع غير موثوق — أعد رفع الشعار");
+  }
+
+  await checkRateLimit(`tenant-logo:${user.id}`, 10);
+
+  const prev = await prisma.tenantDesignSettings.findUnique({
+    where: { tenantId },
+    select: { tokens: true },
+  });
+  const prevTokens = (prev?.tokens as Record<string, unknown> | null) ?? {};
+  const prevLogoFileId = prevTokens.logoFileId as string | undefined;
+
+  await prisma.tenantDesignSettings.upsert({
+    where: { tenantId },
+    update: {
+      tokens: { ...prevTokens, logoUrl: logo.url, logoFileId: logo.fileId },
+      updatedBy: user.id,
+    },
+    create: {
+      tenantId,
+      tokens: { logoUrl: logo.url, logoFileId: logo.fileId },
+      updatedBy: user.id,
+    },
+  });
+
+  // حذف الشعار القديم من وحدة التخزين قبل ربط الجديد (منع تراكم الملفات)
+  if (prevLogoFileId && prevLogoFileId !== logo.fileId) {
+    try {
+      await deleteFile(prevLogoFileId);
+    } catch {
+      // الشعار الجديد رُبط بنجاح — فشل حذف القديم لا يمنع التحديث
+    }
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "TenantDesignSettings",
+        scope: "tenant-logo",
+        logoUpdated: true,
+      }),
+    },
+  });
+
+  revalidatePath("/admin/design-settings");
+  revalidatePath("/admin");
+  revalidatePath("/");
+
+  return { success: true };
+}
+
+/**
+ * إزالة شعار الجهة (ADMIN فقط) — العودة إلى شعار المنصة الافتراضي للجهة
+ */
+export async function removeTenantLogo(): Promise<{ success: boolean }> {
+  const user = await requireUser();
+  requireRole(user, [Role.ADMIN]);
+  const tenantId = requireTenantId(user);
+
+  await checkRateLimit(`tenant-logo:${user.id}`, 10);
+
+  const prev = await prisma.tenantDesignSettings.findUnique({
+    where: { tenantId },
+    select: { tokens: true },
+  });
+  const prevTokens = (prev?.tokens as Record<string, unknown> | null) ?? {};
+  const prevLogoFileId = prevTokens.logoFileId as string | undefined;
+
+  const nextTokens = {
+    ...(prevTokens as Record<string, string | boolean>),
+  };
+  delete nextTokens.logoUrl;
+  delete nextTokens.logoFileId;
+
+  await prisma.tenantDesignSettings.upsert({
+    where: { tenantId },
+    update: { tokens: nextTokens, updatedBy: user.id },
+    create: { tenantId, tokens: {}, updatedBy: user.id },
+  });
+
+  try {
+    await deleteFile(prevLogoFileId);
+  } catch {
+    // إزالة الربط من DB تمت — فشل حذف الملف لا يمنع الاستمرار
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      userId: user.id,
+      tenantId,
+      action: AuditAction.UPDATE,
+      details: JSON.stringify({
+        entity: "TenantDesignSettings",
+        scope: "tenant-logo",
+        logoRemoved: true,
       }),
     },
   });

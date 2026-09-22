@@ -8,6 +8,7 @@ import { MessageCircle, X } from "lucide-react";
 import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
+import { PLATFORM_LOGO_ALT } from "@/lib/platform-brand";
 import { NotificationBadge } from "@/components/notification/notification-badge";
 
 type NavLink = {
@@ -218,7 +219,7 @@ export function DashboardSidebar({
 }) {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const { settings } = usePlatformSettings();
+  const { settings, logoUrl } = usePlatformSettings();
   const user = session?.user;
   const role = (user?.role as RoleKey | undefined) ?? undefined;
   const roleLabel = role ? ROLE_LABELS[role] : "مستخدم";
@@ -281,11 +282,11 @@ export function DashboardSidebar({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={settings?.logoUrl || "/logo.svg"}
-              alt={platformName}
-              height={80}
-              width={80}
-              className="h-20 w-20 shrink-0 object-contain transition-transform duration-150 group-hover:scale-105 group-focus-visible:scale-105"
+              src={logoUrl}
+              alt={PLATFORM_LOGO_ALT}
+              height={48}
+              width={48}
+              className="h-12 w-12 shrink-0 rounded-full bg-white/10 object-cover ring-1 ring-white/25 shadow-sm transition-transform duration-150 group-hover:scale-105 group-focus-visible:scale-105"
             />
             <div className="min-w-0">
               <p className="text-base font-bold leading-tight text-[var(--sidebar-text)]">

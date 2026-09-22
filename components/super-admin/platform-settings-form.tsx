@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { UploadButton } from "@/lib/uploadthing";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
+import { DEFAULT_PLATFORM_LOGO, PLATFORM_LOGO_ALT } from "@/lib/platform-brand";
 import {
   updatePlatformSettings,
   updateTemplateSettings,
@@ -253,15 +254,15 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettings })
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={logoPreview}
-                  alt="الشعار"
-                  className="h-24 w-24 rounded-lg border object-contain"
+                  alt={PLATFORM_LOGO_ALT}
+                  className="h-24 w-24 rounded-2xl border object-cover shadow-sm"
                 />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
-                  src="/logo.svg"
-                  alt="الشعار الافتراضي"
-                  className="h-24 w-24 rounded-lg border object-contain"
+                  src={DEFAULT_PLATFORM_LOGO}
+                  alt={PLATFORM_LOGO_ALT}
+                  className="h-24 w-24 rounded-2xl border object-cover shadow-sm"
                 />
               )}
               <div>

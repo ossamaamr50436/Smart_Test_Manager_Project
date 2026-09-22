@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LoginForm } from "@/components/auth/login-form";
 import { getPlatformSettings } from "@/lib/actions/settings-actions";
+import { DEFAULT_PLATFORM_LOGO, PLATFORM_LOGO_ALT } from "@/lib/platform-brand";
 
 export const metadata: Metadata = {
   title: "تسجيل الدخول",
@@ -25,14 +26,14 @@ export default async function LoginPage() {
       />
       <div className="relative w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-6 flex h-44 w-44 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-card p-2 shadow-xl shadow-black/25">
+          <div className="mx-auto mb-6 flex h-44 w-44 items-center justify-center overflow-hidden rounded-full border border-border/40 bg-card shadow-xl shadow-black/25">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={settings.logoUrl || "/logo.svg"}
-              alt={settings.platformName}
-              height={96}
-              width={96}
-              className="h-full w-full object-contain"
+              src={settings.logoUrl || DEFAULT_PLATFORM_LOGO}
+              alt={PLATFORM_LOGO_ALT}
+              height={176}
+              width={176}
+              className="h-full w-full object-cover"
             />
           </div>
           <h1 className="text-3xl font-bold leading-tight text-primary-foreground drop-shadow-sm">

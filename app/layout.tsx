@@ -4,6 +4,7 @@ import { Cairo } from "next/font/google";
 import "./globals.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getCachedPlatformSettings } from "@/lib/cache";
+import { DEFAULT_PLATFORM_LOGO, PLATFORM_LOGO_ALT } from "@/lib/platform-brand";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ServiceWorkerRegister } from "@/components/providers/service-worker-register";
 
@@ -58,10 +59,10 @@ export async function generateMetadata(): Promise<Metadata> {
       description: metaName,
       images: [
         {
-          url: settings.logoUrl || "/logo.svg",
+          url: settings.logoUrl || DEFAULT_PLATFORM_LOGO,
           width: 512,
           height: 512,
-          alt: settings.platformName,
+          alt: PLATFORM_LOGO_ALT,
         },
       ],
     },
@@ -203,7 +204,8 @@ export default async function RootLayout({
             --button-secondary-text: ${buttonSecondaryTextDark};
           }
         `}</style>
-        <link rel="icon" href={settings.logoUrl || "/logo.svg"} />
+        <link rel="icon" href={settings.logoUrl || DEFAULT_PLATFORM_LOGO} />
+        <link rel="apple-touch-icon" href={settings.logoUrl || DEFAULT_PLATFORM_LOGO} />
         <link rel="manifest" href="/manifest.json" />
         <meta name="application-name" content={settings.platformName} />
         <meta name="mobile-web-app-capable" content="yes" />

@@ -26,10 +26,11 @@ import {
 import { ROLE_LABELS, type RoleKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { usePlatformSettings } from "@/components/providers/settings-provider";
+import { PLATFORM_LOGO_ALT } from "@/lib/platform-brand";
 
 export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { data: session } = useSession();
-  const { settings } = usePlatformSettings();
+  const { settings, logoUrl } = usePlatformSettings();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -52,11 +53,11 @@ export function DashboardTopBar({ onMenuClick }: { onMenuClick: () => void }) {
       <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={settings?.logoUrl || "/logo.svg"}
-          alt={settings?.platformName || "منصة مجتاز"}
+          src={logoUrl}
+          alt={PLATFORM_LOGO_ALT}
           height={40}
           width={40}
-          className="h-10 w-10 shrink-0 object-contain"
+          className="h-10 w-10 shrink-0 rounded-full bg-card object-cover ring-1 ring-border/50 shadow-sm"
         />
         <div className="min-w-0">
           <p className="truncate text-sm font-bold leading-tight text-[var(--topbar-text)]">
