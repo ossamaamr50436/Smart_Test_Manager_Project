@@ -480,6 +480,7 @@ model Certificate {
   signatureUrl    String? // رابط صورة التوقيع الرقمي
   signedById      String? // معرف الموقّع
   signedAt        DateTime?
+  sentAt          DateTime? // وقت إرسال الشهادة للجهة (M16-E) — يُسجَّل عند الانتقال إلى SENT
   tenantId        String // Multi-Tenant
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt

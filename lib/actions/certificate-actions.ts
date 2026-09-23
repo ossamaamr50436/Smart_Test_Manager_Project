@@ -494,7 +494,10 @@ export async function sendCertificateToInstitution(certificateId: string) {
 
   await prisma.certificate.update({
     where: { id: certificateId },
-    data: { status: CertificateStatus.SENT },
+    data: {
+      status: CertificateStatus.SENT,
+      sentAt: new Date(),
+    },
   });
 
   // إشعار الجهة: "الشهادة جاهزة للتحميل"
