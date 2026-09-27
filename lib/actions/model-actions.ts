@@ -289,8 +289,14 @@ export async function getCommitteeSelectedModelIds(committeeId: string) {
   const user = await requireUser();
   requireRole(user, VALID_ROLES);
 
+  if (!committeeId || typeof committeeId !== "string" || committeeId.length < 1 || committeeId.length > 64) {
+    throw new Error("معرّف اللجنة غير صالح");
+  }
+
+  // عزل المستأجرين: اللجنة يجب أن تتبع tenant المستخدم (SUPER_ADMIN بلا فلتر).
+  // بدون هذا الفلتر يستطيع أخصائي/مسؤول أي مؤسسة قراءة نماذج لجنة مؤسسة أخرى.
   const selections = await prisma.committeeModelSelection.findMany({
-    where: { committeeId },
+    where: { committeeId, committee: getTenantFilter(user) },
     select: { modelId: true },
   });
   return selections.map((s) => s.modelId);
