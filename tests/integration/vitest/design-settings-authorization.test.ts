@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { config as loadEnv } from "dotenv";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { Prisma } from "@prisma/client";
 
 loadEnv({ path: ".env" });
 
@@ -167,5 +170,123 @@ describe("G — عزل إعدادات التصميم", () => {
     // وغير مخوَّل: مسؤول من الـbaseline لا يستطيع قراءة الـtenant المؤقت
     session.userId = await userIdByEmail("fx50436-admin@e2e.exp.local");
     await expectRefusal(settings.getTenantDesignSettings(tempTenantId));
+  });
+
+  // ------------------------------------------------------------
+  // الكتابة: لا يوجد أي معرّف جهة في عقد الإدخال — المصدر هو الجلسة
+  // ------------------------------------------------------------
+  it("معرّف الجهة غير جزء من عقد الإدخال (tenantId من الجلسة حصراً)", () => {
+    const src = readFileSync(
+      join(process.cwd(), "lib/actions/settings-actions.ts"),
+      "utf8"
+    );
+    const marker = "export async function updateTenantDesignSettings(input: {";
+    const start = src.indexOf(marker);
+    expect(start).toBeGreaterThan(-1);
+    const paramEnd = src.indexOf("}): Promise<{ success: boolean }> {", start);
+    expect(paramEnd).toBeGreaterThan(start);
+    // عقد الإدخال لا يحوي أي معرّف جهة
+    expect(src.slice(start, paramEnd)).not.toContain("tenantId");
+    // والتعيين يسبق أول لمس لـ prisma داخل جسم الدالة
+    const nextExport = src.indexOf("\nexport async function", paramEnd);
+    const body = src.slice(paramEnd, nextExport === -1 ? undefined : nextExport);
+    const assignAt = body.indexOf("const tenantId = requireTenantId(user);");
+    const firstPrismaAt = body.indexOf("prisma.tenantDesignSettings");
+    expect(assignAt).toBeGreaterThan(-1);
+    expect(firstPrismaAt).toBeGreaterThan(assignAt);
+    // ولا تمرير معرّف جهة من الطلب في أي مكان
+    expect(body).not.toContain("input.tenantId");
+  });
+
+  it("غير ADMIN يُرفض في تحديث إعدادات التصميم", async () => {
+    for (const email of [
+      "fx50436-head@e2e.exp.local",
+      "fx50436-examiner1@e2e.exp.local",
+      "fx50436-specialist@e2e.exp.local",
+    ]) {
+      session.userId = await userIdByEmail(email);
+      await expectRefusal(
+        settings.updateTenantDesignSettings({ primaryColor: "#000000" })
+      );
+    }
+    session.userId = null;
+    await expectRefusal(
+      settings.updateTenantDesignSettings({ primaryColor: "#000000" })
+    );
+  });
+
+  it("ADMIN يكتب في جهته فقط — لا يمسّ أي جهة أخرى", async () => {
+    // لقطة لإعدادات جهة أخرى قبل الكتابة (سواء وُجد صف أو لم يوجد)
+    const otherBefore = await prisma.tenantDesignSettings.findUnique({
+      where: { tenantId: OTHER_TENANT },
+      select: { tokens: true },
+    });
+
+    session.userId = tempAdminId;
+    const res = await settings.updateTenantDesignSettings({
+      primaryColor: "#0a5c63",
+    });
+    expect(res.success).toBe(true);
+
+    const ownRow = await prisma.tenantDesignSettings.findUniqueOrThrow({
+      where: { tenantId: tempTenantId },
+      select: { tokens: true },
+    });
+    expect(
+      (ownRow.tokens as Record<string, string>).primaryColor
+    ).toBe("#0a5c63");
+
+    // الجهة الأخرى لم تُمَسّ إطلاقاً
+    const otherAfter = await prisma.tenantDesignSettings.findUnique({
+      where: { tenantId: OTHER_TENANT },
+      select: { tokens: true },
+    });
+    expect(otherAfter).toEqual(otherBefore);
+  });
+
+  it("مسؤول 50436 يكتب في جهته (50436) فقط — الـtenant المؤقت لا يُمَس", async () => {
+    // لا وجود لمعرّف جهة في الإدخال: الكتابة تسير حتماً إلى جهة الجلسة
+    const tempBefore = await prisma.tenantDesignSettings.findUnique({
+      where: { tenantId: tempTenantId },
+      select: { tokens: true },
+    });
+    const ownBefore = await prisma.tenantDesignSettings.findUnique({
+      where: { tenantId: OWN_TENANT },
+      select: { tokens: true },
+    });
+
+    session.userId = await userIdByEmail("fx50436-admin@e2e.exp.local");
+    const res = await settings.updateTenantDesignSettings({ primaryColor: "#010203" });
+    expect(res.success).toBe(true);
+
+    // سجل الجهة المؤقت لم يتغيّر إطلاقاً
+    const tempAfter = await prisma.tenantDesignSettings.findUnique({
+      where: { tenantId: tempTenantId },
+      select: { tokens: true },
+    });
+    expect(tempAfter).toEqual(tempBefore);
+
+    // والتغيير وقع في سجل جهة الجلسة (50436)
+    const ownAfter = await prisma.tenantDesignSettings.findUnique({
+      where: { tenantId: OWN_TENANT },
+      select: { tokens: true },
+    });
+    expect(ownAfter).not.toEqual(ownBefore);
+    expect((ownAfter?.tokens as Record<string, string>).primaryColor).toBe(
+      "#010203"
+    );
+
+    // إعادة الحالة الأصلية حتى لا نلوّث خط الأساس
+    if (ownBefore) {
+      const original = ownBefore.tokens as Prisma.InputJsonValue;
+      await prisma.tenantDesignSettings.update({
+        where: { tenantId: OWN_TENANT },
+        data: { tokens: original },
+      });
+    } else {
+      await prisma.tenantDesignSettings.deleteMany({
+        where: { tenantId: OWN_TENANT },
+      });
+    }
   });
 });

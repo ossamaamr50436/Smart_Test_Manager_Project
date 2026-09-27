@@ -59,11 +59,12 @@ describe("I — قرار البوابة (وحدة نقية)", () => {
   it("مستخدم طبيعي أو قيمة غير مؤكدة يُسمح له", () => {
     expect(resolvePasswordGate({ mustChangePassword: false, pathname: "/admin" })).toBeNull();
     expect(resolvePasswordGate({ pathname: "/admin" })).toBeNull();
+    // قيمة غير مؤكدة (null) ليست إجباراً — والعمود في الـschema غير قابل للـnull
     expect(resolvePasswordGate({ mustChangePassword: null, pathname: "/admin" })).toBeNull();
-    // "truthy" غير منطقي لا يُعامل كإجبار
-    expect(
-      resolvePasswordGate({ mustChangePassword: 1 as unknown as boolean, pathname: "/admin" })
-    ).toBeNull();
+    // الإجبار يُقاس بـ`=== true` صريحاً، فلا يكفي أي truthy
+    expect(resolvePasswordGate({ mustChangePassword: true, pathname: "/admin" })).toBe(
+      CHANGE_PASSWORD_PATH
+    );
   });
 
   it("assertPasswordChanged يرفض المجبر برسالة عربية صريحة", () => {
