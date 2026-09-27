@@ -11,6 +11,8 @@ vi.mock("@/lib/security", () => ({
     name: "المسؤول",
     institutionId: null,
   })),
+  // الإجراء يكتب سجل التدقيق بـtenantId عبر requireTenantId
+  requireTenantId: vi.fn(async () => "tenant-1"),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({

@@ -138,7 +138,7 @@ export function TeachersManager({ initial }: { initial: ExaminerRow[] }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">إنشاء حساب معلم جديد</CardTitle>
+          <CardTitle className="text-base">إنشاء حساب مختبر جديد</CardTitle>
           <CardDescription>
             كلمة المرور المؤقتة معروضة لك مرة واحدة بعد الإنشاء — سيُجبر المختبر على تغييرها عند أول دخول
           </CardDescription>

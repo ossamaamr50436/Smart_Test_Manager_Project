@@ -114,20 +114,22 @@ export async function generateCertificate(studentId: string) {
     throw new Error("لا يوجد موسم اختبارات نشط — لا يمكن إصدار الشهادات");
   }
 
-  // المرحلة الصحيحة فقط: جاهز لإصدار الشهادة
-  if (student.status !== StudentStatus.READY_FOR_CERTIFICATE) {
-    throw new Error(
-      "الطالب لم يصل لمرحلة إصدار الشهادة بعد (الحالة الحالية للمراحل السابقة)"
-    );
-  }
-
-  // منع التكرار: لا يوجد سوى شهادة نشطة واحدة لكل طالب
+  // منع التكرار: لا يوجد سوى شهادة واحدة لكل طالب.
+  // يُفحص التكرار قبل المرحلة حتى تصل رسالة دقيقة لمن يعيد الإصدار
+  // (بعد الإصدار الأول تصبح حالة الطالب CERTIFICATE_ISSUED).
   const existing = await prisma.certificate.findFirst({
     where: { ...getTenantFilter(user), studentId },
     select: { id: true },
   });
   if (existing) {
     throw new Error("عُدّلت شهادة لهذا الطالب مسبقاً");
+  }
+
+  // المرحلة الصحيحة فقط: جاهز لإصدار الشهادة
+  if (student.status !== StudentStatus.READY_FOR_CERTIFICATE) {
+    throw new Error(
+      "الطالب لم يصل لمرحلة إصدار الشهادة بعد (الحالة الحالية للمراحل السابقة)"
+    );
   }
 
   const finalScore = await getStudentFinalScore(student.id);

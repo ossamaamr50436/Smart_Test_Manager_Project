@@ -67,7 +67,7 @@ export default async function CommitteesPage() {
       <div>
         <h1 className="text-2xl font-bold">تشكيل اللجان</h1>
         <p className="mt-1 text-muted-foreground">
-          أنشئ لجاناً من معلمين، ووزّع الطلاب المقبولين عليها، واختر نماذج كل لجنة يدوياً من بنك الأسئلة
+          أنشئ لجاناً من مختبرين، ووزّع الطلاب المقبولين عليها، واختر نماذج كل لجنة يدوياً من بنك الأسئلة
         </p>
       </div>
 

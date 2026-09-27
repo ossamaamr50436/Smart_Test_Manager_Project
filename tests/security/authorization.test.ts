@@ -20,7 +20,7 @@ const Role = {
 const ROLE_ACCESS: Record<string, string[]> = {
   createStudentApplication: [Role.INSTITUTION],
   reviewStudentApplication: [Role.TEST_SPECIALIST],
-  assignCommittee: [Role.TEST_SPECIALIST],
+  assignStudentToCommittee: [Role.TEST_SPECIALIST],
   saveAssessment: [Role.EXAMINER],
   specialistFinalApprove: [Role.TEST_SPECIALIST],
   headOfAffairsFinalApprove: [Role.HEAD_OF_AFFAIRS],
@@ -43,7 +43,7 @@ test("Authorization: منع Vertical Privilege Escalation", () => {
   assert.equal(canAccess(Role.INSTITUTION, "specialistFinalApprove"), false);
   assert.equal(canAccess(Role.EXAMINER, "headOfAffairsFinalApprove"), false);
   assert.equal(canAccess(Role.INSTITUTION, "updatePlatformSettings"), false);
-  assert.equal(canAccess(Role.EXAMINER, "assignCommittee"), false);
+  assert.equal(canAccess(Role.EXAMINER, "assignStudentToCommittee"), false);
   assert.equal(canAccess(Role.INSTITUTION, "generateCertificate"), false);
   assert.equal(canAccess(Role.INSTITUTION, "signCertificate"), false);
 });

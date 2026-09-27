@@ -238,6 +238,14 @@ export async function assignStudentToCommittee(input: {
   if (!committee) return { success: false, error: "اللجنة غير موجودة" };
   assertSameTenant(user, committee);
 
+  // الطالب واللجنة يجب أن يكونا من نفس الفرع — النماذج والمقاطع مرتبطة بالفرع
+  if (student.branch !== committee.branch) {
+    return {
+      success: false,
+      error: "فرع الطالب لا يطابق فرع اللجنة — لا يمكن توزيعه على لجنة من فرع مختلف",
+    };
+  }
+
   // التاريخ والفترة إلزاميان عند التوزيع
   const examDate = new Date(input.examDate);
   if (!input.examDate || Number.isNaN(examDate.getTime())) {
@@ -254,6 +262,7 @@ export async function assignStudentToCommittee(input: {
         data: {
           committeeId: input.committeeId,
           status: "ASSIGNED",
+          assignedAt: new Date(),
         },
       });
 

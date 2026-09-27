@@ -1,5 +1,4 @@
 import path from "path";
-import React from "react";
 import {
   Document,
   Page,
@@ -14,6 +13,70 @@ import {
 // توليد PDF الشهادة (مرحلة الشهادات)
 // يستخدم خط Amiri لدعم النصوص العربية بشكل صحيح داخل PDF
 // ============================================================
+
+// ------------------------------------------------------------
+// بناة عناصر PDF (إصلاح M38)
+// ------------------------------------------------------------
+// حزمة `@react-pdf/reconciler` تُحمَّل خارج حزمة Next.js، فتحلّ
+// استيرادها لـ`react` إلى إصدار المشروع (‎18.2.0‎) وتختار
+// مُوائِم React 18 الذي لا يقبل سوى العناصر الرمزية `react.element`.
+// أما JSX داخل حزمة Next.js الإنتاجية فيُترجَم إلى نسخة React
+// المضمّنة في Next (‎19.x‎) فينتج عناصر `react.transitional.element`
+// التي يرفضها ذلك المُوائِم (خطأ React #31 → HTTP 500 عند الإصدار).
+//
+// الحل محصور في توليد الـPDF: نبني شجرة المستند هنا بأنفسنا بدل
+// الاعتماد على JSX، بصيغة يقبلها مُوائِم @react-pdf في كل بيئة
+// (تطوير أو إنتاج) دون تغيير React الأساسي في بقية التطبيق.
+// ------------------------------------------------------------
+const PDF_ELEMENT_TYPE = Symbol.for("react.element");
+
+type PdfComponentProps = Record<string, unknown>;
+
+type PdfElement = {
+  $$typeof: symbol;
+  type: string;
+  key: string | null;
+  ref: null;
+  props: PdfComponentProps;
+};
+
+type PdfNode = PdfElement | string | number | boolean | null | undefined;
+
+// `@react-pdf/renderer` يصدّر أنواع المضيف (DOCUMENT/PAGE/TEXT/VIEW) كنصوص
+// وقت التشغيل، بينما تعريفاته (d.ts) تصفها كأصناف React — نثبّت النوع هنا.
+const PdfDocument = Document as unknown as string;
+const PdfPage = Page as unknown as string;
+const PdfText = Text as unknown as string;
+const PdfView = View as unknown as string;
+
+/** إنشاء عنصر PDF متوافق مع مُوائِم @react-pdf */
+function h(
+  type: string,
+  props: (PdfComponentProps & { key?: string | number }) | null,
+  ...children: PdfNode[]
+): PdfElement {
+  const nextProps: PdfComponentProps = {};
+  let key: string | null = null;
+
+  if (props) {
+    for (const name of Object.keys(props)) {
+      if (name === "key") {
+        const rawKey = props[name];
+        key = rawKey === null || rawKey === undefined ? null : String(rawKey);
+        continue;
+      }
+      nextProps[name] = props[name];
+    }
+  }
+
+  if (children.length === 1) {
+    nextProps.children = children[0];
+  } else if (children.length > 1) {
+    nextProps.children = children;
+  }
+
+  return { $$typeof: PDF_ELEMENT_TYPE, type, key, ref: null, props: nextProps };
+}
 
 const FONTS_DIR = path.join(process.cwd(), "assets", "fonts");
 
@@ -138,7 +201,7 @@ export type CertificatePdfData = {
 /**
  * إنشاء مستند الشهادة (React-PDF)
  */
-function CertificateDocument({ data }: { data: CertificatePdfData }) {
+function CertificateDocument({ data }: { data: CertificatePdfData }): PdfElement {
   const { studentName, finalScore, issuedDate, serialNumber, managerName, organizationName } = data;
   const dateStr = issuedDate.toLocaleDateString("ar-SA", {
     year: "numeric",
@@ -146,45 +209,54 @@ function CertificateDocument({ data }: { data: CertificatePdfData }) {
     day: "numeric",
   });
 
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.border} />
-        <View style={styles.innerBorder} />
+  return h(
+    PdfDocument,
+    null,
+    h(
+      PdfPage,
+      { size: "A4", style: styles.page },
+      h(PdfView, { style: styles.border }),
+      h(PdfView, { style: styles.innerBorder }),
 
-        <Text style={styles.serial}>{serialNumber}</Text>
-        <Text style={styles.title}>شهادة اجتياز اختبار القرآن الكريم</Text>
-        <Text style={styles.subtitle}>
-          {organizationName ?? "منصة مجتاز"}
-        </Text>
+      h(PdfText, { style: styles.serial }, serialNumber),
+      h(PdfText, { style: styles.title }, "شهادة اجتياز اختبار القرآن الكريم"),
+      h(PdfText, { style: styles.subtitle }, organizationName ?? "منصة مجتاز"),
 
-        <Text style={styles.body}>
-          تشهد إدارة الاختبارات بأن الطالب/الطالبة
-        </Text>
-        <Text style={styles.studentName}>{studentName}</Text>
-        <Text style={styles.body}>
-          قد اجتاز بنجاح اختبار حفظ القرآن الكريم، وقد حصل
-          على الدرجة التالية:
-        </Text>
-        <Text style={styles.score}>الدرجة النهائية: {finalScore} / 100</Text>
-        <Text style={styles.date}>صدرت بتاريخ {dateStr}</Text>
+      h(PdfText, { style: styles.body }, "تشهد إدارة الاختبارات بأن الطالب/الطالبة"),
+      h(PdfText, { style: styles.studentName }, studentName),
+      h(
+        PdfText,
+        { style: styles.body },
+        "قد اجتاز بنجاح اختبار حفظ القرآن الكريم، وقد حصل على الدرجة التالية:"
+      ),
+      h(PdfText, { style: styles.score }, "الدرجة النهائية: ", finalScore, " / 100"),
+      h(PdfText, { style: styles.date }, "صدرت بتاريخ ", dateStr),
 
-        <View style={styles.footer}>
-          <View style={styles.signatureBox}>
-            <Text style={{ fontSize: 14, fontWeight: "bold", color: "#015e63" }}>
-              {managerName ?? "مدير الاختبارات"}
-            </Text>
-            <Text style={styles.signatureLabel}>التوقيع</Text>
-          </View>
-          <View style={styles.signatureBox}>
-            <Text style={{ fontSize: 14, fontWeight: "bold", color: "#015e63" }}>
-              مصدر الشهادات
-            </Text>
-            <Text style={styles.signatureLabel}>اعتماد الإصدار</Text>
-          </View>
-        </View>
-      </Page>
-    </Document>
+      h(
+        PdfView,
+        { style: styles.footer },
+        h(
+          PdfView,
+          { style: styles.signatureBox },
+          h(
+            PdfText,
+            { style: { fontSize: 14, fontWeight: "bold", color: "#015e63" } },
+            managerName ?? "مدير الاختبارات"
+          ),
+          h(PdfText, { style: styles.signatureLabel }, "التوقيع")
+        ),
+        h(
+          PdfView,
+          { style: styles.signatureBox },
+          h(
+            PdfText,
+            { style: { fontSize: 14, fontWeight: "bold", color: "#015e63" } },
+            "مصدر الشهادات"
+          ),
+          h(PdfText, { style: styles.signatureLabel }, "اعتماد الإصدار")
+        )
+      )
+    )
   );
 }
 
@@ -195,8 +267,15 @@ export async function generateCertificatePdfBuffer(
   data: CertificatePdfData
 ): Promise<Buffer> {
   registerCertificateFonts();
+  const document = CertificateDocument({ data });
+
+  // حارس توافق: لا نمرّر عنصراً بصيغة لا يفهمها مُوائِم @react-pdf
+  if (document.$$typeof !== PDF_ELEMENT_TYPE) {
+    throw new Error("تعذر بناء مستند الشهادة — خطأ داخلي في توليد الملف");
+  }
+
   const buffer = await renderToBuffer(
-    <CertificateDocument data={data} />
+    document as unknown as Parameters<typeof renderToBuffer>[0]
   );
   return Buffer.from(buffer);
 }
