@@ -3,6 +3,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole, requireTenantId } from "@/lib/security";
+import { assertSameTenant } from "@/lib/tenancy";
 import { Role, AuditAction } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import {
@@ -709,14 +710,13 @@ const PLATFORM_DESIGN_DEFAULTS: Omit<DesignTokens, "primaryColor" | "secondaryCo
 
 const DESIGN_TOKEN_KEYS = Object.keys(PLATFORM_DESIGN_DEFAULTS);
 
-/** جلب إعدادات التصميم المدموجة لجهة (تجاوزات الجهة فوق افتراضيات المنصة) */
-export async function getTenantDesignSettings(
+/**
+ * قراءة خام لإعدادات تصميم جهة (داخلية — لا تُصدَّر كـServer Action).
+ * used by the authorized wrapper below; no auth check by design.
+ */
+async function readTenantDesignSettings(
   tenantId: string
 ): Promise<{ tokens: DesignTokens; hasOverrides: boolean }> {
-  if (!tenantId) {
-    return { tokens: PLATFORM_DESIGN_DEFAULTS, hasOverrides: false };
-  }
-
   const tenantDesign = await prisma.tenantDesignSettings.findUnique({
     where: { tenantId },
     select: { tokens: true },
@@ -737,11 +737,37 @@ export async function getTenantDesignSettings(
   return { tokens: merged, hasOverrides: true };
 }
 
+/**
+ * جلب إعدادات التصميم المدموجة لجهة (تجاوزات الجهة فوق افتراضيات المنصة)
+ * ---------------------------------------------
+ * تفويض إلزامي على الخادم (لا يُقبل أي طلب بلا جلسة):
+ * - `tenantId` القادم من العميل **ليس** مصدر ثقة: إمّا جهة المستخدم نفسها
+ *   أو `SUPER_ADMIN` (مالك المنصة) الذي يملك صلاحية كل الجهات.
+ * - أي مستخدم آخر يحاول قراءة جهة أخرى يُرفض + يُسجَّل كتنبيه cross-tenant.
+ * - طلب بلا `tenantId` = الافتراضيات العامة للمنصة (لا بيانات مستأجر).
+ */
+export async function getTenantDesignSettings(
+  tenantId: string
+): Promise<{ tokens: DesignTokens; hasOverrides: boolean }> {
+  const user = await requireUser();
+  const requested = typeof tenantId === "string" ? tenantId.trim() : "";
+
+  if (!requested) {
+    return { tokens: PLATFORM_DESIGN_DEFAULTS, hasOverrides: false };
+  }
+
+  // assertSameTenant: يرفع تنبيهاً أمنياً ثم يرمي خطأ غير مصرح
+  // (SUPER_ADMIN يمرّ حسب قواعد النظام)
+  assertSameTenant(user, { tenantId: requested });
+
+  return readTenantDesignSettings(requested);
+}
+
 /** جلب التجاوزات المرتبطة بالجهة الحالية للمستخدم (لا يلمس جهات أخرى) */
 export async function getMyTenantDesignTokens(): Promise<DesignTokens | null> {
   const user = await requireUser();
   if (!user.tenantId) return null;
-  const { tokens } = await getTenantDesignSettings(user.tenantId);
+  const { tokens } = await readTenantDesignSettings(user.tenantId);
   return tokens;
 }
 

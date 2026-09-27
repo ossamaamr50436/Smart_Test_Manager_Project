@@ -1,7 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 
 // إعادة استخدام اتصال واحد في وضع التطوير لتجنب استنفاد الاتصالات (Neon)
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// توسيع آمن للنطاق العام (widening cast) بدل `as unknown as`
+const globalForPrisma = global as typeof globalThis & {
+  prisma?: PrismaClient;
+};
 
 export const prisma =
   globalForPrisma.prisma ??

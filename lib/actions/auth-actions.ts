@@ -66,6 +66,9 @@ export async function getCurrentUser() {
       institutionId: true,
       tenantId: true,
       createdAt: true,
+      // بوابة إجبار تغيير كلمة المرور تُفحص على الخادم من الـDB
+      // (مصدر الحقيقة) — لا يُعتمد على التوكن وحده
+      mustChangePassword: true,
     },
   });
 

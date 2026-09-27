@@ -53,12 +53,17 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
   // تمرير nonce عبر request headers حتى يقرأه layout عبر headers().get("x-nonce")
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  // تمرير المسار الحقيقي حتى يعتمد layout (على الخادم) بوابة تغيير كلمة المرور
+  // دون الاعتماد على Middleware وحده (أنماط Next.js الرسمية)
+  requestHeaders.set("x-pathname", req.nextUrl.pathname);
 
   // تشغيل NextAuth Middleware (Edge-safe config) بصيغة للغط: تمنح الـ augment
   // للطلب (req.auth) وتُكمل التوجيه/الحماية عبر authorized في auth.config
   const nextAuth = middlewareAuth((authReq: NextAuthRequest, _event: NextFetchEvent) => {
     void authReq;
-    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
     response.headers.set("x-nonce", nonce);
     return response;
   });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireUser, requireRole } from "@/lib/security";
+import { requireApiUser } from "@/lib/api-guard";
+import { requireRole } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { getTenantFilter } from "@/lib/tenancy";
 import { Role, StudentStatus } from "@prisma/client";
@@ -11,7 +12,7 @@ import type { Prisma } from "@prisma/client";
  */
 export async function GET() {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     requireRole(user, [
       Role.ADMIN,
       Role.HEAD_OF_AFFAIRS,

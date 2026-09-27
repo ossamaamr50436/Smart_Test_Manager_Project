@@ -14,6 +14,15 @@ import {
   TAJWEED_SCORE_MAX,
   SCORE_FULL,
 } from "@/lib/score-config";
+import {
+  countsFromAssessment,
+  emptyCounts,
+  emptySegment,
+  sumCounts,
+  type Counts,
+  type EvaluationKeys,
+  type SegmentState,
+} from "@/lib/assessment-counts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,28 +65,11 @@ type Props = {
   settings: Settings;
 };
 
-type EvaluationKeys = "errorCount" | "doubtCount" | "tajweedErrors";
-
-type SegmentState = Record<EvaluationKeys, number>;
-type Counts = Record<string, SegmentState>;
-
 type Incoming = {
   evaluatorId?: string;
   counts?: Record<string, SegmentState>;
   assessmentStatus?: string;
 };
-
-function emptySegment(): SegmentState {
-  return { errorCount: 0, doubtCount: 0, tajweedErrors: 0 };
-}
-
-function emptyCounts(segments: Segment[]): Counts {
-  const map: Counts = {};
-  for (const seg of segments) {
-    map[String(seg.number)] = emptySegment();
-  }
-  return map;
-}
 
 export function AssessmentBoard({
   student,
@@ -133,36 +125,10 @@ export function AssessmentBoard({
         const states = await getAssessmentState(sessionId);
         const mine = states.find((s) => s.evaluatorId === evaluatorId);
         if (mine) {
-          // تحويل الحقول القديمة (إن وُجدت) إلى التنسيق الجديد
-          const merged: Counts = emptyCounts(segments);
-          for (const seg of segments) {
-            const key = String(seg.number);
-            // إذا كان الحفظ القديم موجوداً (7 أعمدة)، ندمجه في errorCount
-            const oldErrors =
-              (mine as Record<string, unknown>).wordErrors ??
-              0;
-            const hasOldFormat = typeof oldErrors === "number" && oldErrors > 0;
-            if (hasOldFormat) {
-              const r = mine as unknown as Record<string, number>;
-              merged[key] = {
-                errorCount:
-                  (r.wordErrors ?? 0) +
-                  (r.letterErrors ?? 0) +
-                  (r.diacriticErrors ?? 0) +
-                  (r.seriousErrors ?? 0) +
-                  (r.subtleErrors ?? 0) +
-                  (r.promptingCount ?? 0),
-                doubtCount: r.doubtCount ?? 0,
-                tajweedErrors: r.tajweedErrors ?? 0,
-              };
-            } else {
-              merged[key] = {
-                errorCount: (mine as unknown as Record<string, number>).errorCount ?? 0,
-                doubtCount: mine.doubtCount,
-                tajweedErrors: (mine as unknown as Record<string, number>).tajweedErrors ?? 0,
-              };
-            }
-          }
+          // حقول Assessment في DB أعداد صحيحة (بلا null) — تُقرأ بأنواعها:
+          // totals المخزَّنة تُحمَّل على أول مقطع والباقي صفر، فيحفظ المجموع
+          // نفسه (لا تضخيم ولا تحويل صامت إلى 0).
+          const merged = countsFromAssessment(mine, segments);
           setCounts(merged);
           setRecitationScore(mine.recitationScore);
           setTajweedScore(mine.tajweedScore);
@@ -217,20 +183,12 @@ export function AssessmentBoard({
     return segments.length > 0 ? Math.round((filled / segments.length) * 100) : 0;
   }, [counts, segments]);
 
-  // الإجماليات
+  // الإجماليات — من حالة المقاطع (المصدر الوحيد المعروض والمحفوظ)
   const totals = useMemo(() => {
-    let totalErrors = 0;
-    let totalDoubts = 0;
-    let totalTajweedErrors = 0;
-    for (const seg of segments) {
-      const c = counts[String(seg.number)] ?? emptySegment();
-      totalErrors += c.errorCount;
-      totalDoubts += c.doubtCount;
-      totalTajweedErrors += c.tajweedErrors;
-    }
-    const errorDeduction = totalErrors * settings.errorDeduction;
-    const doubtDeduction = totalDoubts * settings.doubtDeduction;
-    const tajweedDeduction = totalTajweedErrors * settings.tajweedDeduction;
+    const sum = sumCounts(counts);
+    const errorDeduction = sum.errorCount * settings.errorDeduction;
+    const doubtDeduction = sum.doubtCount * settings.doubtDeduction;
+    const tajweedDeduction = sum.tajweedErrors * settings.tajweedDeduction;
     const totalDeduction = errorDeduction + doubtDeduction + tajweedDeduction;
     const memorizationScore = Math.max(0, MEMORIZATION_SCORE - totalDeduction);
     const finalScore = Math.max(
@@ -241,9 +199,9 @@ export function AssessmentBoard({
       )
     );
     return {
-      totalErrors,
-      totalDoubts,
-      totalTajweedErrors,
+      totalErrors: sum.errorCount,
+      totalDoubts: sum.doubtCount,
+      totalTajweedErrors: sum.tajweedErrors,
       errorDeduction,
       doubtDeduction,
       tajweedDeduction,
@@ -251,7 +209,7 @@ export function AssessmentBoard({
       memorizationScore,
       finalScore,
     };
-  }, [counts, segments, recitationScore, tajweedScore, settings]);
+  }, [counts, recitationScore, tajweedScore, settings]);
 
   async function handleSaveDraft() {
     setSaving(true);

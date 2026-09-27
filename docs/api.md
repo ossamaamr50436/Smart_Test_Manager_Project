@@ -14,25 +14,29 @@
 ## 1) نقاط HTTP (Route Handlers)
 
 ### POST `/api/import/models` — استيراد نماذج الاختبار
-- **الأدوار**: `TEST_SPECIALIST`, `ADMIN`
+- **الأدوار**: `TEST_SPECIALIST`, `ADMIN` — ولا يُسمح لمن عليه إجبار تغيير كلمة المرور (`403`).
 - **الجسم**: مصفوفة (بحد أقصى 200 عنصر):
   ```json
   [
     {
       "modelNumber": 1,
       "branch": "5",
-      "institutionId": "inst_xxx",
-      "seasonId": "season_xxx",
+      "segmentsCount": 5,
       "fileBuffer": "base64…؟أو يترك فارغاً",
       "fileName": "model-1.json",
-      "details": { "segments": [...] }
+      "details": { "segments": [ { "number": 1, "fromText": "…", "fromSurah": "…", "fromVerse": 1, "toText": "…", "toSurah": "…", "toVerse": 2 } ] }
     }
   ]
   ```
-- **قيود التحقق**: `modelNumber` ∈ [1..20]، `branch` ∈ {5,10,15,20,25,30}، `seasonId` مطلوب.
-- **الحماية**: Rate limit (5/15د)، حجم ملف ≤ 2MB، الرفع اختياري إلى Google Drive.
+- **قيود التحقق** (كلها على الخادم عبر `importQuestionBankSchema` = `questionBankSchema` + حد أدنى 5 مقاطع):
+  `modelNumber` ∈ [1..100]، `branch` ∈ {5,10,15,20,25,30}،
+  `segmentsCount` ∈ [5..10] ومطابق تماماً لعدد عناصر `details.segments`،
+  ترقيم المقاطع تسلسلياً `1..N`، وبنية كل مقطع كاملة (نص/سورة/آية).
+- **سلوك الرفض**: أي عنصر غير مطابق يُرفَض منفرداً برسالة عربية، **بلا رفع ملف وبلا أي كتابة في قاعدة البيانات**؛
+  وإن لم يمر أي عنصر من الدفعة فلا يقع استيراد جزئي.
+- **الحماية**: Rate limit (5/15د) على مستوى المستخدم، حجم ملف ≤ 2MB، الرفع اختياري إلى وحدة التخزين بعد نجاح التحقق فقط.
 - **الاستجابة**: `{ "imported": n, "failed": m, "results": [{modelNumber, ok, error?}] }`
-- **الخطأ العام**: `403` (غير مصرح) — لا يُكشف سبب أمني.
+- **الأخطاء العامة**: `400` (الجسم ليس مصفوفة) — `403` (غير مصرح).
 
 ### GET `/api/certificate/[id]` — تنزيل شهادة PDF عبر وسيط
 - **الأدوار**: `CERTIFICATE_SOURCE` (أي شهادة) • `INSTITUTION` (شهادات الجهة فقط) • `ADMIN`.

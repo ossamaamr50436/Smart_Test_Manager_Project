@@ -63,7 +63,7 @@ describe("assessmentInputSchema", () => {
 
   it("يقبل حقولاً قادمة كنصوص (coerce)", () => {
     expect(
-      assessmentInputSchema.safeParse({ ...valid, wordErrors: "3" as unknown as number }).success
+      assessmentInputSchema.safeParse({ ...valid, wordErrors: "3" }).success
     ).toBe(true);
   });
 });

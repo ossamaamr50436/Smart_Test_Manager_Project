@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireUser, requireRole } from "@/lib/security";
+import { requireApiUser } from "@/lib/api-guard";
+import { requireRole } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { Role, CertificateStatus } from "@prisma/client";
 import {
@@ -26,7 +27,7 @@ export async function GET(
   }
 
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     requireRole(user, [Role.CERTIFICATE_SOURCE, Role.INSTITUTION, Role.ADMIN]);
 
     const certificate = await prisma.certificate.findUnique({

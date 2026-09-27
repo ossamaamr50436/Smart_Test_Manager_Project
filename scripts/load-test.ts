@@ -75,7 +75,21 @@ async function main() {
   // سيناريو متوازي يحاكي تزامن حفظ عدة مقيمين (مثيلات Node منفصلة)
   await bench("خط الأنابيب المشترك (validate → compute)", () => {
     const parsed = assessmentInputSchema.safeParse(validInput);
-    if (parsed.success) computeTotals(parsed.data as unknown as ScoreInput);
+    if (parsed.success) {
+      const d = parsed.data;
+      computeTotals({
+        wordErrors: d.wordErrors,
+        letterErrors: d.letterErrors,
+        diacriticErrors: d.diacriticErrors,
+        seriousErrors: d.seriousErrors,
+        subtleErrors: d.subtleErrors,
+        promptingCount: d.promptingCount,
+        doubtCount: d.doubtCount,
+        recitationScore: d.recitationScore,
+        tajweedScore: d.tajweedScore,
+        tajweedErrors: d.tajweedErrors,
+      });
+    }
   });
 
   console.log("\n✅ انتهى اختبار الحمل بنجاح");

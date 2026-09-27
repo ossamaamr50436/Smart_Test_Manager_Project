@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/security";
+import { requireApiUser } from "@/lib/api-guard";
+
 import { authenticateChannel } from "@/lib/realtime";
 
 /**
@@ -9,7 +10,7 @@ import { authenticateChannel } from "@/lib/realtime";
  */
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const body = await req.text();
     const params = new URLSearchParams(body);
     const socketId = params.get("socket_id");

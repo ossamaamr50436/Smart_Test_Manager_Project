@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { CHANGE_PASSWORD_PATH, resolvePasswordGate } from "@/lib/password-gate";
 
 // مسارات الدور الافتراضية — مُعرّفة بمفاتيح نصية فقط ( ללא imports من Prisma)
 // لضمان التوافق مع Edge Runtime
@@ -74,17 +75,27 @@ export const authConfig = {
 
       // إجبار تغيير كلمة المرور (المرحلة 4):
       // أي مستخدم يملك mustChangePassword لا يمكنه تصفح أي صفحة قبل تغييرها
-      if ((auth.user as { mustChangePassword?: boolean } | undefined)?.mustChangePassword) {
-        if (path !== "/change-password") {
-          return Response.redirect(new URL("/change-password", nextUrl));
-        }
-        return true;
+      // (القرار في وحدة نقية مشتركة مع تخطيط لوحة التحكم — lib/password-gate)
+      const passwordGate = resolvePasswordGate({
+        mustChangePassword: auth.user?.mustChangePassword,
+        pathname: path,
+      });
+      if (passwordGate) {
+        return Response.redirect(new URL(passwordGate, nextUrl));
       }
 
       // صفحات عامة لكل المستخدمين المسجلين (بما فيها SUPER_ADMIN)
       // /profile و /settings و /settings/tutorial و /notifications
+      // و /change-password (بلا تحديد دور) — وإلا حُوِّل المستخدم المُجبر
+      // على التغيير إلى صفحته حسب دوره فتعادلت البوابة forever
       // توضع قبل قيد SUPER_ADMIN حتى يتمكن من الوصول إليها دون إعادة توجيه
-      const allowedForAllUsers = ["/profile", "/settings", "/settings/tutorial", "/notifications"];
+      const allowedForAllUsers = [
+        "/profile",
+        "/settings",
+        "/settings/tutorial",
+        "/notifications",
+        CHANGE_PASSWORD_PATH,
+      ];
       if (allowedForAllUsers.some((p) => path === p || path.startsWith(p + "/"))) {
         return true;
       }
@@ -150,10 +161,9 @@ export const authConfig = {
     },
     jwt({ token, user, trigger, session }) {
       if (user) {
-        const extended = user as { role?: string; mustChangePassword?: boolean };
         token.id = user.id;
-        token.role = extended.role;
-        token.mustChangePassword = extended.mustChangePassword ?? false;
+        token.role = user.role;
+        token.mustChangePassword = user.mustChangePassword ?? false;
       }
       // بعد تغيير كلمة المرور، يُحدَّث التوكن فوراً (المرحلة 4)
       if (trigger === "update") {
@@ -167,9 +177,10 @@ export const authConfig = {
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        (session.user as { role?: string }).role = token.role as string;
-        (session.user as { mustChangePassword?: boolean }).mustChangePassword =
-          (token.mustChangePassword as boolean | undefined) ?? false;
+        session.user.role = token.role as string;
+        const forced: unknown = token.mustChangePassword;
+        session.user.mustChangePassword =
+          typeof forced === "boolean" ? forced : false;
       }
       return session;
     },

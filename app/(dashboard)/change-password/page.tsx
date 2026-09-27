@@ -13,9 +13,8 @@ export default async function ChangePasswordPage() {
     redirect("/login");
   }
 
-  const mustChange =
-    (session.user as { mustChangePassword?: boolean } | undefined)
-      ?.mustChangePassword ?? false;
+  // مصدر الحقيقة: الجلسة (تُملأ من DB عند التوقيع وتُحدَّث فوراً بعد التغيير)
+  const mustChange = session.user.mustChangePassword === true;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-8">

@@ -43,11 +43,21 @@ type PdfElement = {
 type PdfNode = PdfElement | string | number | boolean | null | undefined;
 
 // `@react-pdf/renderer` يصدّر أنواع المضيف (DOCUMENT/PAGE/TEXT/VIEW) كنصوص
-// وقت التشغيل، بينما تعريفاته (d.ts) تصفها كأصناف React — نثبّت النوع هنا.
-const PdfDocument = Document as unknown as string;
-const PdfPage = Page as unknown as string;
-const PdfText = Text as unknown as string;
-const PdfView = View as unknown as string;
+// وقت التشغيل، بينما تعريفاته (d.ts) تصفها كأصناف React — نثبّت النوع هنا
+// عبر تحقّق صريح وقت التشغيل (بلا casting مزدوج يُخفي اختلاف النوع).
+function asPdfHostTag(name: string, value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error(
+      `تعذر توليد الشهادة — نوع المُضيف (${name}) من @react-pdf/renderer غير متوقع`
+    );
+  }
+  return value;
+}
+
+const PdfDocument = asPdfHostTag("Document", Document);
+const PdfPage = asPdfHostTag("Page", Page);
+const PdfText = asPdfHostTag("Text", Text);
+const PdfView = asPdfHostTag("View", View);
 
 /** إنشاء عنصر PDF متوافق مع مُوائِم @react-pdf */
 function h(
@@ -274,8 +284,16 @@ export async function generateCertificatePdfBuffer(
     throw new Error("تعذر بناء مستند الشهادة — خطأ داخلي في توليد الملف");
   }
 
-  const buffer = await renderToBuffer(
-    document as unknown as Parameters<typeof renderToBuffer>[0]
-  );
+  const buffer = await renderToBuffer(asRenderableDocument(document));
   return Buffer.from(buffer);
+}
+
+/**
+ * الشجرة المبنية يدوياً تتبع عقد `ReactElement` التي يتوقعها
+ * `renderToBuffer` (تحقّق `$$typeof` أعلاه يضمن المطابقة وقت التشغيل).
+ */
+type RenderableDocument = Parameters<typeof renderToBuffer>[0];
+
+function asRenderableDocument(node: PdfElement): RenderableDocument {
+  return node as RenderableDocument;
 }
