@@ -97,6 +97,20 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+  // سجلات التدقيق التي أنشأتها اختبارات اللجنة (details JSON — تُصفّى في JS)
+  if (prisma && ownTenantId) {
+    const logs = await prisma.auditLog.findMany({
+      where: { tenantId: ownTenantId },
+      select: { id: true, details: true },
+    });
+    const testLogs = logs.filter((l) => {
+      const raw = typeof l.details === "string" ? l.details : JSON.stringify(l.details);
+      return /-م35-|-مختبر-|م35-/.test(raw);
+    });
+    if (testLogs.length > 0) {
+      await prisma.auditLog.deleteMany({ where: { id: { in: testLogs.map((l) => l.id) } } });
+    }
+  }
   await prisma?.$disconnect();
 });
 
@@ -409,6 +423,8 @@ describe("M35/F — قاعدة واحدة لإخفاء النماذج المست
       where: { tenantId: ownTenantId },
       select: { id: true, seasonId: true, branch: true },
     });
+    // النموذج #1 محجوز لاختبار M35/F (ExamSession @@unique([seasonId, modelId]))
+    // وm36/m37 يأخذان #2 و#3 على التوالي
     const models = await prisma.questionBankModel.findMany({
       where: { tenantId: ownTenantId, branch: committee.branch },
       select: { id: true, modelNumber: true },

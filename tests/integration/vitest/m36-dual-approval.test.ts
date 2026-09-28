@@ -81,9 +81,13 @@ beforeAll(async () => {
   seasonId = (
     await prisma.examSeason.findFirstOrThrow({ where: { tenantId }, select: { id: true } })
   ).id;
+  // ExamSession فيها @@unique([seasonId, modelId]) — لكل ملف اختبار نموذجه
+  // (m35/F يأخذ #1، m37 يأخذ #3) حتى لا تتعارض الجلسات عند التشغيل المتوازي
   modelId = (
     await prisma.questionBankModel.findFirstOrThrow({
       where: { tenantId, branch: "5" },
+      orderBy: { modelNumber: "asc" },
+      skip: 1,
       select: { id: true },
     })
   ).id;

@@ -111,6 +111,112 @@ let otherTenantCommitteeId: string;
 let otherTenantStudentId: string;
 let ownTenantId: string;
 
+/** سجلات أنشأها هذا الملف لتنظيفها في afterAll */
+const createdByThisFile = { committees: [] as string[], students: [] as string[], sessions: [] as string[] };
+
+async function ensureCommittee(tenantId: string, examinerEmails: string[], label: string) {
+  const existing = await prisma.committee.findFirst({ where: { tenantId }, select: { id: true } });
+  if (existing) return existing.id;
+
+  const season = await prisma.examSeason.findFirstOrThrow({
+    where: { tenantId },
+    select: { id: true },
+  });
+  const teachers = await prisma.user.findMany({
+    where: { tenantId, email: { in: examinerEmails } },
+    select: { id: true },
+    take: 2,
+  });
+  const [teacher1, teacher2] = teachers;
+  if (!teacher1 || !teacher2) throw new Error(`يلزم مختبران في المستأجر ${tenantId}`);
+  const committee = await prisma.committee.create({
+    data: {
+      name: `لجنة-${label}-${Date.now()}`,
+      branch: "5",
+      seasonId: season.id,
+      teacher1Id: teacher1.id,
+      teacher2Id: teacher2.id,
+      tenantId,
+    },
+    select: { id: true },
+  });
+  createdByThisFile.committees.push(committee.id);
+  return committee.id;
+}
+
+async function ensureStudent(tenantId: string, label: string) {
+  const existing = await prisma.student.findFirst({ where: { tenantId }, select: { id: true } });
+  if (existing) return existing.id;
+
+  // institutionId مطلوب في مخطط قاعدة البيانات
+  const institution = await prisma.institution.findFirst({
+    where: { tenantId },
+    select: { id: true },
+  });
+  if (!institution) throw new Error(`لا توجد جهة في المستأجر ${tenantId}`);
+
+  const student = await prisma.student.create({
+    data: {
+      name: `م34-${label}-${Date.now()}`,
+      age: 12,
+      branch: "5",
+      teacherName: "أ.م34",
+      parentPhone: "0550000000",
+      status: "PENDING",
+      institutionId: institution.id,
+      tenantId,
+    },
+    select: { id: true },
+  });
+  createdByThisFile.students.push(student.id);
+  return student.id;
+}
+
+async function ensureSession(tenantId: string) {
+  const existing = await prisma.examSession.findFirst({
+    where: { tenantId },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const studentId = await ensureStudent(tenantId, "جلسة");
+  const season = await prisma.examSeason.findFirstOrThrow({
+    where: { tenantId },
+    select: { id: true },
+  });
+  // ExamSession @@unique([seasonId, modelId]) — النموذج #4 محجوز لملف m34
+  // (m35/F = #1، m36 = #2، m37 = #3)
+  const model = await prisma.questionBankModel.findFirstOrThrow({
+    where: { tenantId, branch: "5" },
+    orderBy: { modelNumber: "asc" },
+    skip: 3,
+    select: { id: true },
+  });
+  const teachers = await prisma.user.findMany({
+    where: { tenantId, role: "EXAMINER" },
+    select: { id: true },
+    take: 2,
+  });
+  const [teacher1, teacher2] = teachers;
+  if (!teacher1 || !teacher2) throw new Error(`يلزم مختبران في المستأجر ${tenantId}`);
+  const session = await prisma.examSession.create({
+    data: {
+      studentId,
+      teacher1Id: teacher1.id,
+      teacher2Id: teacher2.id,
+      examDate: new Date(),
+      period: "صباحي",
+      status: "SCHEDULED",
+      seasonId: season.id,
+      modelId: model.id,
+      tenantId,
+    },
+    select: { id: true },
+  });
+  createdByThisFile.sessions.push(session.id);
+  return session.id;
+}
+
 beforeAll(async () => {
   ({ prisma } = await import("@/lib/prisma"));
   adminActions = await import("@/lib/actions/admin-actions");
@@ -132,33 +238,27 @@ beforeAll(async () => {
   });
   ownTenantId = own.id;
 
-  ownSessionId = (
-    await prisma.examSession.findFirstOrThrow({
-      where: { tenantId: own.id },
-      select: { id: true },
-    })
-  ).id;
-  ownCommitteeId = (
-    await prisma.committee.findFirstOrThrow({
-      where: { tenantId: own.id },
-      select: { id: true },
-    })
-  ).id;
-  otherTenantCommitteeId = (
-    await prisma.committee.findFirstOrThrow({
-      where: { tenantId: other.id },
-      select: { id: true },
-    })
-  ).id;
-  otherTenantStudentId = (
-    await prisma.student.findFirstOrThrow({
-      where: { tenantId: other.id },
-      select: { id: true },
-    })
-  ).id;
+  // البيانات تُنشأ عند غيابها (لا اعتماد على بيانات جاهزة في القاعدة)
+  ownSessionId = await ensureSession(own.id);
+  ownCommitteeId = await ensureCommittee(own.id, [E.examiner1, E.examiner2], "م34-داخلي");
+  otherTenantCommitteeId = await ensureCommittee(other.id, ["ossamalcap@gmail.com", "ossamalcap1@gmail.com"], "م34-خارجي");
+  otherTenantStudentId = await ensureStudent(other.id, "خارجي");
 }, 120_000);
 
 afterAll(async () => {
+  if (prisma) {
+    for (const id of createdByThisFile.sessions) {
+      await prisma.assessment.deleteMany({ where: { examSessionId: id } });
+      await prisma.examSession.deleteMany({ where: { id } });
+    }
+    for (const id of createdByThisFile.students) {
+      await prisma.student.deleteMany({ where: { id } });
+    }
+    for (const id of createdByThisFile.committees) {
+      await prisma.committeeModelSelection.deleteMany({ where: { committeeId: id } });
+      await prisma.committee.deleteMany({ where: { id } });
+    }
+  }
   await prisma?.$disconnect();
 });
 
@@ -360,10 +460,26 @@ describe("M34/TEST_SPECIALIST — تفاصيل كاملة داخل نطاقه ف
       path.resolve(process.cwd(), "app/(dashboard)/test-specialist/final-review/page.tsx"),
       "utf8"
     );
-    expect(src).toMatch(/recitationScore: true/);
-    expect(src).toMatch(/tajweedScore: true/);
     expect(src).toMatch(/getTenantFilter\(user\)/);
     expect(src).toMatch(/user\.role !== Role\.TEST_SPECIALIST && user\.role !== Role\.ADMIN/);
+    expect(src).toMatch(/select: SPECIALIST_FINAL_REVIEW_STUDENT_SELECT/);
+    expect(src.includes("include:"), "صفحة الأخصائي تستخدم include").toBe(false);
+
+    // تفاصيل التقييم في إسقاط الأخصائي (وحدة الخصوصية)
+    const projectionSrc = fs.readFileSync(
+      path.resolve(process.cwd(), "lib/privacy/student-projections.ts"),
+      "utf8"
+    );
+    const specialistSelect = projectionSrc.slice(
+      projectionSrc.indexOf("SPECIALIST_FINAL_REVIEW_STUDENT_SELECT"),
+      projectionSrc.indexOf("STUDENT_PII_FIELDS")
+    );
+    expect(specialistSelect).toMatch(/recitationScore: true/);
+    expect(specialistSelect).toMatch(/tajweedScore: true/);
+    // بلا بيانات ولي الأمر
+    for (const field of ["parentPhone", "address", "nationality", "applicationFileUrl"]) {
+      expect(specialistSelect.includes(field), `تسريب ${field} في إسقاط الأخصائي`).toBe(false);
+    }
   });
 });
 
@@ -380,14 +496,29 @@ describe("M34/HEAD_OF_AFFAIRS — لا يرى تفاصيل التقييم", () =
     "memorizationDeduction",
   ];
 
-  it("صفحة رئيس الشؤون تقرأ التقييم بـ select محدود (finalScore فقط)", () => {
+  it("صفحة رئيس الشؤون تقرأ عبر إسقاط محدود (finalScore فقط)", () => {
     const src = fs.readFileSync(
       path.resolve(process.cwd(), "app/(dashboard)/head-of-affairs/page.tsx"),
       "utf8"
     );
-    expect(src).toMatch(/select: \{ finalScore: true \}/);
+    // الإسقاط معرَّف في وحدة الخصوصية (قاعدة واحدة لكل الطبقات)
+    expect(src).toMatch(/select: HEAD_APPROVAL_TABLE_STUDENT_SELECT/);
+    expect(src.includes("include:"), "صفحة رئيس الشؤون تستخدم include").toBe(false);
     for (const field of forbidden) {
       expect(src.includes(field), `تسريب ${field} لرئيس الشؤون`).toBe(false);
+    }
+    // التقييم في الإسقاط = finalScore فقط
+    const projectionSrc = fs.readFileSync(
+      path.resolve(process.cwd(), "lib/privacy/student-projections.ts"),
+      "utf8"
+    );
+    const tableSelect = projectionSrc.slice(
+      projectionSrc.indexOf("HEAD_APPROVAL_TABLE_STUDENT_SELECT"),
+      projectionSrc.indexOf("SPECIALIST_FINAL_REVIEW_STUDENT_SELECT")
+    );
+    expect(tableSelect).toMatch(/select: \{ finalScore: true \}/);
+    for (const field of forbidden) {
+      expect(tableSelect.includes(field), `تسريب ${field} في إسقاط اللوحة`).toBe(false);
     }
   });
 
