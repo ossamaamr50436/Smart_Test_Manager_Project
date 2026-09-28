@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
-import { Role, StudentStatus, AssessmentStatus } from "@prisma/client";
+import { Role, StudentStatus } from "@prisma/client";
 import { getTenantFilter } from "@/lib/tenancy";
+import { SPECIALIST_FINAL_REVIEW_STUDENT_SELECT } from "@/lib/privacy/student-projections";
 import { FinalReviewTable } from "@/components/specialist/final-review-table";
 
 export const metadata: Metadata = {
@@ -19,38 +20,10 @@ export default async function FinalReviewPage() {
   }
 
   // الطلاب الذين اعتمد المختبران تقييماتهم معاً (COMPLETED = اعتماد مزدوج كامل)
+  // إسقاط على مستوى الخادم: تفاصيل التقييم نعم، بيانات ولي الأمر/العنوان لا
   const students = await prisma.student.findMany({
     where: { ...getTenantFilter(user), status: StudentStatus.COMPLETED },
-    include: {
-      institution: { select: { name: true } },
-      examSessions: {
-        orderBy: { createdAt: "desc" },
-        include: {
-          model: { select: { modelNumber: true } },
-          assessments: {
-            where: {
-              status: {
-                in: [
-                  AssessmentStatus.APPROVED,
-                  AssessmentStatus.ACCEPTED,
-                  AssessmentStatus.NOTIFIED,
-                ],
-              },
-            },
-            select: {
-              finalScore: true,
-              recitationScore: true,
-              tajweedScore: true,
-              memorizationDeduction: true,
-              totalDeduction: true,
-              status: true,
-              updatedAt: true,
-              evaluator: { select: { id: true, name: true } },
-            },
-          },
-        },
-      },
-    },
+    select: SPECIALIST_FINAL_REVIEW_STUDENT_SELECT,
     orderBy: { updatedAt: "desc" },
   });
 

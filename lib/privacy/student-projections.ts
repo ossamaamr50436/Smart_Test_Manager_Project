@@ -1,3 +1,4 @@
+import { AssessmentStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -33,6 +34,81 @@ export const HEAD_REVIEW_STUDENT_SELECT = {
 export type HeadReviewStudent = Prisma.StudentGetPayload<{
   select: typeof HEAD_REVIEW_STUDENT_SELECT;
 }>;
+
+/**
+ * إسقاط لوحة رئيس الشؤون التعليمية (NOTIFIED).
+ * نفس قواعد الخصوصية أعلاه + تقييمات ACCEPTED فقط (finalScore).
+ * لا بيانات ولي الأمر ولا تفاصيل التقييم.
+ */
+export const HEAD_APPROVAL_TABLE_STUDENT_SELECT = {
+  id: true,
+  name: true,
+  branch: true,
+  updatedAt: true,
+  institution: { select: { name: true } },
+  examSessions: {
+    select: {
+      assessments: {
+        where: { status: AssessmentStatus.ACCEPTED },
+        select: { finalScore: true },
+      },
+    },
+  },
+} satisfies Prisma.StudentSelect;
+
+/**
+ * إسقاط مراجعة الأخصائي النهائية (COMPLETED).
+ * الأخصائي يحتاج تفاصيل تقييم المختبرين، لكنه لا يحتاج بيانات ولي الأمر
+ * (parentPhone/address/nationality) ولا رابط ملف التقديم ولا اسم المعلم.
+ */
+export const SPECIALIST_FINAL_REVIEW_STUDENT_SELECT = {
+  id: true,
+  name: true,
+  branch: true,
+  updatedAt: true,
+  institution: { select: { name: true } },
+  examSessions: {
+    orderBy: { createdAt: "desc" },
+    select: {
+      examDate: true,
+      period: true,
+      model: { select: { modelNumber: true } },
+      assessments: {
+        where: {
+          status: {
+            in: [
+              AssessmentStatus.APPROVED,
+              AssessmentStatus.ACCEPTED,
+              AssessmentStatus.NOTIFIED,
+            ],
+          },
+        },
+        select: {
+          finalScore: true,
+          recitationScore: true,
+          tajweedScore: true,
+          memorizationDeduction: true,
+          totalDeduction: true,
+          status: true,
+          updatedAt: true,
+          evaluator: { select: { id: true, name: true } },
+        },
+      },
+    },
+  },
+} satisfies Prisma.StudentSelect;
+
+/** حقول بيانات ولي الأمر/الطالب المحظورة على طبقات العرض (أي إسقاط). */
+export const STUDENT_PII_FIELDS = [
+  "parentPhone",
+  "address",
+  "nationality",
+  "age",
+  "teacherName",
+  "applicationFileUrl",
+  "applicationFileId",
+  "phone",
+] as const;
 
 /** مفاتيح المستوى الأعلى المسموح بها في إسقاط مراجعة رئيس الشؤون. */
 export const HEAD_REVIEW_ALLOWED_FIELDS = [

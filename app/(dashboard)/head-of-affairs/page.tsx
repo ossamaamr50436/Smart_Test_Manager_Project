@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role, StudentStatus } from "@prisma/client";
 import { getTenantFilter } from "@/lib/tenancy";
+import { HEAD_APPROVAL_TABLE_STUDENT_SELECT } from "@/lib/privacy/student-projections";
 import { HeadApprovalTable } from "@/components/head-of-affairs/head-approval-table";
 
 export const metadata: Metadata = {
@@ -19,19 +20,10 @@ export default async function HeadOfAffairsDashboardPage() {
   }
 
   // الطلاب الذين اعتمدهم الأخصائي وبانتظار الاعتماد النهائي لرئيس الشؤون
+  // إسقاط على مستوى الخادم: لا سجل Student الكامل (لا بيانات ولي الأمر/العنوان)
   const students = await prisma.student.findMany({
     where: { ...getTenantFilter(user), status: StudentStatus.NOTIFIED },
-    include: {
-      institution: { select: { name: true } },
-      examSessions: {
-        include: {
-          assessments: {
-            where: { status: "ACCEPTED" },
-            select: { finalScore: true },
-          },
-        },
-      },
-    },
+    select: HEAD_APPROVAL_TABLE_STUDENT_SELECT,
     orderBy: { updatedAt: "desc" },
   });
 

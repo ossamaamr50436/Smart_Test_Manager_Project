@@ -192,9 +192,7 @@ export function FinalReviewTable({ students }: { students: FinalStudent[] }) {
                   {dialogStudent.examDate
                     ? ` — تاريخ الاختبار: ${dialogStudent.examDate.toLocaleDateString("ar-SA")}`
                     : ""}
-                  {dialogStudent.period
-                    ? ` — الفترة: ${dialogStudent.period === "MORNING" ? "صباحي" : "مسائي"}`
-                    : ""}
+                  {dialogStudent.period ? ` — الفترة: ${dialogStudent.period}` : ""}
                   {dialogStudent.modelNumber
                     ? ` — النموذج: ${dialogStudent.modelNumber}`
                     : ""}
