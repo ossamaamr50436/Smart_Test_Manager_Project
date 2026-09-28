@@ -11,8 +11,25 @@ const utapi = new UTApi();
 
 export type StoredFile = { fileId: string; url: string };
 
+export type UploadOptions = {
+  /**
+   * رمز UploadThing الخاص بالمستأجر (Tenant.uploadthingToken).
+   * عند وجوده يُبنى عميل مرتبط بحساب المستأجر بدل الحساب العام.
+   */
+  token?: string | null;
+};
+
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_DOWNLOAD_SIZE = 20 * 1024 * 1024; // 20MB
+
+/**
+ * يختار عميل الرفع: حساب المستأجر إن توفّر رمزه، وإلا العميل العام.
+ */
+export function resolveUploader(token?: string | null): UTApi {
+  const clean = typeof token === "string" ? token.trim() : "";
+  if (clean.length === 0) return utapi;
+  return new UTApi({ token: clean });
+}
 
 /**
  * تطهير اسم الملف من الأحرف الخطرة (منع path traversal / أحرف غير صالحة)
@@ -29,13 +46,41 @@ export function sanitizeFileName(fileName: string, fallback = "file"): string {
 }
 
 /**
- * رفع ملف إلى UploadThing
+ * هل رمز UploadThing بالصيغة التي يقبلها الخادم؟
+ * الصيغة المعتمدة: base64 لـ JSON يحوي { apiKey, appId, regions }.
+ * المفتاح المجرّد (sk_live_...) ليس رمزاً صالحاً ويرفضه الخادم برسالة
+ * "Invalid token"، لذا نكشفها مبكراً برسالة توضيحية بدل خطأ رفع غامض.
+ */
+export function isValidUploadToken(token: string): boolean {
+  const raw = token.trim();
+  if (raw.length === 0) return false;
+  if (raw.startsWith("sk_")) return false;
+  try {
+    const decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf8")) as {
+      apiKey?: unknown;
+      appId?: unknown;
+      regions?: unknown;
+    };
+    return (
+      typeof decoded.apiKey === "string" &&
+      decoded.apiKey.length > 0 &&
+      typeof decoded.appId === "string" &&
+      Array.isArray(decoded.regions)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * يرفع ملفًا إلى UploadThing
  * @returns { fileId, url } — key + ufsUrl (رابط مباشر عام)
  */
 export async function uploadFile(
   buffer: Buffer,
   fileName: string,
-  mimeType = "application/pdf"
+  mimeType = "application/pdf",
+  options: UploadOptions = {}
 ): Promise<StoredFile> {
   if (buffer.byteLength > MAX_UPLOAD_SIZE) {
     throw new Error(
@@ -43,11 +88,18 @@ export async function uploadFile(
     );
   }
 
+  const tenantToken = typeof options.token === "string" ? options.token.trim() : "";
+  if (tenantToken.length > 0 && !isValidUploadToken(tenantToken)) {
+    throw new Error(
+      "رمز UploadThing الخاص بالمستأجر غير صالح — يجب أن يكون base64 لـ JSON يحوي { apiKey, appId, regions } وليس المفتاح المجرّد"
+    );
+  }
+
   const file = new File([new Uint8Array(buffer)], sanitizeFileName(fileName, "file"), {
     type: mimeType,
   });
 
-  const result = await utapi.uploadFiles(file);
+  const result = await resolveUploader(tenantToken).uploadFiles(file);
 
   if (result.error) {
     throw new Error(`فشل رفع الملف: ${result.error.message}`);
