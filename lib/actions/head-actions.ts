@@ -9,11 +9,14 @@ import {
   AssessmentStatus,
   NotificationType,
   AuditAction,
-  type Student,
 } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { PAGE_SIZE } from "@/lib/utils";
+import {
+  HEAD_REVIEW_STUDENT_SELECT,
+  type HeadReviewStudent,
+} from "@/lib/privacy/student-projections";
 import {
   validateRejectionReason,
   rejectionReasonError,
@@ -36,12 +39,14 @@ async function recordAudit(
 /**
  * قائمة الطلاب بانتظار مراجعة رئيس الشؤون التعليمية (NOTIFIED)
  * عزل الصلاحيات: رئيس الشؤون فقط.
+ *
+ * إسقاط محدود (HEAD_REVIEW_STUDENT_SELECT) — لا سجل Student الكامل.
  */
 export async function getStudentsForHeadReview(
   page = 1,
   pageSize = PAGE_SIZE
 ): Promise<{
-  students: Student[];
+  students: HeadReviewStudent[];
   total: number;
   totalPages: number;
   page: number;
@@ -68,6 +73,7 @@ export async function getStudentsForHeadReview(
       orderBy: { createdAt: "desc" },
       skip,
       take: numericPageSize,
+      select: HEAD_REVIEW_STUDENT_SELECT,
     }),
     prisma.student.count({ where }),
   ]);

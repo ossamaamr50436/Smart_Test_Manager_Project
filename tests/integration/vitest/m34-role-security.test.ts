@@ -38,6 +38,7 @@ let headActions: typeof import("@/lib/actions/head-actions");
 let modelActions: typeof import("@/lib/actions/model-actions");
 let security: typeof import("@/lib/security");
 let tenancy: typeof import("@/lib/tenancy");
+let projections: typeof import("@/lib/privacy/student-projections");
 
 const OWN = "50436";
 const OTHER = "12345";
@@ -119,6 +120,7 @@ beforeAll(async () => {
   modelActions = await import("@/lib/actions/model-actions");
   security = await import("@/lib/security");
   tenancy = await import("@/lib/tenancy");
+  projections = await import("@/lib/privacy/student-projections");
 
   const own = await prisma.tenant.findUniqueOrThrow({
     where: { slug: OWN },
@@ -408,6 +410,107 @@ describe("M34/HEAD_OF_AFFAIRS — لا يرى تفاصيل التقييم", () =
       expect(s.tenantId).toBe(ownTenantId);
       expect(s).not.toHaveProperty("recitationScore");
       expect(s).not.toHaveProperty("tajweedScore");
+    }
+  });
+
+  it("getStudentsForHeadReview لا تُرجع بيانات ولي الأمر أو العنوان (إسقاط محدود)", async () => {
+    await asUser(E.head);
+    const out = await headActions.getStudentsForHeadReview();
+    for (const s of out.students) {
+      for (const field of projections.HEAD_REVIEW_FORBIDDEN_FIELDS) {
+        expect(
+          Object.prototype.hasOwnProperty.call(s, field),
+          `تسريب الحقل ${field} في إسقاط مراجعة رئيس الشؤون`
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("إسقاط مراجعة رئيس الشؤون مُعلَن كمحدد (select) في المصدر", () => {
+    const src = fs.readFileSync(
+      path.resolve(process.cwd(), "lib/actions/head-actions.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/HEAD_REVIEW_STUDENT_SELECT/);
+    expect(src).toMatch(/select: HEAD_REVIEW_STUDENT_SELECT/);
+    // تأكد أن الاستعلام نفسه لا يعتمد على include/السجل الكامل
+    const action = src.slice(
+      src.indexOf("export async function getStudentsForHeadReview"),
+      src.indexOf("export async function getStudentsRejectedByHead")
+    );
+    expect(action.includes("include:"), "getStudentsForHeadReview يستخدم include").toBe(false);
+    for (const field of ["parentPhone", "address", "nationality", "applicationFileUrl"]) {
+      expect(action.includes(field), `الحقل ${field} يظهر في إسقاط المراجعة`).toBe(false);
+    }
+  });
+
+  it("كل حقل يُرجَعه الإسقاط ضمن القائمة المسموحة", async () => {
+    await asUser(E.head);
+    const out = await headActions.getStudentsForHeadReview();
+    const allowed = new Set<string>(projections.HEAD_REVIEW_ALLOWED_FIELDS);
+    for (const s of out.students) {
+      for (const key of Object.keys(s)) {
+        expect(allowed.has(key), `حقل غير متوقع في إسقاط المراجعة: ${key}`).toBe(true);
+      }
+    }
+  });
+
+  it("إسقاط محدود على طالب مُنشأ بحقول حساسة مملوءة (تسريب صفري)", async () => {
+    const stamp = `m34-proj-${Date.now()}`;
+    const institution = await prisma.institution.findFirstOrThrow({
+      where: { tenantId: ownTenantId },
+      select: { id: true },
+    });
+    const created = await prisma.student.create({
+      data: {
+        name: stamp,
+        age: 14,
+        branch: "5",
+        nationality: "سعودي",
+        teacherName: "أ.ccccccccccc",
+        parentPhone: "0559999999",
+        address: "عنوان-سري-يجب-ألا-يتسرب",
+        phone: "0508888888",
+        applicationFileUrl: "https://files.local/secret.pdf",
+        applicationFileId: "file_secret_id",
+        status: "NOTIFIED",
+        institutionId: institution.id,
+        tenantId: ownTenantId,
+      },
+      select: { id: true },
+    });
+
+    try {
+      await asUser(E.head);
+      const out = await headActions.getStudentsForHeadReview();
+      const row = out.students.find((s) => s.id === created.id);
+      expect(row, "الطالب المُنشأ لم يظهر في قائمة مراجعة رئيس الشؤون").toBeDefined();
+      expect(row?.institution).toBeDefined();
+      expect(row?.examSessions).toEqual([]);
+
+      const keys = Object.keys(row as Record<string, unknown>);
+      for (const key of keys) {
+        expect(
+          projections.HEAD_REVIEW_FORBIDDEN_FIELDS.includes(key as never),
+          `تسريب الحقل ${key}`
+        ).toBe(false);
+      }
+      // تأكيد صريح بقيم البيانات الحساسة
+      const serialized = JSON.stringify(row);
+      for (const secret of [
+        "0559999999",
+        "0508888888",
+        "عنوان-سري-يجب-ألا-يتسرب",
+        "https://files.local/secret.pdf",
+        "file_secret_id",
+        "أ.ccccccccccc",
+      ]) {
+        expect(serialized.includes(secret), `تسرّب القيمة ${secret} عبر إسقاط المراجعة`).toBe(false);
+      }
+      // والحقول المسموحة فعلاً موجودة
+      expect(serialized).toContain(stamp);
+    } finally {
+      await prisma.student.deleteMany({ where: { id: created.id } });
     }
   });
 
