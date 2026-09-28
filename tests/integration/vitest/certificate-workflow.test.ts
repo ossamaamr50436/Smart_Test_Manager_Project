@@ -201,22 +201,93 @@ function buildSignaturePng(size = 48): Buffer {
  * ينشئ طالباً في حالة READY_FOR_CERTIFICATE داخل tenant الاختبار، بجلسة
  * اختبار مرتبطة بنموذج غير مستخدم وتقييم معتمد — حتى يكون مسار الإصدار
  * قابلاً للتنفيذ من جديد في كل تشغيل (idempotent).
+ *
+ * القالب (الموسم + اللجنة + المختبران) يُشتق من البيانات الموجودة أو يُنشأ
+ * إن غاب، فلا يعتمد الاختبار على أي صف留下ه تشغيل سابق.
  */
+const created = {
+  seasonIds: [] as string[],
+  committeeIds: [] as string[],
+  studentIds: [] as string[],
+  sessionIds: [] as string[],
+  modelIds: [] as string[],
+};
+
+async function ensureSeasonId(): Promise<string> {
+  const existing = await ctx.prisma.examSeason.findFirst({
+    where: { tenantId: TENANT_ID },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const season = await ctx.prisma.examSeason.create({
+    data: {
+      tenantId: TENANT_ID,
+      name: `موسم شهادات ${Date.now()}`,
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-12-31T00:00:00.000Z"),
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  created.seasonIds.push(season.id);
+  return season.id;
+}
+
+async function ensureTemplate(): Promise<{
+  seasonId: string;
+  teacher1Id: string;
+  teacher2Id: string;
+  branch: string;
+}> {
+  const seasonId = await ensureSeasonId();
+
+  const committee = await ctx.prisma.committee.findFirst({
+    where: { tenantId: TENANT_ID, seasonId },
+    select: { id: true, branch: true, teacher1Id: true, teacher2Id: true },
+  });
+  if (committee) {
+    return {
+      seasonId,
+      teacher1Id: committee.teacher1Id,
+      teacher2Id: committee.teacher2Id,
+      branch: toBranch(committee.branch),
+    };
+  }
+
+  const examiners = await ctx.prisma.user.findMany({
+    where: { tenantId: TENANT_ID, role: "EXAMINER" },
+    select: { id: true },
+    orderBy: { email: "asc" },
+    take: 2,
+  });
+  if (examiners.length < 2) {
+    throw new Error("يحتاج مستأجر الاختبار إلى مختبرين على الأقل");
+  }
+  const first = examiners[0];
+  const second = examiners[1];
+  if (!first || !second) throw new Error("المختبران غير متوفرين");
+
+  const made = await ctx.prisma.committee.create({
+    data: {
+      tenantId: TENANT_ID,
+      seasonId,
+      name: `لجنة شهادات ${Date.now()}`,
+      branch: "5",
+      teacher1Id: first.id,
+      teacher2Id: second.id,
+    },
+    select: { id: true },
+  });
+  created.committeeIds.push(made.id);
+
+  return { seasonId, teacher1Id: first.id, teacher2Id: second.id, branch: "5" };
+}
+
 async function createReadyStudent(label: string) {
   const stamp = `${label} ${Date.now()}`;
 
-  const template = await ctx.prisma.examSession.findFirstOrThrow({
-    where: { tenantId: TENANT_ID, modelId: { not: null } },
-    select: {
-      id: true,
-      seasonId: true,
-      teacher1Id: true,
-      teacher2Id: true,
-      examDate: true,
-      period: true,
-      model: { select: { branch: true } },
-    },
-  });
+  const template = await ensureTemplate();
 
   const usedModelIds = (
     await ctx.prisma.examSession.findMany({
@@ -243,18 +314,19 @@ async function createReadyStudent(label: string) {
   // — لا نعتمد على رصيد النماذج الحرة، فيبقى الاختبار قابلاً لإعادة التشغيل.
   // الفرع من اللجنة نفسها حتى يطابق فرع الطالب والنموذج (قاعدة M35).
   const branch = toBranch(committee.branch);
-  const created = await ctx.questionBank.createQuestionBankModel({
+  const created2 = await ctx.questionBank.createQuestionBankModel({
     modelNumber: 1,
     branch,
     segmentsCount: 5,
     segments: buildSegments(5),
   });
-  if (!created.success) throw new Error(`تعذر إنشاء نموذج لطالب ${stamp}`);
+  if (!created2.success) throw new Error(`تعذر إنشاء نموذج لطالب ${stamp}`);
 
   const freeModel = await ctx.prisma.questionBankModel.findUniqueOrThrow({
-    where: { id: created.modelId },
+    where: { id: created2.modelId },
     select: { id: true, branch: true },
   });
+  created.modelIds.push(freeModel.id);
 
   const institutionId = await ctx.prisma.institution.findFirstOrThrow({
     where: { tenantId: TENANT_ID },
@@ -265,7 +337,7 @@ async function createReadyStudent(label: string) {
     throw new Error("النموذج الجديد مستخدم مسبقاً — لا يجوز ربطه بجلسة");
   }
 
-  return ctx.prisma.$transaction(async (tx) => {
+  const studentId = await ctx.prisma.$transaction(async (tx) => {
     const student = await tx.student.create({
       data: {
         name: stamp,
@@ -290,8 +362,8 @@ async function createReadyStudent(label: string) {
         studentId: student.id,
         teacher1Id: template.teacher1Id,
         teacher2Id: template.teacher2Id,
-        examDate: template.examDate,
-        period: template.period,
+        examDate: new Date(),
+        period: "صباحية",
         status: "COMPLETED",
         seasonId: template.seasonId,
         modelId: freeModel.id,
@@ -312,8 +384,12 @@ async function createReadyStudent(label: string) {
       },
     });
 
+    created.studentIds.push(student.id);
+    created.sessionIds.push(examSession.id);
     return student.id;
   });
+
+  return studentId;
 }
 
 beforeAll(async () => {
@@ -353,6 +429,12 @@ beforeAll(async () => {
     run: { studentId: "", duplicateStudentId: "" },
   };
 
+  // حدّ المعدل مخزّن في قاعدة البيانات بنافذة 15 دقيقة، فتراكم التشغيلات
+  // المتكررة كان يُفشل هذا الملف رغم صحة الكود. تصفير مفاتيح هذا الملف فقط.
+  for (const id of [ctx.ids.certSource, ctx.ids.admin, ctx.ids.otherTenantCertSource]) {
+    await prisma.rateLimit.deleteMany({ where: { key: { contains: id } } });
+  }
+
   // الطلاب يحتاجون جلسة الأخصائي لإنشاء نموذج مخصّص لكل طالب
   await asUser(ctx.ids.specialist);
   ctx.run.studentId = await createReadyStudent("طالب دورة شهادة مباشرة");
@@ -361,7 +443,84 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
-  await ctx?.prisma.$disconnect();
+  if (!ctx?.prisma) return;
+  const prisma = ctx.prisma;
+  const studentIds = [ctx.run.studentId, ctx.run.duplicateStudentId].filter(Boolean);
+
+  if (studentIds.length > 0) {
+    const students = await prisma.student.findMany({
+      where: { id: { in: studentIds } },
+      select: { id: true, name: true },
+    });
+    const names = students.map((s) => s.name);
+
+    const certificates = await prisma.certificate.findMany({
+      where: { studentId: { in: studentIds } },
+      select: { id: true, fileId: true, signatureFileId: true },
+    });
+
+    for (const cert of certificates) {
+      for (const fileId of [cert.fileId, cert.signatureFileId]) {
+        if (!fileId) continue;
+        try {
+          await ctx.storage.deleteFile(fileId);
+        } catch {
+          // الملف محذوف مسبقاً أو غير متاح — لا يوقف التنظيف
+        }
+      }
+    }
+
+    await prisma.certificate.deleteMany({ where: { studentId: { in: studentIds } } });
+
+    if (names.length > 0) {
+      await prisma.notification.deleteMany({
+        where: {
+          tenantId: TENANT_ID,
+          OR: names.map((name) => ({ message: { contains: name } })),
+        },
+      });
+    }
+
+    const logs = await prisma.auditLog.findMany({
+      where: { tenantId: TENANT_ID },
+      select: { id: true, details: true },
+    });
+    const ids = [...studentIds, ...certificates.map((c) => c.id)];
+    const mine = logs.filter((log) => {
+      const raw = log.details;
+      const serialized = typeof raw === "string" ? raw : JSON.stringify(raw);
+      return ids.some((id) => serialized.includes(id));
+    });
+    if (mine.length > 0) {
+      await prisma.auditLog.deleteMany({ where: { id: { in: mine.map((l) => l.id) } } });
+    }
+
+    await prisma.assessment.deleteMany({
+      where: { examSession: { studentId: { in: studentIds } } },
+    });
+    await prisma.examSession.deleteMany({ where: { studentId: { in: studentIds } } });
+    await prisma.student.deleteMany({ where: { id: { in: studentIds } } });
+  }
+
+  if (created.modelIds.length > 0) {
+    await prisma.questionBankModel.deleteMany({
+      where: { id: { in: created.modelIds } },
+    });
+  }
+
+  if (created.committeeIds.length > 0) {
+    await prisma.committee.deleteMany({
+      where: { id: { in: created.committeeIds } },
+    });
+  }
+
+  if (created.seasonIds.length > 0) {
+    await prisma.examSeason.deleteMany({
+      where: { id: { in: created.seasonIds } },
+    });
+  }
+
+  await prisma.$disconnect();
 });
 
 // ------------------------------------------------------------

@@ -137,92 +137,102 @@ export async function generateCertificate(studentId: string) {
     throw new Error("لا توجد درجة نهائية معتمدة لهذا الطالب");
   }
 
-  // الرقم التسلسلي التالي — استخدام مسار ذري آمن من race condition
-  // نستخدم create مع unique constraint ونعيد المحاولة عند التعارض
+  // الرقم التسلسلي: التفرّد يضمنه قيد serialNumber الفريد في قاعدة البيانات،
+  // لا الفحص المسبق (race condition بين إصدارين متزامنين). لذلك: محاولة ->
+  // PDF -> رفع -> insert، وعند تعارض الترقيم يُحذف الملف المرفوع وتُعاد
+  // المحاولة برقم آخر.
+  const tenantFilter = getTenantFilter(user);
+  const maxSerialAttempts = 5;
   let serialNumber = "";
-  let created = false;
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const count = await prisma.certificate.count({
-      where: getTenantFilter(user),
-    });
-    serialNumber = buildSerialNumber(count + 1 + attempt);
-    const exists = await prisma.certificate.findUnique({
-      where: { serialNumber },
-      select: { id: true },
-    });
-    if (!exists) {
-      created = true;
+  let fileUrl = "";
+  let certificate = null;
+
+  for (let attempt = 0; attempt < maxSerialAttempts; attempt++) {
+    const issuedCount = await prisma.certificate.count({ where: tenantFilter });
+    serialNumber = buildSerialNumber(issuedCount + 1 + attempt);
+
+    // 1) توليد PDF (وضع القالب الذكي أو الافتراضي)
+    const settings = await getPlatformSettings();
+    let pdfBuffer: Buffer;
+
+    if (settings.useTemplateMode && settings.templateFileId) {
+      // القالب الذكي: تحميل القالب من وحدة التخزين وتعبئته
+      const templateBytes = await downloadTemplateBytes(settings.templateFileId);
+      const dateStr = new Date().toLocaleDateString("ar-SA", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      pdfBuffer = await fillPdfTemplate(
+        templateBytes,
+        student.name,
+        finalScore,
+        dateStr
+      );
+    } else {
+      // التوليد الكامل (افتراضي)
+      pdfBuffer = await generateCertificatePdfBuffer({
+        studentName: student.name,
+        finalScore,
+        issuedDate: new Date(),
+        serialNumber,
+        managerName: "مدير الاختبارات",
+        organizationName: student.institution?.name,
+      });
+    }
+
+    // 2) رفع الشهادة على وحدة تخزين المستأجر (UploadThing برمز المستأجر)
+    let uploadedFileId = "";
+    try {
+      const tenantUpload = await prisma.tenant.findUnique({
+        where: { id: requireTenantId(user) },
+        select: { uploadthingToken: true },
+      });
+      const uploaded = await uploadFile(
+        pdfBuffer,
+        `${serialNumber}-${student.name}.pdf`,
+        "application/pdf",
+        { token: tenantUpload?.uploadthingToken }
+      );
+      fileUrl = uploaded.url;
+      uploadedFileId = uploaded.fileId;
+    } catch (uploadError) {
+      // عدم توفر إعدادات التخزين يمنع إتمام الإصدار — لا نخزن الملف محلياً
+      throw new Error("تعذر رفع الشهادة على وحدة التخزين — تحقق من الإعدادات");
+    }
+
+    // 3) حفظ سجل الشهادة — القيد الفريد هو الحَكَم النهائي
+    try {
+      certificate = await prisma.certificate.create({
+        data: {
+          serialNumber,
+          studentId: student.id,
+          finalScore,
+          fileUrl,
+          issuedDate: new Date(),
+          status: CertificateStatus.PENDING,
+          issuedById: user.id,
+          tenantId: requireTenantId(user),
+        },
+      });
       break;
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      // تعارض ترقيم مع إصدار متزامن: نظّف الملف المرفوع ثم أعد المحاولة
+      try {
+        await deleteFile(uploadedFileId);
+      } catch {
+        // فشل التنظيف لا يفسد المحاولة التالية
+      }
+      fileUrl = "";
+      if (attempt === maxSerialAttempts - 1) {
+        throw new Error("تعذر حجز رقم تسلسلي فريد — أعد المحاولة بعد قليل");
+      }
     }
   }
-  if (!created) {
-    throw new Error("تعذر توليد رقم تسلسلي فريد — حاول مرة أخرى");
-  }
 
-  // 1) توليد PDF (وضع القالب الذكي أو الافتراضي)
-  const settings = await getPlatformSettings();
-  let pdfBuffer: Buffer;
-
-  if (settings.useTemplateMode && settings.templateFileId) {
-    // القالب الذكي: تحميل القالب من وحدة التخزين وتعبئته
-    const templateBytes = await downloadTemplateBytes(
-      settings.templateFileId
-    );
-    const dateStr = new Date().toLocaleDateString("ar-SA", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-    pdfBuffer = await fillPdfTemplate(
-      templateBytes,
-      student.name,
-      finalScore,
-      dateStr
-    );
-  } else {
-    // التوليد الكامل (افتراضي)
-    pdfBuffer = await generateCertificatePdfBuffer({
-      studentName: student.name,
-      finalScore,
-      issuedDate: new Date(),
-      serialNumber,
-      managerName: "مدير الاختبارات",
-      organizationName: student.institution?.name,
-    });
-  }
-
-  // 2) رفع الشهادة على وحدة التخزين (UploadThing)
-  let fileUrl = "";
-  try {
-    const uploaded = await uploadFile(
-      pdfBuffer,
-      `${serialNumber}-${student.name}.pdf`,
-      "application/pdf"
-    );
-    fileUrl = uploaded.url;
-  } catch (uploadError) {
-    // عدم توفر إعدادات التخزين يمنع إتمام الإصدار — لا نخزن الملف محلياً
-    throw new Error("تعذر رفع الشهادة على وحدة التخزين — تحقق من الإعدادات");
-  }
-
-  // 3) حفظ سجل الشهادة
-  let certificate;
-  try {
-    certificate = await prisma.certificate.create({
-      data: {
-        serialNumber,
-        studentId: student.id,
-        finalScore,
-        fileUrl,
-        issuedDate: new Date(),
-        status: CertificateStatus.PENDING,
-        issuedById: user.id,
-        tenantId: requireTenantId(user),
-      },
-    });
-  } catch (error) {
-    if (isUniqueConstraintError(error)) throw new Error(friendlyUniqueMessage(error));
-    throw error;
+  if (!certificate) {
+    throw new Error("تعذر حجز رقم تسلسلي فريد — أعد المحاولة بعد قليل");
   }
 
   // 4) تحديث حالة الطالب
@@ -360,11 +370,16 @@ export async function signCertificate(certificateId: string, signatureBuffer: Bu
     throw new Error("الشهادة موقّعة بالفعل");
   }
 
-  // رفع صورة التوقيع على وحدة التخزين
+  // رفع صورة التوقيع على وحدة تخزين المستأجر (UploadThing برمز المستأجر)
+  const tenantUpload = await prisma.tenant.findUnique({
+    where: { id: certificate.tenantId },
+    select: { uploadthingToken: true },
+  });
   const uploaded = await uploadFile(
     buffer,
     `signature-${certificate.serialNumber}.png`,
-    "image/png"
+    "image/png",
+    { token: tenantUpload?.uploadthingToken }
   );
 
   await prisma.certificate.update({
@@ -490,7 +505,9 @@ export async function sendCertificateToInstitution(certificateId: string) {
   if (certificate.status === CertificateStatus.SENT) {
     throw new Error("الشهادة أُرسلت للجهة من قبل");
   }
-  if (certificate.status === CertificateStatus.PENDING || certificate.status === CertificateStatus.UPLOADED) {
+  // الإرسال مسموح للشهادة الموقّعة فقط — قائمة سماح لا قائمة منع، حتى لا
+  // تُرسل أي حالة أخرى تُضاف لاحقاً إلى التعداد بالخطأ.
+  if (certificate.status !== CertificateStatus.SIGNED) {
     throw new Error("لا يمكن إرسال شهادة لم تُوقَّع بعد — انتظر توقيع الإدارة");
   }
 
