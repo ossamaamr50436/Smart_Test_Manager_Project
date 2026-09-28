@@ -6,6 +6,7 @@ import { Role } from "@prisma/client";
 import { AssessmentBoard } from "@/components/examiner/assessment-board";
 import { getCachedTenantConfig } from "@/lib/cache";
 import { getTenantFilter } from "@/lib/tenancy";
+import { getUsedModelAssignmentsInCommittee } from "@/lib/models/model-availability";
 
 export const metadata: Metadata = {
   title: "التقييم التفاعلي",
@@ -149,15 +150,17 @@ export default async function AssessStudentPage({
     );
   }
 
-  const usedModels = await prisma.examSession.findMany({
-    where: {
-      seasonId: committee.seasonId,
-      studentId: { not: student.id },
-      student: { committeeId: student.committeeId },
-      status: { not: "CANCELLED" },
-    },
-    select: { modelId: true },
-  });
+  // M9-A/B: رفض نموذج مستخدم مسبقاً من طالب آخر في نفس اللجنة
+  // نفس قاعدة `getUsedModelAssignmentsInCommittee` المستخدمة في قائمة الانتظار.
+  const usedModelIds = new Set(
+    (
+      await getUsedModelAssignmentsInCommittee({
+        seasonId: committee.seasonId,
+        committeeId: student.committeeId,
+        excludeStudentId: student.id,
+      })
+    ).map((a) => a.modelId)
+  );
 
   if (!model) {
     return (
@@ -172,7 +175,7 @@ export default async function AssessStudentPage({
   }
 
   // M9-A/B: رفض نموذج مستخدم مسبقاً من طالب آخر في نفس اللجنة
-  if (usedModels.some((u) => u.modelId === model.id)) {
+  if (usedModelIds.has(model.id)) {
     return (
       <div className="mx-auto mt-16 max-w-xl rounded-lg border bg-destructive/10 p-8 text-center">
         <h1 className="text-2xl font-bold">هذا النموذج مستخدم مسبقاً</h1>

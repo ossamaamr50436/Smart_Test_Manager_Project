@@ -17,7 +17,8 @@ export const questionBankSchema = z.object({
     .number({ invalid_type_error: "عدد المقاطع يجب أن يكون رقماً" })
     .int("عدد المقاطع يجب أن يكون عدداً صحيحاً")
     .min(1, "عدد المقاطع لا يقل عن 1")
-    .max(10, "عدد المقاطع لا يتجاوز 10"),
+    .max(10, "عدد المقاطع لا يتجاوز 10")
+    .default(5),
   segments: z
     .array(examSegmentSchema, { required_error: "قائمة المقاطع مطلوبة" })
     .min(1, "يجب أن يتضمن النموذج مقطعاً واحداً على الأقل")

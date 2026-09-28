@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/actions/auth-actions";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { getTenantFilter } from "@/lib/tenancy";
+import { getUsedModelAssignmentsInCommittee } from "@/lib/models/model-availability";
 import { ExaminerDashboardClient } from "@/components/examiner/examiner-dashboard-client";
 
 export const metadata: Metadata = { title: "الطلاب بانتظار الاختبار" };
@@ -48,27 +49,14 @@ export default async function ExaminerPendingPage() {
   });
   const assessedIds = new Set(myAssessments.map((a) => a.examSession.studentId));
 
-  // M9: النماذج المستخدمة = نماذج حُجزت لطلاب آخرين في نفس اللجنة
-  const usedModelNumbers = new Set<number>();
-  if (committee) {
-    const usedSessions = await prisma.examSession.findMany({
-      where: {
-        seasonId: committee.seasonId,
-        student: { committeeId: committee.id },
-        status: { not: "CANCELLED" },
-        model: { isNot: null },
-      },
-      select: {
-        studentId: true,
-        model: { select: { modelNumber: true } },
-      },
-    });
-    for (const s of usedSessions) {
-      if (!assessedIds.has(s.studentId) && s.model?.modelNumber) {
-        usedModelNumbers.add(s.model.modelNumber);
-      }
-    }
-  }
+  // M9: النماذج المستخدمة = نماذج حُجزت لطلاب آخرين في نفس اللجنة.
+  // نفس القاعدة التي تفرضها بوابة التقييم على الخادم — لا يُعرض نموذج
+  // ثم يُرفض عند البدء.
+  const usedAssignments = await getUsedModelAssignmentsInCommittee({
+    seasonId: committee?.seasonId ?? "",
+    committeeId: committee?.id ?? null,
+  });
+  const usedModelNumbers = [...new Set(usedAssignments.map((a) => a.modelNumber))];
 
   const pendingStudents = (committee?.students ?? [])
     .filter((s) => !assessedIds.has(s.id))
