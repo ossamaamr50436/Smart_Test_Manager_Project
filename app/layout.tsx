@@ -112,10 +112,10 @@ export default async function RootLayout({
   const loginGradientFrom = settings.loginGradientFrom ?? "#014a4e";
   const loginGradientTo = settings.loginGradientTo ?? "#d3bb8b";
   const loginCardBg = settings.loginCardBg ?? "#ffffff";
-  const buttonPrimaryBg = settings.buttonPrimaryBg ?? "#015e63";
-  const buttonPrimaryText = settings.buttonPrimaryText ?? "#ffffff";
-  const buttonSecondaryBg = settings.buttonSecondaryBg ?? "#d3bb8b";
-  const buttonSecondaryText = settings.buttonSecondaryText ?? "#0f172a";
+  const buttonPrimaryBg = settings.buttonPrimaryBg || "#015e63";
+  const buttonPrimaryText = settings.buttonPrimaryText || "#ffffff";
+  const buttonSecondaryBg = settings.buttonSecondaryBg || "#d3bb8b";
+  const buttonSecondaryText = settings.buttonSecondaryText || "#0f172a";
   // Dark Mode Tokens (D1) — قيم الوضع الداكن لكل عنصر
   const primaryColorDark = settings.primaryColorDark ?? "#0e6e73";
   const secondaryColorDark = settings.secondaryColorDark ?? "#e2d3ab";
@@ -133,10 +133,10 @@ export default async function RootLayout({
   const loginGradientFromDark = settings.loginGradientFromDark ?? "#06282b";
   const loginGradientToDark = settings.loginGradientToDark ?? "#182830";
   const loginCardBgDark = settings.loginCardBgDark ?? "#121c22";
-  const buttonPrimaryBgDark = settings.buttonPrimaryBgDark ?? "#0e6e73";
-  const buttonPrimaryTextDark = settings.buttonPrimaryTextDark ?? "#ffffff";
-  const buttonSecondaryBgDark = settings.buttonSecondaryBgDark ?? "#d3bb8b";
-  const buttonSecondaryTextDark = settings.buttonSecondaryTextDark ?? "#0f172a";
+  const buttonPrimaryBgDark = settings.buttonPrimaryBgDark || "#0e6e73";
+  const buttonPrimaryTextDark = settings.buttonPrimaryTextDark || "#ffffff";
+  const buttonSecondaryBgDark = settings.buttonSecondaryBgDark || "#d3bb8b";
+  const buttonSecondaryTextDark = settings.buttonSecondaryTextDark || "#0f172a";
   const defaultTheme = settings.darkModeEnabled ? "dark" : "light";
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
