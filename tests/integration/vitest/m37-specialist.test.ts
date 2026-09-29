@@ -270,6 +270,15 @@ describe("M37/A — عرض الأخصائي", () => {
   it("تعديل الدرجة اختياري (0-100) مع سجل تدقيق SPECIALIST_SCORE_OVERRIDE", async () => {
     const fx = await makeFixture(`m37a-approve-${Date.now()}`, "COMPLETED");
     try {
+      const specialist = await asUser(E.specialist);
+      // نقيس السجلات الجديدة فقط: سجلات SPECIALIST_SCORE_OVERRIDE من تشغيلات سابقة
+      // كانت تُقرأ كلها فتُطلق خطأ "سُجّل override بلا تعديل" زائفاً.
+      const baseline = (
+        await prisma.auditLog.findMany({
+          where: { userId: specialist.id },
+          select: { id: true },
+        })
+      ).map((a) => a.id);
       // بلا تعديل
       await asUser(E.specialist);
       const r = await adminActions.specialistFinalApprove(fx.studentId);
@@ -292,7 +301,7 @@ describe("M37/A — عرض الأخصائي", () => {
 
       // لا سجل override بلا تعديل
       const noOverride = await prisma.auditLog.findMany({
-        where: { userId: (await asUser(E.specialist)).id },
+        where: { userId: specialist.id, id: { notIn: baseline } },
         select: { details: true },
       });
       expect(
