@@ -55,7 +55,7 @@ export function InstitutionStudentsTable({
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead>
               <tr className="border-b text-right text-muted-foreground">
                 <th className="pb-2 font-medium">اسم الطالب</th>
@@ -72,7 +72,7 @@ export function InstitutionStudentsTable({
             <tbody>
               {students.map((student) => (
                 <tr key={student.id} className="border-b last:border-0">
-                  <td className="py-3 font-medium">
+                  <td className="max-w-[160px] truncate py-3 font-medium" title={student.name}>
                     <Link
                       href={`/institution/students/${student.id}`}
                       className="text-primary hover:underline"
@@ -80,30 +80,34 @@ export function InstitutionStudentsTable({
                       {student.name}
                     </Link>
                   </td>
-                  <td className="py-3">{student.age}</td>
-                  <td className="py-3">{student.nationality || "—"}</td>
-                  <td className="py-3">{getBranchLabel(student.branch)}</td>
-                  <td className="py-3">{student.teacherName}</td>
-                  <td className="py-3" dir="ltr">
+                  <td className="whitespace-nowrap py-3 tabular-nums">{student.age}</td>
+                  <td className="max-w-[120px] truncate py-3" title={student.nationality ?? ""}>
+                    {student.nationality || "—"}
+                  </td>
+                  <td className="whitespace-nowrap py-3">{getBranchLabel(student.branch)}</td>
+                  <td className="max-w-[160px] truncate py-3" title={student.teacherName}>
+                    {student.teacherName}
+                  </td>
+                  <td className="whitespace-nowrap py-3 tabular-nums" dir="ltr">
                     {student.parentPhone || "—"}
                   </td>
-                  <td className="py-3">
+                  <td className="whitespace-nowrap py-3">
                     <span
                       className={
                         student.submittedById
-                          ? "inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700"
-                          : "inline-flex rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700"
+                          ? "inline-flex whitespace-nowrap rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700"
+                          : "inline-flex whitespace-nowrap rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700"
                       }
                     >
                       {student.submittedById ? "أخصائي الاختبارات" : "الجهة التعليمية"}
                     </span>
                   </td>
-                  <td className="py-3">
-                    <span className="inline-flex rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
+                  <td className="whitespace-nowrap py-3">
+                    <span className="inline-flex whitespace-nowrap rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
                       {STATUS_LABELS[student.status] ?? student.status}
                     </span>
                   </td>
-                  <td className="py-3">
+                  <td className="whitespace-nowrap py-3 tabular-nums">
                     {student.createdAt.toLocaleDateString("ar-SA")}
                   </td>
                 </tr>

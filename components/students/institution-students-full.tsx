@@ -130,7 +130,7 @@ export function InstitutionStudentsFull({ students }: Props) {
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full min-w-[1280px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b">
                     <th className="p-2 text-right font-medium">الاسم</th>
@@ -157,7 +157,7 @@ export function InstitutionStudentsFull({ students }: Props) {
                     const certificate = s.certificates[0] ?? null;
                     return (
                       <tr key={s.id} className="border-b">
-                        <td className="p-2">
+                        <td className="max-w-[160px] truncate p-2" title={s.name}>
                           <Link
                             href={`/institution/students/${s.id}`}
                             className="font-medium text-primary hover:underline"
@@ -165,23 +165,35 @@ export function InstitutionStudentsFull({ students }: Props) {
                             {s.name}
                           </Link>
                         </td>
-                        <td className="p-2">{s.age}</td>
-                        <td className="p-2">{s.nationality || "—"}</td>
-                        <td className="p-2">{getBranchLabel(s.branch)}</td>
-                        <td className="p-2">{s.teacherName}</td>
-                        <td className="p-2" dir="ltr">{s.parentPhone || "—"}</td>
-                        <td className="p-2">{s.address || "—"}</td>
-                        <td className="p-2">{fmtDate(s.createdAt)}</td>
-                        <td className="p-2">{fmtDate(s.approvedAt)}</td>
-                        <td className="p-2">{session ? fmtDate(session.examDate) : "لم يُحدَّد"}</td>
-                        <td className="p-2">{session?.period ?? "لم يُحدَّد"}</td>
-                        <td className="p-2">{s.committee?.name ?? "—"}</td>
-                        <td className="p-2">
+                        <td className="whitespace-nowrap p-2 tabular-nums">{s.age}</td>
+                        <td className="max-w-[120px] truncate p-2" title={s.nationality}>
+                          {s.nationality || "—"}
+                        </td>
+                        <td className="whitespace-nowrap p-2">{getBranchLabel(s.branch)}</td>
+                        <td className="max-w-[160px] truncate p-2" title={s.teacherName}>
+                          {s.teacherName}
+                        </td>
+                        <td className="whitespace-nowrap p-2 tabular-nums" dir="ltr">
+                          {s.parentPhone || "—"}
+                        </td>
+                        <td className="max-w-[180px] truncate p-2" title={s.address ?? ""}>
+                          {s.address || "—"}
+                        </td>
+                        <td className="whitespace-nowrap p-2 tabular-nums">{fmtDate(s.createdAt)}</td>
+                        <td className="whitespace-nowrap p-2 tabular-nums">{fmtDate(s.approvedAt)}</td>
+                        <td className="whitespace-nowrap p-2 tabular-nums">
+                          {session ? fmtDate(session.examDate) : "لم يُحدَّد"}
+                        </td>
+                        <td className="whitespace-nowrap p-2">{session?.period ?? "لم يُحدَّد"}</td>
+                        <td className="max-w-[140px] truncate p-2" title={s.committee?.name ?? ""}>
+                          {s.committee?.name ?? "—"}
+                        </td>
+                        <td className="whitespace-nowrap p-2 tabular-nums">
                           {finalAssessment ? finalAssessment.finalScore.toFixed(2) : "—"}
                         </td>
-                        <td className="p-2">
+                        <td className="whitespace-nowrap p-2">
                           {certificate ? (
-                            <span className="text-xs">
+                            <span className="inline-flex whitespace-nowrap text-xs">
                               {certificate.serialNumber}
                               <span className="mx-1 text-muted-foreground">—</span>
                               {CERT_STATUS_LABELS[certificate.status] ?? certificate.status}
@@ -190,8 +202,8 @@ export function InstitutionStudentsFull({ students }: Props) {
                             "—"
                           )}
                         </td>
-                        <td className="p-2">
-                          <span className="inline-flex rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
+                        <td className="whitespace-nowrap p-2">
+                          <span className="inline-flex whitespace-nowrap rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
                             {STATUS_LABELS[s.status] ?? s.status}
                           </span>
                         </td>
