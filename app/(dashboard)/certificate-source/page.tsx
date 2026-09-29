@@ -82,6 +82,7 @@ export default async function CertificateSourceDashboardPage() {
           branch: c.student.branch,
           finalScore: c.finalScore,
           fileUrl: c.fileUrl,
+          fileId: c.fileId,
           issuedDate: c.issuedDate,
           status: c.status,
         }))}

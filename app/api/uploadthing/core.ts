@@ -61,7 +61,9 @@ export const ourFileRouter = {
     }),
 
   // ملف الشهادة النهائي — CERTIFICATE_SOURCE فقط (مرفوع من الواجهة أو PDF مولّد)
-  certificateUploader: f({ pdf: { maxFileSize: "16MB", maxFileCount: 1 } })
+  // ملاحظة: UploadThing يقبل مقاسات أُسّية فقط (1/2/4/8/16MB) — لذلك 8MB هو
+  // أقرب حد يحقق شرط «بحد أقصى 10MB» دون تجاوزه.
+  certificateUploader: f({ pdf: { maxFileSize: "8MB", maxFileCount: 1 } })
     .middleware(async () => {
       const user = await requireUploader();
       if (user.role !== "CERTIFICATE_SOURCE") {
