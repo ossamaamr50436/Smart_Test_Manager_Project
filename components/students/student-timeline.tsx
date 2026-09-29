@@ -62,7 +62,7 @@ export function StudentTimeline({ steps }: { steps: TimelineStep[] }) {
         return (
           <li key={step.id} className="relative">
             <span
-              className={`absolute -right-[29px] top-0 flex h-8 w-8 items-center justify-center rounded-full ${
+              className={`absolute -right-[29px] top-0 z-0 flex h-8 w-8 items-center justify-center rounded-full ${
                 step.done
                   ? meta.color
                   : "bg-muted text-muted-foreground"
@@ -70,7 +70,7 @@ export function StudentTimeline({ steps }: { steps: TimelineStep[] }) {
             >
               <StepIcon className="h-4 w-4" />
             </span>
-            <div>
+            <div className="relative z-10 ps-2">
               <p className="flex flex-wrap items-center gap-2 font-medium">
                 {step.title}
                 {step.done ? (
