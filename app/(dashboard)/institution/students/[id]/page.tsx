@@ -42,6 +42,22 @@ const CERT_STATUS_LABELS: Record<string, string> = {
   SENT: "مُرسَلة",
 };
 
+const REVIEW_CONCLUDED_STATUSES: StudentStatus[] = [
+  StudentStatus.APPROVED,
+  StudentStatus.ASSIGNED,
+  StudentStatus.COMPLETED,
+  StudentStatus.NOTIFIED,
+  StudentStatus.REJECTED,
+  StudentStatus.REJECTED_BY_HEAD,
+  StudentStatus.READY_FOR_CERTIFICATE,
+  StudentStatus.CERTIFICATE_ISSUED,
+];
+
+const FINAL_APPROVAL_STATUSES: StudentStatus[] = [
+  StudentStatus.READY_FOR_CERTIFICATE,
+  StudentStatus.CERTIFICATE_ISSUED,
+];
+
 export default async function StudentDetailsPage({
   params,
 }: {
@@ -77,6 +93,8 @@ export default async function StudentDetailsPage({
       approvedAt: true,
       assignedAt: true,
       finalizedAt: true,
+      committeeId: true,
+      committee: { select: { name: true } },
       submittedById: true,
       submittedBy: { select: { name: true, role: true } },
       institution: { select: { name: true } },
@@ -129,6 +147,14 @@ export default async function StudentDetailsPage({
 
   const certificate = full.certificates[0] ?? null;
 
+  const isReviewConcluded = REVIEW_CONCLUDED_STATUSES.includes(full.status);
+  const hasCommittee = Boolean(full.committeeId);
+  const hasExamSession = full.examSessions.length > 0;
+  const hasFinalScore = Boolean(finalAssessment && finalAssessment.finalScore > 0);
+  const isFinalApproved =
+    Boolean(full.finalizedAt) || FINAL_APPROVAL_STATUSES.includes(full.status);
+  const hasCertificate = full.certificates.length > 0;
+
   const steps: TimelineStep[] = [
     {
       id: "nomination",
@@ -139,19 +165,34 @@ export default async function StudentDetailsPage({
       icon: "nomination",
     },
     {
+      id: "nomination-review",
+      title: "مراجعة الترشيح",
+      date: full.approvedAt,
+      description: isReviewConcluded
+        ? "انتهت مراجعة الترشيح من أخصائي الاختبارات"
+        : "بانتظار الترشيح — في انتظار مراجعة أخصائي الاختبارات",
+      done: isReviewConcluded,
+      icon: "waiting",
+    },
+    {
       id: "approval",
       title: "قبول الترشيح",
       date: full.approvedAt,
-      description: "قرار أخصائي الاختبارات",
-      done: Boolean(full.approvedAt) || full.status !== StudentStatus.PENDING,
+      description:
+        full.status === StudentStatus.REJECTED || full.status === StudentStatus.REJECTED_BY_HEAD
+          ? "تم رفض الترشيح"
+          : "قرار أخصائي الاختبارات",
+      done: isReviewConcluded && full.status !== StudentStatus.REJECTED && full.status !== StudentStatus.REJECTED_BY_HEAD,
       icon: "approval",
     },
     {
       id: "assignment",
       title: "التوزيع على لجنة",
       date: full.assignedAt,
-      description: "تشكيل لجنة الاختبار",
-      done: Boolean(full.assignedAt),
+      description: full.committee?.name
+        ? `اللجنة: ${full.committee.name}`
+        : "تشكيل لجنة الاختبار",
+      done: hasCommittee,
       icon: "assignment",
     },
     {
@@ -160,8 +201,8 @@ export default async function StudentDetailsPage({
       date: latestSession?.examDate ?? null,
       description: latestSession
         ? `الفترة: ${latestSession.period}`
-        : undefined,
-      done: Boolean(latestSession),
+        : "لم تُسجَّل جلسة اختبار بعد",
+      done: hasExamSession,
       icon: "exam",
     },
     {
@@ -171,7 +212,7 @@ export default async function StudentDetailsPage({
       description: finalAssessment
         ? `الدرجة: ${finalAssessment.finalScore.toFixed(2)} / 100`
         : undefined,
-      done: Boolean(finalAssessment),
+      done: hasFinalScore,
       icon: "score",
     },
     {
@@ -179,7 +220,7 @@ export default async function StudentDetailsPage({
       title: "الاعتماد النهائي",
       date: full.finalizedAt,
       description: "اعتماد رئيس الشؤون التعليمية",
-      done: Boolean(full.finalizedAt),
+      done: isFinalApproved,
       icon: "final",
     },
     {
@@ -189,7 +230,7 @@ export default async function StudentDetailsPage({
       description: certificate
         ? `رقم الشهادة: ${certificate.serialNumber} — الحالة: ${CERT_STATUS_LABELS[certificate.status] ?? certificate.status}`
         : undefined,
-      done: Boolean(certificate),
+      done: hasCertificate,
       icon: "certificate",
     },
   ];

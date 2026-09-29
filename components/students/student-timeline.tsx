@@ -2,6 +2,7 @@ import {
   CalendarPlus,
   CheckCircle2,
   ClipboardList,
+  Clock,
   FileCheck2,
   GraduationCap,
   PenLine,
@@ -15,11 +16,20 @@ export type TimelineStep = {
   date: Date | null;
   description?: string;
   done: boolean;
-  icon: "nomination" | "approval" | "assignment" | "exam" | "score" | "final" | "certificate";
+  icon:
+    | "nomination"
+    | "waiting"
+    | "approval"
+    | "assignment"
+    | "exam"
+    | "score"
+    | "final"
+    | "certificate";
 };
 
 const ICONS: Record<TimelineStep["icon"], { icon: typeof GraduationCap; color: string }> = {
   nomination: { icon: CalendarPlus, color: "text-sky-600 bg-sky-100" },
+  waiting: { icon: Clock, color: "text-slate-600 bg-slate-100" },
   approval: { icon: CheckCircle2, color: "text-emerald-600 bg-emerald-100" },
   assignment: { icon: ClipboardList, color: "text-indigo-600 bg-indigo-100" },
   exam: { icon: PenLine, color: "text-amber-600 bg-amber-100" },
