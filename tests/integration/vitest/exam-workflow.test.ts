@@ -220,7 +220,40 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await ctx?.prisma.$disconnect();
+  const prisma = ctx?.prisma;
+  if (!prisma) return;
+  try {
+    // تنظيف آثار هذا الملف: طلابه يُنشأون بأسماء تحمل طابعاً زمنياً، وتراكمها
+    // كان يحتلّ (الموسم، النموذج) فيُسقط m35/F بقيد Unique في التشغيلات التالية.
+    const created = await prisma.student.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        OR: [
+          { name: { startsWith: "طالب ترشيح مباشر " } },
+          { name: { startsWith: "طالب فرع " } },
+        ],
+      },
+      select: { id: true },
+    });
+    const studentIds = created.map((s) => s.id);
+    if (studentIds.length) {
+      const sessions = await prisma.examSession.findMany({
+        where: { studentId: { in: studentIds } },
+        select: { id: true },
+      });
+      const sessionIds = sessions.map((s) => s.id);
+      await prisma.certificate.deleteMany({ where: { studentId: { in: studentIds } } });
+      if (sessionIds.length) {
+        await prisma.notification.deleteMany({ where: { examSessionId: { in: sessionIds } } });
+        await prisma.assessment.deleteMany({ where: { examSessionId: { in: sessionIds } } });
+        await prisma.examSession.deleteMany({ where: { id: { in: sessionIds } } });
+      }
+      await prisma.student.deleteMany({ where: { id: { in: studentIds } } });
+    }
+  } catch {
+    // تنظيف best-effort — لا نُفشل الاختبار بسببه
+  }
+  await prisma.$disconnect();
 });
 
 // ------------------------------------------------------------
