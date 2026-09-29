@@ -4,6 +4,7 @@ import { Cairo } from "next/font/google";
 import "./globals.css";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getCachedPlatformSettings } from "@/lib/cache";
+import { readableTextOn } from "@/lib/colors";
 import { DEFAULT_PLATFORM_LOGO, PLATFORM_LOGO_ALT } from "@/lib/platform-brand";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ServiceWorkerRegister } from "@/components/providers/service-worker-register";
@@ -94,6 +95,9 @@ export default async function RootLayout({
   const primaryColor = settings.primaryColor || "#015e63";
   const secondaryColor = settings.secondaryColor || "#d3bb8b";
   const accentColor = settings.accentColor ?? "#1a262e";
+  // لون نص الـ accent يُشتق من إضاءة الخلفية نفسها (WCAG AA) — بدونه كان
+  // `bg-accent text-accent-foreground` ينتج نصاً أسود على خلفية سوداء.
+  const accentForeground = readableTextOn(accentColor);
   const backgroundColor = settings.backgroundColor ?? "#ffffff";
   const textColor = settings.textColor ?? "#0f172a";
   const borderColor = settings.borderColor ?? "#e2e8f0";
@@ -120,6 +124,7 @@ export default async function RootLayout({
   const primaryColorDark = settings.primaryColorDark ?? "#0e6e73";
   const secondaryColorDark = settings.secondaryColorDark ?? "#e2d3ab";
   const accentColorDark = settings.accentColorDark ?? "#0f1a22";
+  const accentForegroundDark = readableTextOn(accentColorDark);
   const backgroundColorDark = settings.backgroundColorDark ?? "#0e171b";
   const textColorDark = settings.textColorDark ?? "#eef1f4";
   const borderColorDark = settings.borderColorDark ?? "#24343e";
@@ -148,6 +153,7 @@ export default async function RootLayout({
             --primary: ${primaryColor};
             --secondary: ${secondaryColor};
             --accent: ${accentColor};
+            --accent-foreground: ${accentForeground};
             --background: ${backgroundColor};
             --foreground: ${textColor};
             --border: ${borderColor};
@@ -181,6 +187,7 @@ export default async function RootLayout({
             --primary: ${primaryColorDark};
             --secondary: ${secondaryColorDark};
             --accent: ${accentColorDark};
+            --accent-foreground: ${accentForegroundDark};
             --background: ${backgroundColorDark};
             --foreground: ${textColorDark};
             --border: ${borderColorDark};

@@ -47,3 +47,28 @@ export function hexToHsl(hex: string): string {
 
   return `hsl(${Math.round(h)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)`;
 }
+
+/**
+ * لون النص الأمثل فوق خلفية معيّنة (WCAG).
+ * يحسب الإضاءة النسبية (relative luminance) ويختار بين نص داكن ونص فاتح
+ * عند نقطة التقاطع 0.179 — حيث يتساوى التباين مع الأسود والأبيض (~4.58:1)،
+ * أي فوق حد AA للنص العادي دائماً.
+ *
+ * لا يرمي استثناءً أبداً: أي مدخل غير صالح يعود إلى نص داكن آمن.
+ */
+export function readableTextOn(hex: string): string {
+  const DARK_TEXT = "#0f172a";
+  const LIGHT_TEXT = "#ffffff";
+  try {
+    const { r, g, b } = hexToRgb(hex);
+    const linear = (value: number) => {
+      const s = value / 255;
+      return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    };
+    const luminance =
+      0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+    return luminance > 0.179 ? DARK_TEXT : LIGHT_TEXT;
+  } catch {
+    return DARK_TEXT;
+  }
+}

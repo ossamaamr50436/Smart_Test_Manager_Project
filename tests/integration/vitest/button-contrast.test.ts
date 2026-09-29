@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { VariantProps } from "class-variance-authority";
 import { buttonVariants } from "@/components/ui/button";
+import { readableTextOn } from "@/lib/colors";
 
 type VariantName = NonNullable<VariantProps<typeof buttonVariants>["variant"]>;
 
@@ -294,6 +295,75 @@ describe("button variant contrast", () => {
     expect(buttonSource).toContain("text-[var(--button-primary-text)]");
     expect(buttonSource).toContain("bg-[var(--button-secondary-bg)]");
     expect(buttonSource).toContain("text-[var(--button-secondary-text)]");
+  });
+});
+
+describe("accent token contrast", () => {
+  const ACCENT_FALLBACK_RE =
+    /const accentColor(Dark)? = settings\.accentColor\1 \?\? "([^"]+)";/g;
+  const settingsProviderSource = readFile("components/providers/settings-provider.tsx");
+
+  function accentFallbacks(): { light: string; dark: string } {
+    const found: { light: string; dark: string } = { light: "", dark: "" };
+    let match = ACCENT_FALLBACK_RE.exec(layoutSource);
+    while (match !== null) {
+      const [, isDark, fallback] = match;
+      if (isDark) found.dark = fallback ?? "";
+      else found.light = fallback ?? "";
+      match = ACCENT_FALLBACK_RE.exec(layoutSource);
+    }
+    ACCENT_FALLBACK_RE.lastIndex = 0;
+    return found;
+  }
+
+  it("declares an --accent-foreground next to --accent in both themes", () => {
+    expect(layoutSource).toContain("--accent: ${accentColor};");
+    expect(layoutSource).toContain("--accent-foreground: ${accentForeground};");
+    expect(layoutSource).toContain("--accent: ${accentColorDark};");
+    expect(layoutSource).toContain("--accent-foreground: ${accentForegroundDark};");
+  });
+
+  it("derives the accent foreground from the accent luminance in both themes", () => {
+    const fallbacks = accentFallbacks();
+    expect(fallbacks.light, "light accent fallback").toBeTruthy();
+    expect(fallbacks.dark, "dark accent fallback").toBeTruthy();
+
+    expect(layoutSource).toContain("readableTextOn(accentColor)");
+    expect(layoutSource).toContain("readableTextOn(accentColorDark)");
+
+    expect(fallbacks.light, "accent fallback must be a hex color").toMatch(
+      /^#[0-9a-f]{6}$/i
+    );
+    expect(fallbacks.dark, "dark accent fallback must be a hex color").toMatch(
+      /^#[0-9a-f]{6}$/i
+    );
+
+    for (const [mode, accent] of Object.entries(fallbacks)) {
+      const foreground = readableTextOn(accent);
+      expect(["#0f172a", "#ffffff"], `${mode} accent foreground is a safe token`).toContain(
+        foreground
+      );
+    }
+  });
+
+  it("keeps bg-accent / text-accent-foreground at AA for the shipped defaults", () => {
+    const fallbacks = accentFallbacks();
+    for (const mode of ["light", "dark"] as const) {
+      const accent = fallbacks[mode];
+      expect(accent, `${mode} accent background`).toBeTruthy();
+      const foreground = readableTextOn(accent);
+      const ratio = contrastRatio(foreground, accent);
+      expect(ratio, `accent contrast in ${mode}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("re-applies the accent foreground after hydration so it cannot regress", () => {
+    expect(settingsProviderSource).toContain(
+      "--accent-foreground: ${hexToHsl(readableTextOn(tokens.accentColor))};"
+    );
+    expect(settingsProviderSource).toContain(
+      "--accent-foreground: ${hexToHsl(readableTextOn(tokens.accentColorDark))};"
+    );
   });
 });
 

@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { PlatformSettings, DesignTokens } from "@/lib/actions/settings-actions";
 import { getMyTenantColors } from "@/lib/actions/super-admin-actions";
 import { getMyTenantDesignTokens } from "@/lib/actions/settings-actions";
-import { hexToHsl } from "@/lib/colors";
+import { hexToHsl, readableTextOn } from "@/lib/colors";
 import { resolveLogoUrl, DEFAULT_PLATFORM_LOGO } from "@/lib/platform-brand";
 
 // ============================================================
@@ -142,6 +142,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       --primary: ${hexToHsl(tokens.primaryColor)};
       --secondary: ${hexToHsl(tokens.secondaryColor)};
       --accent: ${hexToHsl(tokens.accentColor)};
+      --accent-foreground: ${hexToHsl(readableTextOn(tokens.accentColor))};
       --background: ${hexToHsl(tokens.backgroundColor)};
       --foreground: ${hexToHsl(tokens.textColor)};
       --border: ${hexToHsl(tokens.borderColor)};
@@ -166,6 +167,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       --primary: ${hexToHsl(tokens.primaryColorDark)};
       --secondary: ${hexToHsl(tokens.secondaryColorDark)};
       --accent: ${hexToHsl(tokens.accentColorDark)};
+      --accent-foreground: ${hexToHsl(readableTextOn(tokens.accentColorDark))};
       --background: ${hexToHsl(tokens.backgroundColorDark)};
       --foreground: ${hexToHsl(tokens.textColorDark)};
       --border: ${hexToHsl(tokens.borderColorDark)};
