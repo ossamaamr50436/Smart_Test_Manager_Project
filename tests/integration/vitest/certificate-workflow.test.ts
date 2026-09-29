@@ -738,7 +738,9 @@ describe("M39 — إرسال الشهادة", () => {
 
     await asUser(ctx.ids.certSource);
     const message = await rejection(ctx.actions.sendCertificateToInstitution(cert.id));
-    expect(message).toContain("لم تُوقَّع");
+    // التصميم الجديد: الإرسال يتطلب ملفاً مرفوعاً (UPLOADED) أو توقيعاً (SIGNED)
+    // — الشهادة المولّدة تلقائياً (PENDING) بلا ملف مرفوع لا تُرسل.
+    expect(message).toMatch(/لم يُرفع|ارفع ملف الشهادة/);
   });
 
   it("يرفض التوقيع من مصدر الشهادات (التوقيع لمسؤول رفيع فقط)", async () => {

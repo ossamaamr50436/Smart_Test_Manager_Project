@@ -18,7 +18,7 @@ export default async function CertificateSourceDashboardPage() {
     redirect("/");
   }
 
-  // الطلاب الجاهزون لإصدار الشهادة (أكملوا جميع المراحل)
+  // 1) الطلاب الجاهزون — بانتظار رفع الشهادة من مصدر الشهادات
   const readyStudents = await prisma.student.findMany({
     where: { ...getTenantFilter(user), status: StudentStatus.READY_FOR_CERTIFICATE },
     include: {
@@ -41,7 +41,7 @@ export default async function CertificateSourceDashboardPage() {
     orderBy: { updatedAt: "desc" },
   });
 
-  const rows = readyStudents.map((student) => {
+  const readyRows = readyStudents.map((student) => {
     const assessment = student.examSessions[0]?.assessments[0];
     return {
       id: student.id,
@@ -52,15 +52,19 @@ export default async function CertificateSourceDashboardPage() {
     };
   });
 
-  // الشهادات الصادرة مؤخراً (عرض مباشر من قاعدة البيانات — بدون بيانات وهمية)
-  const issuedCertificates = await prisma.certificate.findMany({
-    where: { ...getTenantFilter(user), status: { in: ["PENDING", "UPLOADED", "SIGNED", "SENT"] } },
-    include: {
-      student: {
-        select: { name: true, branch: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
+  // 2) الشهادات المرفوعة فعلياً — بانتظار الإرسال للجهة
+  const uploaded = await prisma.certificate.findMany({
+    where: { ...getTenantFilter(user), status: "UPLOADED" },
+    include: { student: { select: { name: true, branch: true } } },
+    orderBy: { issuedDate: "desc" },
+    take: 50,
+  });
+
+  // 3) الشهادات المُرسَلة — أرشيف
+  const sent = await prisma.certificate.findMany({
+    where: { ...getTenantFilter(user), status: "SENT" },
+    include: { student: { select: { name: true, branch: true } } },
+    orderBy: { sentAt: "desc" },
     take: 50,
   });
 
@@ -69,22 +73,31 @@ export default async function CertificateSourceDashboardPage() {
       <div>
         <h1 className="text-2xl font-bold">لوحة مصدر الشهادات</h1>
         <p className="mt-1 text-muted-foreground">
-          الطلاب الذين أكملوا جميع المراحل فقط — إصدار الشهادات ورفعها إلى التخزين السحابي
+          النظام وسيط إرسال فقط — الشهادة تُصدر من الجمعية، تُرفع هنا ثم تُرسَل للجهة التعليمية
         </p>
       </div>
 
       <CertificateTable
-        readyStudents={rows}
-        issuedCertificates={issuedCertificates.map((c) => ({
+        readyStudents={readyRows}
+        uploadedCertificates={uploaded.map((c) => ({
           id: c.id,
           serialNumber: c.serialNumber,
           studentName: c.student.name,
           branch: c.student.branch,
           finalScore: c.finalScore,
           fileUrl: c.fileUrl,
-          fileId: c.fileId,
           issuedDate: c.issuedDate,
-          status: c.status,
+          sentAt: c.sentAt,
+        }))}
+        sentCertificates={sent.map((c) => ({
+          id: c.id,
+          serialNumber: c.serialNumber,
+          studentName: c.student.name,
+          branch: c.student.branch,
+          finalScore: c.finalScore,
+          fileUrl: c.fileUrl,
+          issuedDate: c.issuedDate,
+          sentAt: c.sentAt,
         }))}
       />
     </div>

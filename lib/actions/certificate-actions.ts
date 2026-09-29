@@ -70,6 +70,7 @@ function buildSerialNumber(index: number): string {
   return `CERT-${year}-${String(index).padStart(4, "0")}`;
 }
 
+// Legacy: النظام لا يُولِّد الشهادات — استخدام createCertificateFromUpload بدلاً منها.
 /**
  * إصدار شهادة لطالب جاهز (READY_FOR_CERTIFICATE)
  * - يولّد PDF جديداً
@@ -271,6 +272,131 @@ export async function generateCertificate(studentId: string) {
   revalidatePath("/certificate-source");
 
   return { success: true, certificateId: certificate.id, serialNumber, fileUrl };
+}
+
+/**
+ * إنشاء سجل شهادة من ملف PDF رُفع فعلياً من مصدر الشهادات.
+ *
+ * النظام وسيط إرسال: الشهادة تُصدر خارجياً عن الجمعية، فيرفعها
+ * مصدر الشهادات هنا، فتُسجَّل بحالة UPLOADED مباشرة (لأن الملف موجود فوراً).
+ *
+ * - لا يولّد النظام أي PDF
+ * - يمنع التكرار: شهادة واحدة لكل طالب
+ * - يحدّث حالة الطالب إلى CERTIFICATE_ISSUED
+ */
+export async function createCertificateFromUpload(input: {
+  studentId: string;
+  url: string;
+  fileId: string;
+}): Promise<
+  | { success: true; certificateId: string; serialNumber: string }
+  | { success: false; error: string }
+> {
+  const user = await requireUser();
+
+  // عزل الصلاحيات: مصدر الشهادات فقط (المادة 8/5)
+  requireRole(user, [Role.CERTIFICATE_SOURCE]);
+
+  await checkRateLimit(`create-certificate:${user.id}`, 30);
+
+  if (!input?.studentId || input.studentId.length < 1 || input.studentId.length > 64) {
+    return { success: false, error: "معرّف الطالب غير صالح" };
+  }
+
+  // الملف المرفوع يجب أن يكون على وحدة تخزين موثوقة (منع تخزين روابط خارجية)
+  if (!isTrustedStoredUrl(input.url) || !isValidFileKey(input.fileId)) {
+    return { success: false, error: "الرابط المرفوع غير موثوق — أعد رفع الملف" };
+  }
+
+  const student = await prisma.student.findUnique({
+    where: { id: input.studentId },
+    select: { id: true, name: true, status: true, tenantId: true },
+  });
+  if (!student) {
+    return { success: false, error: "الطالب غير موجود" };
+  }
+  assertSameTenant(user, student);
+
+  // المرحلة الصحيحة فقط: جاهز لإصدار الشهادة
+  if (student.status !== StudentStatus.READY_FOR_CERTIFICATE) {
+    return {
+      success: false,
+      error: "الطالب لم يصل لمرحلة إصدار الشهادة بعد (الحالة الحالية للمراحل السابقة)",
+    };
+  }
+
+  // منع التكرار: شهادة واحدة فقط لكل طالب
+  const existing = await prisma.certificate.findFirst({
+    where: { ...getTenantFilter(user), studentId: student.id },
+    select: { id: true },
+  });
+  if (existing) {
+    return { success: false, error: "عُدّلت شهادة لهذا الطالب مسبقاً" };
+  }
+
+  const finalScore = await getStudentFinalScore(student.id);
+  if (finalScore === null) {
+    return { success: false, error: "لا توجد درجة نهائية معتمدة لهذا الطالب" };
+  }
+
+  // الرقم التسلسلي: قيد serialNumber الفريد في قاعدة البيانات هو الحَكَم
+  // النهائي، فالمحاولة تكرّر عند التصادم بدل الفحص المسبق (race condition).
+  const tenantFilter = getTenantFilter(user);
+  const maxSerialAttempts = 5;
+  let certificateId = "";
+  let serialNumber = "";
+
+  for (let attempt = 0; attempt < maxSerialAttempts; attempt++) {
+    const issuedCount = await prisma.certificate.count({ where: tenantFilter });
+    const candidate = buildSerialNumber(issuedCount + 1 + attempt);
+
+    try {
+      const created = await prisma.certificate.create({
+        data: {
+          serialNumber: candidate,
+          studentId: student.id,
+          finalScore,
+          fileUrl: input.url,
+          fileId: input.fileId,
+          issuedDate: new Date(),
+          status: CertificateStatus.UPLOADED,
+          issuedById: user.id,
+          tenantId: requireTenantId(user),
+        },
+      });
+      certificateId = created.id;
+      serialNumber = created.serialNumber;
+      break;
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      if (attempt === maxSerialAttempts - 1) {
+        return { success: false, error: "تعذر حجز رقم تسلسلي فريد — أعد المحاولة بعد قليل" };
+      }
+    }
+  }
+
+  if (!certificateId) {
+    return { success: false, error: "تعذر حجز رقم تسلسلي فريد — أعد المحاولة بعد قليل" };
+  }
+
+  // تحديث حالة الطالب
+  await prisma.student.update({
+    where: { id: student.id },
+    data: { status: StudentStatus.CERTIFICATE_ISSUED },
+  });
+
+  // سجل التدقيق
+  await recordAudit(user.id, AuditAction.CREATE, {
+    entity: "Certificate",
+    certificateId,
+    studentId: student.id,
+    serialNumber,
+    source: "upload",
+  });
+
+  revalidatePath("/certificate-source");
+
+  return { success: true, certificateId, serialNumber };
 }
 
 /**
@@ -505,10 +631,14 @@ export async function sendCertificateToInstitution(certificateId: string) {
   if (certificate.status === CertificateStatus.SENT) {
     throw new Error("الشهادة أُرسلت للجهة من قبل");
   }
-  // الإرسال مسموح للشهادة الموقّعة فقط — قائمة سماح لا قائمة منع، حتى لا
-  // تُرسل أي حالة أخرى تُضاف لاحقاً إلى التعداد بالخطأ.
-  if (certificate.status !== CertificateStatus.SIGNED) {
-    throw new Error("لا يمكن إرسال شهادة لم تُوقَّع بعد — انتظر توقيع الإدارة");
+  // الإرسال مسموح بعد رفع الملف الفعلي (UPLOADED) أو بعد التوقيع (SIGNED
+  // للتوافق مع المسار القديم) — قائمة سماح لا قائمة منع، حتى لا تُرسل أي
+  // حالة أخرى تُضاف لاحقاً إلى التعداد بالخطأ.
+  if (
+    certificate.status !== CertificateStatus.UPLOADED &&
+    certificate.status !== CertificateStatus.SIGNED
+  ) {
+    throw new Error("لا يمكن إرسال شهادة لم يُرفع ملفها — ارفع ملف الشهادة أولاً");
   }
 
   await prisma.certificate.update({

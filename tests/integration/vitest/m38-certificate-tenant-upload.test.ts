@@ -413,6 +413,111 @@ describe("M38 — إصدار الشهادة مع رفع مخصّص للمستأ�
   }, 180_000);
 });
 
+describe("M38 — وسيط الشهادات: createCertificateFromUpload + الإرسال", () => {
+  it("createCertificateFromUpload ينشئ شهادة بحالة UPLOADED من طالب READY_FOR_CERTIFICATE", async () => {
+    await asCertSource();
+    const studentId = await makeReadyStudent("طالب وسيط الرفع");
+
+    const result = await actions.createCertificateFromUpload({
+      studentId,
+      url: "https://example.test/uploaded-cert.pdf",
+      fileId: "test-uploaded-cert",
+    });
+
+    expect(result.success, result.success ? "" : result.error).toBe(true);
+    if (!result.success) return;
+    expect(result.certificateId).toBeTruthy();
+    expect(result.serialNumber).toMatch(/^CERT-\d{4}-\d{4}$/);
+
+    const certificate = await prisma.certificate.findUniqueOrThrow({
+      where: { id: result.certificateId },
+      select: {
+        status: true,
+        fileUrl: true,
+        fileId: true,
+        issuedDate: true,
+        finalScore: true,
+        tenantId: true,
+      },
+    });
+    expect(certificate.status, "حالة الشهادة بعد الرفع").toBe("UPLOADED");
+    expect(certificate.fileUrl).toBe("https://example.test/uploaded-cert.pdf");
+    expect(certificate.fileId).toBe("test-uploaded-cert");
+    expect(certificate.issuedDate, "تاريخ الإصدار").toBeTruthy();
+    expect(certificate.finalScore).toBeGreaterThan(0);
+    expect(certificate.tenantId).toBe(tenantId);
+
+    const student = await prisma.student.findUniqueOrThrow({
+      where: { id: studentId },
+      select: { status: true },
+    });
+    expect(student.status, "حالة الطالب بعد الرفع").toBe("CERTIFICATE_ISSUED");
+  }, 90_000);
+
+  it("يرفض الرفع إن لم يكن الطالب READY_FOR_CERTIFICATE", async () => {
+    await asCertSource();
+    const studentId = await makeReadyStudent("طالب غير جاهز للرفع");
+    await prisma.student.update({ where: { id: studentId }, data: { status: "COMPLETED" } });
+
+    const result = await actions.createCertificateFromUpload({
+      studentId,
+      url: "https://example.test/not-ready.pdf",
+      fileId: "test-not-ready",
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toMatch(/لم يصل لمرحلة إصدار الشهادة/);
+    expect(await prisma.certificate.count({ where: { studentId } })).toBe(0);
+  }, 90_000);
+
+  it("يرفض الرفع إن كان للطالب شهادة مسبقاً", async () => {
+    await asCertSource();
+    const studentId = await makeReadyStudent("طالب شهادة مسبقة");
+
+    const first = await actions.createCertificateFromUpload({
+      studentId,
+      url: "https://example.test/first.pdf",
+      fileId: "test-first",
+    });
+    expect(first.success, first.success ? "" : first.error).toBe(true);
+
+    const second = await actions.createCertificateFromUpload({
+      studentId,
+      url: "https://example.test/second.pdf",
+      fileId: "test-second",
+    });
+    expect(second.success).toBe(false);
+    if (second.success) return;
+    expect(second.error).toMatch(/شهادة/);
+    expect(await prisma.certificate.count({ where: { studentId } })).toBe(1);
+  }, 120_000);
+
+  it("sendCertificateToInstitution يقبل UPLOADED ويحوّلها إلى SENT", async () => {
+    await asCertSource();
+    const studentId = await makeReadyStudent("طالب إرسال الوسيط");
+
+    const created = await actions.createCertificateFromUpload({
+      studentId,
+      url: "https://example.test/send-via-mediator.pdf",
+      fileId: "test-send-mediator",
+    });
+    expect(created.success, created.success ? "" : created.error).toBe(true);
+    if (!created.success) return;
+
+    const sent = await actions.sendCertificateToInstitution(created.certificateId);
+    expect(sent.success).toBe(true);
+    expect(sent.status).toBe("SENT");
+
+    const certificate = await prisma.certificate.findUniqueOrThrow({
+      where: { id: created.certificateId },
+      select: { status: true, sentAt: true },
+    });
+    expect(certificate.status, "حالة الشهادة بعد الإرسال").toBe("SENT");
+    expect(certificate.sentAt, "تاريخ الإرسال").toBeTruthy();
+  }, 90_000);
+});
+
 describe("اختيار عميل الرفع حسب المستأجر", () => {
   it("يربط الرمز الفارغ أو غير الموجود بالعميل العام", async () => {
     const storage = await vi.importActual<typeof import("@/lib/file-storage")>(
